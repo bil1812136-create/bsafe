@@ -22,7 +22,7 @@ class _ReportScreenState extends State<ReportScreen> {
   bool _isAnalyzing = false;
   bool _isSubmitting = false;
   bool _isScanning = false;
-  Timer? _scanTimer;
+  // Timer? _scanTimer; // 暫時未使用
   Map<String, dynamic>? _aiResult;
 
   // AI 分析後的結果
@@ -708,6 +708,7 @@ class _ReportScreenState extends State<ReportScreen> {
   }
 }
 
+// ignore: unused_element
 class _ImageSourceButton extends StatelessWidget {
   final IconData icon;
   final String label;

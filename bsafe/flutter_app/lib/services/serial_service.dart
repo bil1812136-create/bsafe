@@ -1,7 +1,7 @@
+// ignore_for_file: avoid_web_libraries_in_flutter
 import 'dart:async';
-// ignore: avoid_web_libraries_in_flutter
 import 'dart:js_interop';
-// ignore: avoid_web_libraries_in_flutter
+import 'dart:js_interop_unsafe';
 import 'package:web/web.dart' as web;
 import 'package:flutter/foundation.dart';
 
@@ -27,7 +27,7 @@ class SerialService {
   bool get isSupported {
     try {
       final navigator = web.window.navigator;
-      return navigator.has('serial');
+      return js_util.hasProperty(navigator, 'serial');
     } catch (e) {
       return false;
     }
@@ -210,14 +210,48 @@ class SerialService {
 }
 
 /// JS 互操作工具
+/// 注意: 此文件僅供 Web 平台使用，桌面平台使用 desktop_serial_service.dart
 class js_util {
+  static bool hasProperty(dynamic o, String name) {
+    try {
+      return (o as JSObject).has(name);
+    } catch (e) {
+      return false;
+    }
+  }
+
   static dynamic getProperty(dynamic o, String name) {
     return (o as JSObject).getProperty(name.toJS);
   }
 
   static dynamic callMethod(dynamic o, String method, List<dynamic> args) {
-    return (o as JSObject).callMethod(method.toJS,
-        args.map((e) => e is JSAny ? e : (e as Object).toJS).toList().toJS);
+    final obj = o as JSObject;
+    final jsMethod = obj.getProperty(method.toJS) as JSFunction;
+    // 將參數轉換為 JS 類型，根據參數數量調用
+    switch (args.length) {
+      case 0:
+        return jsMethod.callAsFunction(obj);
+      case 1:
+        return jsMethod.callAsFunction(obj, _toJsAny(args[0]));
+      case 2:
+        return jsMethod.callAsFunction(
+            obj, _toJsAny(args[0]), _toJsAny(args[1]));
+      case 3:
+        return jsMethod.callAsFunction(
+            obj, _toJsAny(args[0]), _toJsAny(args[1]), _toJsAny(args[2]));
+      default:
+        return jsMethod.callAsFunction(obj, _toJsAny(args[0]));
+    }
+  }
+
+  static JSAny? _toJsAny(dynamic e) {
+    if (e is JSAny) return e;
+    if (e is Map) return e.jsify();
+    if (e is String) return e.toJS;
+    if (e is int) return e.toJS;
+    if (e is double) return e.toJS;
+    if (e is bool) return e.toJS;
+    return null;
   }
 
   static dynamic jsify(Map<String, dynamic> map) {

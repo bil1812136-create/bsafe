@@ -183,6 +183,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
+  // ignore: unused_element
   void _showFilterDialog() {
     showModalBottomSheet(
       context: context,

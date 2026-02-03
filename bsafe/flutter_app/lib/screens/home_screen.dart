@@ -10,6 +10,7 @@ import 'package:bsafe_app/widgets/animated_counter.dart';
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
+  // ignore: unused_element
   Widget _buildHealthBar(Map<String, dynamic> stats) {
     final highRisk = stats['highRisk'] ?? 0;
     final totalRisk = (stats['total'] ?? 0);

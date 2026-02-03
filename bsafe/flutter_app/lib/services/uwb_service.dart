@@ -316,6 +316,10 @@ class UwbService extends ChangeNotifier {
 
   // 处理从串口接收到的数据 - 即時更新
   void processSerialData(String data) {
+    // 調試：記錄收到數據時間和計數
+    _lastDataTime = DateTime.now();
+    _dataReceiveCount++;
+
     // 記錄原始數據（減少日誌以提高性能）
     if (_rawDataLog.length < 50) {
       final hexData = data.codeUnits
@@ -328,11 +332,22 @@ class UwbService extends ChangeNotifier {
       _rawDataLog.removeAt(0);
     }
 
-    // 調試：記錄收到數據
-    _lastDataTime = DateTime.now();
-    _dataReceiveCount++;
+    // 調試：打印數據格式 (每50個包一次)
+    if (_dataReceiveCount % 50 == 1) {
+      debugPrint(
+          '原始數據 (前100字): ${data.substring(0, data.length > 100 ? 100 : data.length)}');
+      debugPrint(
+          '數據類型: RAWBIN=${data.startsWith("RAWBIN:")}, CmdM=${data.startsWith("CmdM")}');
+    }
 
     final tag = parseUwbData(data);
+
+    // 調試：打印解析結果
+    if (_dataReceiveCount % 10 == 0) {
+      debugPrint(
+          '數據包 #$_dataReceiveCount: tag=${tag != null ? "有效 x=${tag.x.toStringAsFixed(2)}, y=${tag.y.toStringAsFixed(2)}" : "null"}');
+    }
+
     if (tag != null) {
       _currentTag = tag;
 
@@ -527,7 +542,7 @@ class UwbService extends ChangeNotifier {
   // 解析原始二进制数据
   // 格式: RAWBIN:length:43 6d 64 4d 3a 34 5b ...
   // BU04 TWR 模式實際數據格式 (根據實際抓包分析):
-  // "CmdM:4[" + 二進制數據 + "]"
+  // "CmdM:4[" + 二進制數據 (+ 可選的 "]")
   // 91 字節數據: [時間戳8B][D0 2B][D1 2B][00...][數據重複]
   UwbTag? _parseRawBinaryFormat(String data) {
     try {
@@ -541,16 +556,23 @@ class UwbService extends ChangeNotifier {
       final bytes =
           hexBytes.map((h) => int.tryParse(h, radix: 16) ?? 0).toList();
 
-      // 找到 '[' (0x5b) 和 ']' (0x5d) 來定位數據區域
+      // 找到 '[' (0x5b) 來定位數據區域開始
       final bracketStart = bytes.indexOf(0x5b);
-      final bracketEnd = bytes.lastIndexOf(0x5d);
-
-      if (bracketStart < 0 || bracketEnd <= bracketStart) {
+      if (bracketStart < 0) {
         return null;
       }
 
-      // 提取 '[' 和 ']' 之間的數據
-      final dataBytes = bytes.sublist(bracketStart + 1, bracketEnd);
+      // ']' 可能存在也可能不存在，如果沒有則使用整個剩餘數據
+      final bracketEnd = bytes.lastIndexOf(0x5d);
+
+      List<int> dataBytes;
+      if (bracketEnd > bracketStart) {
+        // 有 ']' 結尾，提取 '[' 和 ']' 之間的數據
+        dataBytes = bytes.sublist(bracketStart + 1, bracketEnd);
+      } else {
+        // 沒有 ']'，使用 '[' 之後的所有數據
+        dataBytes = bytes.sublist(bracketStart + 1);
+      }
 
       // 忽略太短的數據包
       if (dataBytes.length < 12) {
@@ -906,7 +928,7 @@ class UwbService extends ChangeNotifier {
 
     double sumAA = 0, sumAB = 0, sumBB = 0;
     double sumAC = 0, sumBC = 0;
-    double sumWeight = 0;
+    double sumWeight = 0; // ignore: unused_local_variable
 
     for (int i = 1; i < validAnchors.length; i++) {
       final double xi = validAnchors[i].x;
