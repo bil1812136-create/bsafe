@@ -222,14 +222,19 @@ class _LocationScreenState extends State<LocationScreen>
                               ),
                             ),
                             // 數據接收指示燈
-                            if (uwbService.isConnected && uwbService.lastDataTime != null)
+                            if (uwbService.isConnected &&
+                                uwbService.lastDataTime != null)
                               Padding(
                                 padding: const EdgeInsets.only(left: 8),
                                 child: Container(
                                   width: 8,
                                   height: 8,
                                   decoration: BoxDecoration(
-                                    color: DateTime.now().difference(uwbService.lastDataTime!).inMilliseconds < 500
+                                    color: DateTime.now()
+                                                .difference(
+                                                    uwbService.lastDataTime!)
+                                                .inMilliseconds <
+                                            500
                                         ? Colors.yellowAccent
                                         : Colors.grey,
                                     shape: BoxShape.circle,

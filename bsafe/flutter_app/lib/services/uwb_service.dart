@@ -305,8 +305,7 @@ class UwbService extends ChangeNotifier {
   // 啟動 UI 刷新定時器 - 實時刷新 (每50毫秒，約20fps)
   void _startUiRefreshTimer() {
     _uiRefreshTimer?.cancel();
-    _uiRefreshTimer =
-        Timer.periodic(const Duration(milliseconds: 50), (timer) {
+    _uiRefreshTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
       if (_isConnected) {
         notifyListeners();
       } else {
@@ -322,8 +321,8 @@ class UwbService extends ChangeNotifier {
       final hexData = data.codeUnits
           .map((c) => c.toRadixString(16).padLeft(2, '0'))
           .join(' ');
-      _rawDataLog
-          .add('[${DateTime.now().toString().substring(11, 19)}] HEX: $hexData');
+      _rawDataLog.add(
+          '[${DateTime.now().toString().substring(11, 19)}] HEX: $hexData');
     }
     if (_rawDataLog.length > 50) {
       _rawDataLog.removeAt(0);
