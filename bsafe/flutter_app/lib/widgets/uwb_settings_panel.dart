@@ -419,10 +419,10 @@ class _UwbSettingsPanelState extends State<UwbSettingsPanel>
           
           const SizedBox(height: 16),
           _buildSectionTitle('偏移設置'),
-          _buildNumberInputRowWithUnit('X 偏移', _xOffsetController, '像素', (v) {
+          _buildNumberInputRowWithUnit('X 偏移', _xOffsetController, '米', (v) {
             _updateConfig(config.copyWith(xOffset: v));
           }),
-          _buildNumberInputRowWithUnit('Y 偏移', _yOffsetController, '像素', (v) {
+          _buildNumberInputRowWithUnit('Y 偏移', _yOffsetController, '米', (v) {
             _updateConfig(config.copyWith(yOffset: v));
           }),
           const SizedBox(height: 16),

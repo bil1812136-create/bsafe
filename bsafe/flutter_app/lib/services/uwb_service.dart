@@ -5,7 +5,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:pdfx/pdfx.dart';
+import 'package:pdfrx/pdfrx.dart';
 import 'package:bsafe_app/models/uwb_model.dart';
 import 'package:bsafe_app/services/desktop_serial_service.dart';
 
@@ -284,28 +284,38 @@ class UwbService extends ChangeNotifier {
   /// 載入 PDF 第一頁 → 柵格化為 ui.Image
   Future<void> _loadPdfImage(String filePath) async {
     final document = await PdfDocument.openFile(filePath);
-    final page = await document.getPage(1);
+    final page = document.pages[0];
 
     // 以較高解析度渲染 PDF 頁面
     final pageImage = await page.render(
-      width: page.width * 2,
-      height: page.height * 2,
-      format: PdfPageImageFormat.png,
+      width: (page.width * 2).toInt(),
+      height: (page.height * 2).toInt(),
     );
 
-    await page.close();
-    await document.close();
-
-    if (pageImage == null || pageImage.bytes == null) {
+    if (pageImage == null) {
+      document.dispose();
       throw Exception('PDF 頁面渲染失敗');
     }
 
-    // 將 PNG bytes 轉為 ui.Image
-    final ui.Codec codec = await ui.instantiateImageCodec(pageImage.bytes);
+    // 將像素數據轉為 ui.Image
+    final pixels = pageImage.pixels;
+    final ui.ImmutableBuffer buffer = await ui.ImmutableBuffer.fromUint8List(pixels);
+    final ui.ImageDescriptor descriptor = ui.ImageDescriptor.raw(
+      buffer,
+      width: pageImage.width,
+      height: pageImage.height,
+      pixelFormat: ui.PixelFormat.rgba8888,
+    );
+    final ui.Codec codec = await descriptor.instantiateCodec();
     final ui.FrameInfo frameInfo = await codec.getNextFrame();
+
+    descriptor.dispose();
+    buffer.dispose();
 
     _floorPlanImage?.dispose();
     _floorPlanImage = frameInfo.image;
+
+    document.dispose();
   }
 
   /// 清除平面地圖

@@ -164,31 +164,34 @@ class UwbCanvasPainter extends CustomPainter {
     final imgWidth = img.width.toDouble();
     final imgHeight = img.height.toDouble();
 
-    // 使用配置中的偏移和比例
-    // xScale/yScale = 像素/米, 即圖片上每米對應多少像素
-    // xOffset/yOffset = 像素偏移
-
-    // 圖片原始尺寸對應的實際範圍 (米)
+    // xScale/yScale = 像素/米 (圖片上每米對應多少像素)
+    // xOffset/yOffset = 實際座標 (米) - 圖片左上角在 UWB 座標系中的位置
+    
+    // 計算圖片對應的實際尺寸 (米)
     final double realWidth = imgWidth / config.xScale;
     final double realHeight = imgHeight / config.yScale;
 
-    // 計算圖片在畫布上的位置
-    // 圖片的左上角對應實際座標 (0,0) + 偏移
-    final double imgRealX = config.xOffset / config.xScale;
-    final double imgRealY = config.yOffset / config.yScale;
+    // 圖片左上角的實際座標 (米)
+    final double imgRealX = config.xOffset;
+    final double imgRealY = config.yOffset;
 
-    // 計算圖片在畫布上的邊界
+    // 轉換到畫布座標
+    // 注意：畫布的 Y 軸是反向的 (從上到下遞增)
     double canvasLeft = offsetX + (imgRealX - minX) * scale;
-    double canvasTop = size.height - offsetY - (imgRealY + realHeight - minY) * scale;
+    double canvasTop = size.height - offsetY - ((imgRealY + realHeight) - minY) * scale;
     double canvasWidth = realWidth * scale;
     double canvasHeight = realHeight * scale;
 
     // 翻轉處理
     if (config.flipX) {
-      canvasLeft = size.width - canvasLeft - canvasWidth;
+      canvas.save();
+      canvas.scale(-1, 1);
+      canvas.translate(-size.width, 0);
     }
     if (config.flipY) {
-      canvasTop = size.height - canvasTop - canvasHeight;
+      canvas.save();
+      canvas.scale(1, -1);
+      canvas.translate(0, -size.height);
     }
 
     final srcRect = Rect.fromLTWH(0, 0, imgWidth, imgHeight);
@@ -199,6 +202,14 @@ class UwbCanvasPainter extends CustomPainter {
       ..color = Color.fromRGBO(255, 255, 255, config.floorPlanOpacity);
 
     canvas.drawImageRect(img, srcRect, dstRect, paint);
+
+    // 恢復畫布狀態
+    if (config.flipY) {
+      canvas.restore();
+    }
+    if (config.flipX) {
+      canvas.restore();
+    }
   }
 
   void _drawEmptyState(Canvas canvas, Size size) {
@@ -234,16 +245,21 @@ class UwbCanvasPainter extends CustomPainter {
       double offsetY,
       Offset Function(double, double) toCanvas) {
     final gridPaint = Paint()
-      ..color = Colors.grey.shade300
-      ..strokeWidth = 0.5;
+      ..color = Colors.grey.shade400
+      ..strokeWidth = 0.8;
 
     final majorGridPaint = Paint()
-      ..color = Colors.grey.shade400
-      ..strokeWidth = 1.0;
+      ..color = Colors.grey.shade600
+      ..strokeWidth = 1.5;
 
     // 原點線加粗並使用更明顯的顏色
     final originPaint = Paint()
       ..color = Colors.blue.shade800
+      ..strokeWidth = 2.5;
+    
+    // 外邊框線
+    final borderPaint = Paint()
+      ..color = Colors.grey.shade800
       ..strokeWidth = 2.0;
 
     // 從整數開始的 minX
@@ -281,6 +297,17 @@ class UwbCanvasPainter extends CustomPainter {
       final p2 = toCanvas(maxX, y);
       canvas.drawLine(p1, p2, paint);
     }
+    
+    // 繪製邊框（座標軸）
+    final borderTopLeft = toCanvas(minX, maxY);
+    final borderTopRight = toCanvas(maxX, maxY);
+    final borderBottomLeft = toCanvas(minX, minY);
+    final borderBottomRight = toCanvas(maxX, minY);
+    
+    canvas.drawLine(borderBottomLeft, borderBottomRight, borderPaint); // 底部 X 軸
+    canvas.drawLine(borderBottomLeft, borderTopLeft, borderPaint); // 左側 Y 軸
+    canvas.drawLine(borderTopRight, borderBottomRight, borderPaint); // 右側
+    canvas.drawLine(borderTopLeft, borderTopRight, borderPaint); // 頂部
   }
 
   void _drawFence(Canvas canvas, Offset Function(double, double) toCanvas,
@@ -523,18 +550,39 @@ class UwbCanvasPainter extends CustomPainter {
       double offsetY,
       Offset Function(double, double) toCanvas) {
     final textStyle = TextStyle(
-      color: Colors.grey.shade600,
-      fontSize: 10,
+      color: Colors.black87,
+      fontSize: 14,
+      fontWeight: FontWeight.bold,
+      backgroundColor: Colors.white.withOpacity(0.8),
     );
 
-    // 從整數開始
-    final double startX = minX.ceilToDouble();
-    final double endX = maxX.floorToDouble();
-    final double startY = minY.ceilToDouble();
-    final double endY = maxY.floorToDouble();
+    // 計算合適的標籤間隔
+    final double rangeX = (maxX - minX).abs();
+    final double rangeY = (maxY - minY).abs();
+    
+    // 根據範圍決定標籤間隔
+    double intervalX = 1.0;
+    if (rangeX > 30) {
+      intervalX = 5.0;
+    } else if (rangeX > 15) {
+      intervalX = 2.0;
+    }
+    
+    double intervalY = 1.0;
+    if (rangeY > 30) {
+      intervalY = 5.0;
+    } else if (rangeY > 15) {
+      intervalY = 2.0;
+    }
+
+    // 從整數開始（對齊到間隔）
+    final double startX = (minX / intervalX).ceilToDouble() * intervalX;
+    final double endX = (maxX / intervalX).floorToDouble() * intervalX;
+    final double startY = (minY / intervalY).ceilToDouble() * intervalY;
+    final double endY = (maxY / intervalY).floorToDouble() * intervalY;
 
     // X轴标签 (在底部)
-    for (double x = startX; x <= endX; x += 1) {
+    for (double x = startX; x <= endX; x += intervalX) {
       final pos = toCanvas(x, minY);
       final textPainter = TextPainter(
         text: TextSpan(text: '${x.toInt()}m', style: textStyle),
@@ -545,13 +593,13 @@ class UwbCanvasPainter extends CustomPainter {
         canvas,
         Offset(
           pos.dx - textPainter.width / 2,
-          size.height - offsetY + 5,
+          size.height - offsetY + 8,
         ),
       );
     }
 
     // Y轴标签 (在左側)
-    for (double y = startY; y <= endY; y += 1) {
+    for (double y = startY; y <= endY; y += intervalY) {
       final pos = toCanvas(minX, y);
       final textPainter = TextPainter(
         text: TextSpan(text: '${y.toInt()}m', style: textStyle),
@@ -561,7 +609,7 @@ class UwbCanvasPainter extends CustomPainter {
       textPainter.paint(
         canvas,
         Offset(
-          offsetX - textPainter.width - 5,
+          offsetX - textPainter.width - 8,
           pos.dy - textPainter.height / 2,
         ),
       );
