@@ -447,6 +447,7 @@ class _LocationScreenState extends State<LocationScreen>
                         currentTag: uwbService.currentTag,
                         trajectory: uwbService.trajectory,
                         config: uwbService.config,
+                        floorPlanImage: uwbService.floorPlanImage,
                       ),
                     ),
                     const SizedBox(height: 16),

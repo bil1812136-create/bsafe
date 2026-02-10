@@ -1,7 +1,11 @@
 import 'dart:async';
 import 'dart:math';
-import 'dart:io' show Platform;
+import 'dart:io' show File, Platform;
+import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:pdfx/pdfx.dart';
 import 'package:bsafe_app/models/uwb_model.dart';
 import 'package:bsafe_app/services/desktop_serial_service.dart';
 
@@ -31,6 +35,12 @@ class UwbService extends ChangeNotifier {
   // 配置
   UwbConfig _config = UwbConfig();
   UwbConfig get config => _config;
+
+  // 平面地圖圖片
+  ui.Image? _floorPlanImage;
+  ui.Image? get floorPlanImage => _floorPlanImage;
+  bool _isLoadingFloorPlan = false;
+  bool get isLoadingFloorPlan => _isLoadingFloorPlan;
 
   // 串口服务（桌面平台）
   DesktopSerialService? _desktopSerial;
@@ -134,6 +144,189 @@ class UwbService extends ChangeNotifier {
   // 更新配置
   void updateConfig(UwbConfig newConfig) {
     _config = newConfig;
+    notifyListeners();
+  }
+
+  // ===== 平面地圖功能 =====
+
+  /// 支援的檔案格式
+  static const List<String> supportedImageExtensions = [
+    'png', 'jpg', 'jpeg', 'bmp', 'gif', 'webp',
+  ];
+  static const List<String> supportedVectorExtensions = ['svg'];
+  static const List<String> supportedPdfExtensions = ['pdf'];
+  static const List<String> supportedCadExtensions = ['dwg', 'dxf'];
+
+  /// 取得檔案副檔名
+  String _getFileExtension(String filePath) {
+    return filePath.split('.').last.toLowerCase();
+  }
+
+  /// 判斷檔案類型
+  String _getFileType(String filePath) {
+    final ext = _getFileExtension(filePath);
+    if (supportedImageExtensions.contains(ext)) return 'image';
+    if (supportedVectorExtensions.contains(ext)) return 'svg';
+    if (supportedPdfExtensions.contains(ext)) return 'pdf';
+    if (supportedCadExtensions.contains(ext)) return 'dwg';
+    return 'unknown';
+  }
+
+  /// 載入平面地圖（自動判斷格式）
+  Future<void> loadFloorPlanImage(String filePath) async {
+    try {
+      _isLoadingFloorPlan = true;
+      notifyListeners();
+
+      final file = File(filePath);
+      if (!await file.exists()) {
+        _lastError = '找不到檔案: $filePath';
+        _isLoadingFloorPlan = false;
+        notifyListeners();
+        return;
+      }
+
+      final fileType = _getFileType(filePath);
+
+      switch (fileType) {
+        case 'image':
+          await _loadRasterImage(filePath);
+          break;
+        case 'svg':
+          await _loadSvgImage(filePath);
+          break;
+        case 'pdf':
+          await _loadPdfImage(filePath);
+          break;
+        case 'dwg':
+          _isLoadingFloorPlan = false;
+          _lastError = 'DWG/DXF 格式暫不支援直接開啟，請先轉換為 PDF 或 SVG 格式';
+          notifyListeners();
+          return;
+        default:
+          _isLoadingFloorPlan = false;
+          _lastError = '不支援的檔案格式: ${_getFileExtension(filePath)}';
+          notifyListeners();
+          return;
+      }
+
+      _config = _config.copyWith(
+        floorPlanImagePath: filePath,
+        showFloorPlan: true,
+        floorPlanFileType: fileType,
+      );
+
+      _isLoadingFloorPlan = false;
+      notifyListeners();
+
+      debugPrint('平面地圖已載入 ($fileType): ${_floorPlanImage!.width}x${_floorPlanImage!.height}');
+    } catch (e) {
+      _isLoadingFloorPlan = false;
+      _lastError = '載入平面地圖失敗: $e';
+      notifyListeners();
+      debugPrint('載入平面地圖錯誤: $e');
+    }
+  }
+
+  /// 載入點陣圖 (PNG, JPG, BMP, GIF, WEBP)
+  Future<void> _loadRasterImage(String filePath) async {
+    final file = File(filePath);
+    final Uint8List bytes = await file.readAsBytes();
+    final ui.Codec codec = await ui.instantiateImageCodec(bytes);
+    final ui.FrameInfo frameInfo = await codec.getNextFrame();
+
+    _floorPlanImage?.dispose();
+    _floorPlanImage = frameInfo.image;
+  }
+
+  /// 載入 SVG 向量圖 → 柵格化為 ui.Image
+  Future<void> _loadSvgImage(String filePath) async {
+    final file = File(filePath);
+    final String svgString = await file.readAsString();
+
+    // 使用 flutter_svg 解析 SVG
+    final PictureInfo pictureInfo = await vg.loadPicture(
+      SvgStringLoader(svgString),
+      null,
+    );
+
+    // 取得 SVG 圖片尺寸
+    final double width = pictureInfo.size.width;
+    final double height = pictureInfo.size.height;
+
+    // 如果 SVG 沒有設定尺寸，使用預設大小
+    final int renderWidth = width > 0 ? width.toInt() : 1024;
+    final int renderHeight = height > 0 ? height.toInt() : 1024;
+
+    // 柵格化成 ui.Image
+    final ui.PictureRecorder recorder = ui.PictureRecorder();
+    final Canvas canvas = Canvas(recorder);
+
+    // 縮放到目標尺寸
+    if (width > 0 && height > 0) {
+      canvas.scale(
+        renderWidth / width,
+        renderHeight / height,
+      );
+    }
+    canvas.drawPicture(pictureInfo.picture);
+
+    final ui.Image image = await recorder
+        .endRecording()
+        .toImage(renderWidth, renderHeight);
+
+    pictureInfo.picture.dispose();
+
+    _floorPlanImage?.dispose();
+    _floorPlanImage = image;
+  }
+
+  /// 載入 PDF 第一頁 → 柵格化為 ui.Image
+  Future<void> _loadPdfImage(String filePath) async {
+    final document = await PdfDocument.openFile(filePath);
+    final page = await document.getPage(1);
+
+    // 以較高解析度渲染 PDF 頁面
+    final pageImage = await page.render(
+      width: page.width * 2,
+      height: page.height * 2,
+      format: PdfPageImageFormat.png,
+    );
+
+    await page.close();
+    await document.close();
+
+    if (pageImage == null || pageImage.bytes == null) {
+      throw Exception('PDF 頁面渲染失敗');
+    }
+
+    // 將 PNG bytes 轉為 ui.Image
+    final ui.Codec codec = await ui.instantiateImageCodec(pageImage.bytes);
+    final ui.FrameInfo frameInfo = await codec.getNextFrame();
+
+    _floorPlanImage?.dispose();
+    _floorPlanImage = frameInfo.image;
+  }
+
+  /// 清除平面地圖
+  void clearFloorPlan() {
+    _floorPlanImage?.dispose();
+    _floorPlanImage = null;
+    _config = _config.copyWith(
+      showFloorPlan: false,
+    );
+    notifyListeners();
+  }
+
+  /// 切換平面地圖顯示
+  void toggleFloorPlan(bool show) {
+    _config = _config.copyWith(showFloorPlan: show);
+    notifyListeners();
+  }
+
+  /// 更新平面地圖透明度
+  void updateFloorPlanOpacity(double opacity) {
+    _config = _config.copyWith(floorPlanOpacity: opacity.clamp(0.0, 1.0));
     notifyListeners();
   }
 
@@ -1477,6 +1670,9 @@ class UwbService extends ChangeNotifier {
   @override
   void dispose() {
     _simulationTimer?.cancel();
+    _uiRefreshTimer?.cancel();
+    _serialSubscription?.cancel();
+    _floorPlanImage?.dispose();
     super.dispose();
   }
 }

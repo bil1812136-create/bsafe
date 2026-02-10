@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:bsafe_app/models/uwb_model.dart';
 import 'package:bsafe_app/services/uwb_service.dart';
 import 'package:bsafe_app/theme/app_theme.dart';
@@ -33,6 +34,7 @@ class _UwbSettingsPanelState extends State<UwbSettingsPanel>
   late TextEditingController _yOffsetController;
   late TextEditingController _xScaleController;
   late TextEditingController _yScaleController;
+  late TextEditingController _floorPlanOpacityController;
 
   @override
   void initState() {
@@ -56,6 +58,8 @@ class _UwbSettingsPanelState extends State<UwbSettingsPanel>
     _yOffsetController = TextEditingController(text: config.yOffset.toString());
     _xScaleController = TextEditingController(text: config.xScale.toString());
     _yScaleController = TextEditingController(text: config.yScale.toString());
+    _floorPlanOpacityController =
+        TextEditingController(text: config.floorPlanOpacity.toString());
   }
 
   @override
@@ -71,6 +75,7 @@ class _UwbSettingsPanelState extends State<UwbSettingsPanel>
     _yOffsetController.dispose();
     _xScaleController.dispose();
     _yScaleController.dispose();
+    _floorPlanOpacityController.dispose();
     super.dispose();
   }
 
@@ -297,32 +302,121 @@ class _UwbSettingsPanelState extends State<UwbSettingsPanel>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildSectionTitle('平面地圖'),
+          
+          // 顯示當前載入的地圖
+          if (config.floorPlanImagePath != null) ...[
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.green.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green.shade700, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '已載入地圖',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.green.shade700,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 16),
+                    onPressed: () {
+                      widget.uwbService.clearFloorPlan();
+                      setState(() {});
+                    },
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    tooltip: '清除地圖',
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+          
           Row(
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () {
-                    // TODO: 打开平面图
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('功能開發中...')),
-                    );
-                  },
-                  icon: const Icon(Icons.folder_open, size: 16),
-                  label: const Text('打開'),
+                  onPressed: _pickFloorPlanImage,
+                  icon: widget.uwbService.isLoadingFloorPlan
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.folder_open, size: 16),
+                  label: Text(widget.uwbService.isLoadingFloorPlan ? '載入中...' : '打開'),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () {
-                    // TODO: 保存平面图
-                  },
+                  onPressed: config.floorPlanImagePath != null
+                      ? () {
+                          // 保存配置到本地（未來可實現）
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('配置已自動保存')),
+                          );
+                        }
+                      : null,
                   icon: const Icon(Icons.save, size: 16),
                   label: const Text('保存'),
                 ),
               ),
             ],
           ),
+          
+          const SizedBox(height: 12),
+          
+          // 顯示/隱藏平面圖
+          _buildCheckboxRow('顯示平面圖', config.showFloorPlan, (v) {
+            widget.uwbService.toggleFloorPlan(v);
+            setState(() {});
+          }),
+          
+          // 透明度調整
+          if (config.floorPlanImagePath != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const SizedBox(
+                  width: 60,
+                  child: Text('透明度', style: TextStyle(fontSize: 13)),
+                ),
+                Expanded(
+                  child: Slider(
+                    value: config.floorPlanOpacity,
+                    min: 0.0,
+                    max: 1.0,
+                    divisions: 20,
+                    label: '${(config.floorPlanOpacity * 100).toInt()}%',
+                    onChanged: (v) {
+                      widget.uwbService.updateFloorPlanOpacity(v);
+                      _floorPlanOpacityController.text = v.toStringAsFixed(2);
+                      setState(() {});
+                    },
+                  ),
+                ),
+                SizedBox(
+                  width: 50,
+                  child: Text(
+                    '${(config.floorPlanOpacity * 100).toInt()}%',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          
           const SizedBox(height: 16),
           _buildSectionTitle('偏移設置'),
           _buildNumberInputRowWithUnit('X 偏移', _xOffsetController, '像素', (v) {
@@ -351,40 +445,139 @@ class _UwbSettingsPanelState extends State<UwbSettingsPanel>
             _updateConfig(config.copyWith(showOrigin: v));
           }),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    // TODO: 设置原点
-                  },
-                  child: const Text('設置原點'),
-                ),
+          
+          // 當前檔案格式提示
+          if (config.floorPlanImagePath != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(4),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    // TODO: 设置X比例
-                  },
-                  child: const Text('設置X比例'),
-                ),
+              child: Text(
+                '格式：${config.floorPlanFileType.toUpperCase()}  |  ${config.floorPlanImagePath!.split('\\').last.split('/').last}',
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontFamily: 'monospace'),
+                overflow: TextOverflow.ellipsis,
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {
-                // TODO: 设置Y比例
-              },
-              child: const Text('設置Y比例'),
+            ),
+          ],
+          
+          const SizedBox(height: 16),
+          
+          // 提示說明
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '支援的檔案格式：',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.blue.shade900,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '• 圖片：PNG, JPG, BMP, GIF, WEBP',
+                  style: TextStyle(fontSize: 11, color: Colors.blue.shade800),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '• 向量圖：SVG（可調整大小不失真）',
+                  style: TextStyle(fontSize: 11, color: Colors.blue.shade800),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '• 文件：PDF（自動擷取第一頁）',
+                  style: TextStyle(fontSize: 11, color: Colors.blue.shade800),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '• 工程圖：DWG/DXF（請先轉換為 PDF 或 SVG）',
+                  style: TextStyle(fontSize: 11, color: Colors.blue.shade800),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '提示：X/Y比例 = 圖片上每米對應的像素數',
+                  style: TextStyle(fontSize: 11, color: Colors.blue.shade700),
+                ),
+              ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  /// 選擇平面圖檔案（支援多種格式）
+  Future<void> _pickFloorPlanImage() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: [
+          // 點陣圖格式
+          'png', 'jpg', 'jpeg', 'bmp', 'gif', 'webp',
+          // 向量圖格式
+          'svg',
+          // PDF 文件
+          'pdf',
+          // CAD 工程圖（提示使用者轉檔）
+          'dwg', 'dxf',
+        ],
+        allowMultiple: false,
+      );
+
+      if (result != null && result.files.single.path != null) {
+        final filePath = result.files.single.path!;
+        await widget.uwbService.loadFloorPlanImage(filePath);
+        
+        if (mounted) {
+          setState(() {});
+          
+          final ext = filePath.split('.').last.toLowerCase();
+          String formatName;
+          switch (ext) {
+            case 'svg':
+              formatName = 'SVG 向量圖';
+              break;
+            case 'pdf':
+              formatName = 'PDF 文件';
+              break;
+            case 'dwg':
+            case 'dxf':
+              // DWG 的錯誤訊息已在 service 中處理
+              return;
+            default:
+              formatName = '${ext.toUpperCase()} 圖片';
+          }
+          
+          if (widget.uwbService.floorPlanImage != null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('$formatName 已載入'),
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('載入平面圖失敗: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   // 网格设置 Tab

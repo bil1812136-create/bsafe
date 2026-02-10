@@ -124,6 +124,10 @@ class UwbConfig {
   final bool flipX; // 翻转X
   final bool flipY; // 翻转Y
   final bool showOrigin; // 显示原点
+  final String? floorPlanImagePath; // 平面地圖圖片路徑
+  final bool showFloorPlan; // 是否顯示平面地圖
+  final double floorPlanOpacity; // 平面地圖透明度
+  final String floorPlanFileType; // 平面地圖檔案類型 (image/svg/pdf/dwg)
 
   UwbConfig({
     this.positioningMode = '二維定位',
@@ -149,6 +153,10 @@ class UwbConfig {
     this.flipX = false,
     this.flipY = false,
     this.showOrigin = true,
+    this.floorPlanImagePath,
+    this.showFloorPlan = false,
+    this.floorPlanOpacity = 0.5,
+    this.floorPlanFileType = 'image',
   });
 
   UwbConfig copyWith({
@@ -175,6 +183,10 @@ class UwbConfig {
     bool? flipX,
     bool? flipY,
     bool? showOrigin,
+    String? floorPlanImagePath,
+    bool? showFloorPlan,
+    double? floorPlanOpacity,
+    String? floorPlanFileType,
   }) {
     return UwbConfig(
       positioningMode: positioningMode ?? this.positioningMode,
@@ -201,6 +213,10 @@ class UwbConfig {
       flipX: flipX ?? this.flipX,
       flipY: flipY ?? this.flipY,
       showOrigin: showOrigin ?? this.showOrigin,
+      floorPlanImagePath: floorPlanImagePath ?? this.floorPlanImagePath,
+      showFloorPlan: showFloorPlan ?? this.showFloorPlan,
+      floorPlanOpacity: floorPlanOpacity ?? this.floorPlanOpacity,
+      floorPlanFileType: floorPlanFileType ?? this.floorPlanFileType,
     );
   }
 }

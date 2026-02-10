@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:bsafe_app/models/uwb_model.dart';
 import 'package:bsafe_app/theme/app_theme.dart';
@@ -11,6 +12,7 @@ class UwbPositionCanvas extends StatelessWidget {
   final List<TrajectoryPoint> trajectory;
   final UwbConfig config;
   final double padding;
+  final ui.Image? floorPlanImage;
 
   const UwbPositionCanvas({
     super.key,
@@ -19,6 +21,7 @@ class UwbPositionCanvas extends StatelessWidget {
     this.trajectory = const [],
     required this.config,
     this.padding = 40.0,
+    this.floorPlanImage,
   });
 
   @override
@@ -44,6 +47,7 @@ class UwbPositionCanvas extends StatelessWidget {
                   trajectory: trajectory,
                   config: config,
                   padding: padding,
+                  floorPlanImage: floorPlanImage,
                 ),
               );
             },
@@ -60,6 +64,7 @@ class UwbCanvasPainter extends CustomPainter {
   final List<TrajectoryPoint> trajectory;
   final UwbConfig config;
   final double padding;
+  final ui.Image? floorPlanImage;
 
   UwbCanvasPainter({
     required this.anchors,
@@ -67,6 +72,7 @@ class UwbCanvasPainter extends CustomPainter {
     required this.trajectory,
     required this.config,
     required this.padding,
+    this.floorPlanImage,
   });
 
   @override
@@ -107,6 +113,11 @@ class UwbCanvasPainter extends CustomPainter {
     _drawGrid(canvas, size, minX, maxX, minY, maxY, scale, offsetX, offsetY,
         toCanvas);
 
+    // 繪製平面地圖背景
+    if (config.showFloorPlan && floorPlanImage != null) {
+      _drawFloorPlan(canvas, size, minX, minY, scale, offsetX, offsetY);
+    }
+
     // 绘制区域围栏
     if (config.showFence && currentTag != null) {
       _drawFence(canvas, toCanvas, scale, currentTag!);
@@ -142,6 +153,52 @@ class UwbCanvasPainter extends CustomPainter {
     // 绘制坐标轴标签
     _drawAxisLabels(canvas, size, minX, maxX, minY, maxY, scale, offsetX,
         offsetY, toCanvas);
+  }
+
+  /// 繪製平面地圖背景圖片
+  void _drawFloorPlan(Canvas canvas, Size size, double minX, double minY,
+      double scale, double offsetX, double offsetY) {
+    if (floorPlanImage == null) return;
+
+    final img = floorPlanImage!;
+    final imgWidth = img.width.toDouble();
+    final imgHeight = img.height.toDouble();
+
+    // 使用配置中的偏移和比例
+    // xScale/yScale = 像素/米, 即圖片上每米對應多少像素
+    // xOffset/yOffset = 像素偏移
+
+    // 圖片原始尺寸對應的實際範圍 (米)
+    final double realWidth = imgWidth / config.xScale;
+    final double realHeight = imgHeight / config.yScale;
+
+    // 計算圖片在畫布上的位置
+    // 圖片的左上角對應實際座標 (0,0) + 偏移
+    final double imgRealX = config.xOffset / config.xScale;
+    final double imgRealY = config.yOffset / config.yScale;
+
+    // 計算圖片在畫布上的邊界
+    double canvasLeft = offsetX + (imgRealX - minX) * scale;
+    double canvasTop = size.height - offsetY - (imgRealY + realHeight - minY) * scale;
+    double canvasWidth = realWidth * scale;
+    double canvasHeight = realHeight * scale;
+
+    // 翻轉處理
+    if (config.flipX) {
+      canvasLeft = size.width - canvasLeft - canvasWidth;
+    }
+    if (config.flipY) {
+      canvasTop = size.height - canvasTop - canvasHeight;
+    }
+
+    final srcRect = Rect.fromLTWH(0, 0, imgWidth, imgHeight);
+    final dstRect = Rect.fromLTWH(canvasLeft, canvasTop, canvasWidth, canvasHeight);
+
+    final paint = Paint()
+      ..filterQuality = FilterQuality.medium
+      ..color = Color.fromRGBO(255, 255, 255, config.floorPlanOpacity);
+
+    canvas.drawImageRect(img, srcRect, dstRect, paint);
   }
 
   void _drawEmptyState(Canvas canvas, Size size) {
@@ -524,6 +581,10 @@ class UwbCanvasPainter extends CustomPainter {
     }
     // 基站或配置變化
     if (oldDelegate.anchors != anchors || oldDelegate.config != config) {
+      return true;
+    }
+    // 平面地圖變化
+    if (oldDelegate.floorPlanImage != floorPlanImage) {
       return true;
     }
     return false;

@@ -223,6 +223,7 @@ class DesktopSerialService {
   }
 
   /// 检查是否是 CmdM 二进制数据包
+  // ignore: unused_element
   bool _isCmdMPacket(Uint8List data) {
     // CmdM 的 ASCII: 43 6d 64 4d
     if (data.length >= 7) {
