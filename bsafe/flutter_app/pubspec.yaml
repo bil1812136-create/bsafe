@@ -44,6 +44,9 @@ dependencies:
   
   # Serial Port (Desktop support)
   flutter_libserialport: ^0.4.0
+  
+  # USB Serial (Android OTG support)
+  usb_serial: ^0.5.2
   file_picker: ^10.3.10
   flutter_svg: ^2.2.3
   pdfrx: ^2.2.24

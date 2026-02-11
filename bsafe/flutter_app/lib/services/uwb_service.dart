@@ -10,6 +10,7 @@ import 'package:pdfrx/pdfrx.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:bsafe_app/models/uwb_model.dart';
 import 'package:bsafe_app/services/desktop_serial_service.dart';
+import 'package:bsafe_app/services/mobile_serial_service.dart';
 
 /// UWB定位服务
 /// 提供与安信可UWB TWR系统的通信和数据处理
@@ -46,6 +47,9 @@ class UwbService extends ChangeNotifier {
 
   // 串口服务（桌面平台）
   DesktopSerialService? _desktopSerial;
+
+  // 串口服務（Android 手機平台）
+  MobileSerialService? _mobileSerial;
 
   // 串口设置
   String _portName = 'COM3';
@@ -430,9 +434,50 @@ class UwbService extends ChangeNotifier {
         }
       }
 
+      // Android 平台 (USB OTG)
+      if (!kIsWeb && Platform.isAndroid) {
+        _mobileSerial = MobileSerialService();
+
+        // 獲取可用 USB 設備
+        final devices = await _mobileSerial!.getAvailableDevices();
+        debugPrint('可用 USB 設備: $devices');
+
+        if (devices.isEmpty) {
+          _lastError = '未找到 USB 設備，請確保 BU04 已通過 USB-C 線連接';
+          notifyListeners();
+          return false;
+        }
+
+        // 嘗試自動連接
+        final connected =
+            await _mobileSerial!.autoConnect(baudRate: _baudRate);
+
+        if (connected) {
+          _serialSubscription = _mobileSerial!.dataStream.listen(
+            (data) {
+              processSerialData(data);
+            },
+            onError: (error) {
+              _lastError = 'USB 串口錯誤: $error';
+              notifyListeners();
+            },
+          );
+
+          _isConnected = true;
+          _isRealDevice = true;
+          _startUiRefreshTimer();
+          notifyListeners();
+          return true;
+        } else {
+          _lastError = '無法連接 USB 設備，請檢查連接和 OTG 設定';
+          notifyListeners();
+          return false;
+        }
+      }
+
       // Web 平台
       if (kIsWeb) {
-        _lastError = '真實設備連接僅支持 Web 平台';
+        _lastError = 'Web 平台請使用 Web Serial API';
         notifyListeners();
         return false;
       }
@@ -495,6 +540,54 @@ class UwbService extends ChangeNotifier {
         }
       }
 
+      // Android 平台 (USB OTG)
+      if (!kIsWeb && Platform.isAndroid) {
+        _mobileSerial = MobileSerialService();
+
+        final devices = await _mobileSerial!.getAvailableDevices();
+        if (devices.isEmpty) {
+          _lastError = '未找到 USB 設備';
+          notifyListeners();
+          return false;
+        }
+
+        // 在 Android 上 portName 用作索引
+        int deviceIndex = 0;
+        for (int i = 0; i < devices.length; i++) {
+          if (devices[i].displayName == portName ||
+              devices[i].deviceName == portName) {
+            deviceIndex = i;
+            break;
+          }
+        }
+
+        final connected = await _mobileSerial!.connectByIndex(
+            deviceIndex, baudRate: _baudRate);
+
+        if (connected) {
+          _serialSubscription = _mobileSerial!.dataStream.listen(
+            (data) {
+              processSerialData(data);
+            },
+            onError: (error) {
+              _lastError = 'USB 串口錯誤: $error';
+              notifyListeners();
+            },
+          );
+
+          _isConnected = true;
+          _isRealDevice = true;
+          _startUiRefreshTimer();
+          notifyListeners();
+          debugPrint('成功連接到 USB 設備');
+          return true;
+        } else {
+          _lastError = '無法連接到 USB 設備';
+          notifyListeners();
+          return false;
+        }
+      }
+
       _lastError = '當前平台不支持串口連接';
       notifyListeners();
       return false;
@@ -544,6 +637,10 @@ class UwbService extends ChangeNotifier {
     // 断开桌面串口
     _desktopSerial?.disconnect();
     _desktopSerial = null;
+
+    // 斷開 Android USB 串口
+    _mobileSerial?.disconnect();
+    _mobileSerial = null;
 
     notifyListeners();
   }

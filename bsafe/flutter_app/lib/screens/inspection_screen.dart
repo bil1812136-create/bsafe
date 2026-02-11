@@ -11,8 +11,10 @@ import 'package:bsafe_app/models/uwb_model.dart';
 import 'package:bsafe_app/models/inspection_model.dart';
 import 'package:bsafe_app/services/uwb_service.dart';
 import 'package:bsafe_app/services/desktop_serial_service.dart';
+import 'package:bsafe_app/services/mobile_serial_service.dart';
 import 'package:bsafe_app/providers/inspection_provider.dart';
 import 'package:bsafe_app/theme/app_theme.dart';
+import 'package:bsafe_app/screens/calibration_screen.dart';
 
 class InspectionScreen extends StatefulWidget {
   const InspectionScreen({super.key});
@@ -995,7 +997,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
             _buildConnectOption(
               icon: Icons.wifi_tethering,
               title: '自動連接 BU04',
-              subtitle: '通過 USB 串口自動連接安信可 UWB 設備',
+              subtitle: '通過 USB 串口 / USB-C OTG 連接安信可 UWB 設備',
               color: AppTheme.primaryColor,
               onTap: () {
                 Navigator.pop(ctx);
@@ -1026,7 +1028,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      '確保 BU04 已通過 USB 連接，並安裝了 CH340/CP210x 驅動。',
+                      '電腦：確保 BU04 已通過 USB 連接並安裝 CH340/CP210x 驅動。\n手機：用 USB-C 線連接 BU04，需支援 OTG。',
                       style: TextStyle(color: Colors.blue.shade900, fontSize: 12),
                     ),
                   ),
@@ -1087,6 +1089,13 @@ class _InspectionScreenState extends State<InspectionScreen> {
   void _showSerialConnectDialog(UwbService uwbService) {
     if (kIsWeb) return;
 
+    // Android 平台：使用 USB OTG
+    if (!kIsWeb && Platform.isAndroid) {
+      _showMobileUsbConnectDialog(uwbService);
+      return;
+    }
+
+    // 桌面平台：使用 COM 串口
     List<String> ports = [];
     if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
       final serialService = DesktopSerialService();
@@ -1168,6 +1177,15 @@ class _InspectionScreenState extends State<InspectionScreen> {
     );
   }
 
+  // ===== Android USB OTG 連接對話框 =====
+  void _showMobileUsbConnectDialog(UwbService uwbService) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _MobileUsbConnectDialog(uwbService: uwbService, baudRate: _baudRate),
+    );
+  }
+
   // ===== 完整設定面板 =====
   Widget _buildFullSettingsPanel(UwbService uwbService) {
     return Container(
@@ -1217,6 +1235,26 @@ class _InspectionScreenState extends State<InspectionScreen> {
                       onPressed: () => _showAddAnchorDialog(uwbService),
                       icon: const Icon(Icons.add, size: 18),
                       label: const Text('添加基站'),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => CalibrationScreen(uwbService: uwbService),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.tune, size: 18),
+                      label: const Text('基站校正設置'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryColor,
+                        foregroundColor: Colors.white,
+                      ),
                     ),
                   ),
 
@@ -2281,6 +2319,251 @@ class _PhotoAnalysisDialogState extends State<_PhotoAnalysisDialog> {
           ],
         ],
       ),
+    );
+  }
+}
+
+// ===== Android USB OTG 連接對話框 =====
+class _MobileUsbConnectDialog extends StatefulWidget {
+  final UwbService uwbService;
+  final int baudRate;
+
+  const _MobileUsbConnectDialog({required this.uwbService, required this.baudRate});
+
+  @override
+  State<_MobileUsbConnectDialog> createState() => _MobileUsbConnectDialogState();
+}
+
+class _MobileUsbConnectDialogState extends State<_MobileUsbConnectDialog> {
+  final MobileSerialService _mobileSerial = MobileSerialService();
+  List<UsbDeviceInfo> _devices = [];
+  bool _isScanning = true;
+  bool _isConnecting = false;
+  int _selectedIndex = 0;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _scanDevices();
+  }
+
+  Future<void> _scanDevices() async {
+    setState(() {
+      _isScanning = true;
+      _error = null;
+    });
+
+    try {
+      final devices = await _mobileSerial.getAvailableDevices();
+      if (mounted) {
+        setState(() {
+          _devices = devices;
+          _isScanning = false;
+          if (devices.isEmpty) {
+            _error = '未檢測到 USB 設備。\n請確認：\n• BU04 已透過 USB-C 線連接\n• 手機支援 USB OTG\n• 已授權 USB 存取';
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isScanning = false;
+          _error = '掃描設備錯誤: $e';
+        });
+      }
+    }
+  }
+
+  Future<void> _connectDevice() async {
+    if (_devices.isEmpty || _selectedIndex >= _devices.length) return;
+
+    setState(() {
+      _isConnecting = true;
+      _error = null;
+    });
+
+    final device = _devices[_selectedIndex];
+    final success = await widget.uwbService.connect(
+      simulate: false,
+      port: device.displayName,
+      baudRate: widget.baudRate,
+    );
+
+    if (mounted) {
+      if (success) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ 已連接 ${device.displayName}'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        setState(() {
+          _isConnecting = false;
+          _error = widget.uwbService.lastError ?? '連接失敗';
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Row(
+        children: [
+          const Icon(Icons.usb, color: AppTheme.primaryColor),
+          const SizedBox(width: 8),
+          const Text('USB 設備連接'),
+          const Spacer(),
+          if (!_isScanning)
+            IconButton(
+              onPressed: _scanDevices,
+              icon: const Icon(Icons.refresh, size: 20),
+              tooltip: '重新掃描',
+            ),
+        ],
+      ),
+      content: SizedBox(
+        width: 360,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (_isScanning)
+              const Padding(
+                padding: EdgeInsets.all(20),
+                child: Center(
+                  child: Column(
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 12),
+                      Text('正在掃描 USB 設備...'),
+                    ],
+                  ),
+                ),
+              )
+            else if (_error != null && _devices.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  children: [
+                    Icon(Icons.usb_off, color: Colors.red.shade400, size: 40),
+                    const SizedBox(height: 8),
+                    Text(
+                      _error!,
+                      style: TextStyle(color: Colors.red.shade700, fontSize: 13),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              )
+            else ...[
+              Text(
+                '已找到 ${_devices.length} 個 USB 設備',
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              ...List.generate(_devices.length, (i) {
+                final d = _devices[i];
+                final isSelected = i == _selectedIndex;
+                return InkWell(
+                  onTap: () => setState(() => _selectedIndex = i),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isSelected ? AppTheme.primaryColor.withValues(alpha: 0.1) : Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isSelected ? AppTheme.primaryColor : Colors.grey.shade200,
+                        width: isSelected ? 2 : 1,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.usb,
+                          color: isSelected ? AppTheme.primaryColor : Colors.grey.shade600,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                d.displayName,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: isSelected ? AppTheme.primaryColor : Colors.black87,
+                                ),
+                              ),
+                              Text(
+                                'VID: 0x${d.vid.toRadixString(16).toUpperCase()}  PID: 0x${d.pid.toRadixString(16).toUpperCase()}',
+                                style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontFamily: 'monospace'),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (isSelected)
+                          const Icon(Icons.check_circle, color: AppTheme.primaryColor),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(_error!, style: TextStyle(color: Colors.red.shade700, fontSize: 12)),
+                ),
+            ],
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.blue.shade700, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '用 USB-C 線將 BU04 連接手機，系統會自動偵測',
+                      style: TextStyle(color: Colors.blue.shade900, fontSize: 11),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        ElevatedButton.icon(
+          onPressed: (_devices.isEmpty || _isConnecting) ? null : _connectDevice,
+          icon: _isConnecting
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Icon(Icons.link),
+          label: Text(_isConnecting ? '連接中...' : '連接'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppTheme.primaryColor,
+            foregroundColor: Colors.white,
+          ),
+        ),
+      ],
     );
   }
 }

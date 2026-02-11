@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- CH340 USB to Serial (安信可 BU04 常用) -->
+    <usb-device vendor-id="6790" product-id="29987" />
+    
+    <!-- CP210x UART Bridge (安信可 BU04 備選) -->
+    <usb-device vendor-id="4292" product-id="60000" />
+    
+    <!-- FTDI FT232R UART -->
+    <usb-device vendor-id="1027" product-id="24577" />
+    
+    <!-- FTDI FT231X -->
+    <usb-device vendor-id="1027" product-id="24597" />
+    
+    <!-- Arduino -->
+    <usb-device vendor-id="9025" />
+    
+    <!-- Prolific PL2303 -->
+    <usb-device vendor-id="1659" product-id="8963" />
+    
+    <!-- CDC ACM (通用) -->
+    <usb-device vendor-id="0" />
+</resources>
