@@ -575,8 +575,8 @@ class UwbService extends ChangeNotifier {
     if (_simulationTimer != null) return;
 
     final random = Random();
-    final double baseX = 4.5;
-    final double baseY = 1.8;
+    const double baseX = 4.5;
+    const double baseY = 1.8;
     double angle = 0;
 
     _simulationTimer =
@@ -959,7 +959,7 @@ class UwbService extends ChangeNotifier {
     // debugPrint('雙圓交點: A1=(${a1.x}, ${a1.y}), A2=(${a2.x}, ${a2.y}), R1=$r1, R2=$r2');
 
     // 考慮高度校正 (基站高度 - 標籤高度)
-    final double tagHeight = 1.0; // 假設標籤高度
+    const double tagHeight = 1.0; // 假設標籤高度
     final dz1 = (a1.z - tagHeight).abs();
     final dz2 = (a2.z - tagHeight).abs();
 
@@ -1019,8 +1019,8 @@ class UwbService extends ChangeNotifier {
 
     if (valid1 && valid2) {
       // 兩個都有效，選擇更接近區域中心的
-      final centerX = -3.0; // 區域 x 中心
-      final centerY = -2.75; // 區域 y 中心
+      const centerX = -3.0; // 區域 x 中心
+      const centerY = -2.75; // 區域 y 中心
       final dist1 =
           (x1 - centerX) * (x1 - centerX) + (y1 - centerY) * (y1 - centerY);
       final dist2 =
@@ -1097,7 +1097,7 @@ class UwbService extends ChangeNotifier {
     final List<double> validDistances = [];
 
     // 估計標籤高度 (假設標籤在地面或桌面，約 0-1.5m)
-    final double tagHeight = 1.0; // 假設標籤高度為 1m
+    const double tagHeight = 1.0; // 假設標籤高度為 1m
 
     for (int i = 0; i < min(_anchors.length, filteredDistances.length); i++) {
       if (filteredDistances[i] > 0 && _anchors[i].isActive) {

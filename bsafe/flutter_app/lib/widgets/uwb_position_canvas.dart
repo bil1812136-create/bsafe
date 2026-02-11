@@ -177,10 +177,10 @@ class UwbCanvasPainter extends CustomPainter {
 
     // 轉換到畫布座標
     // 注意：畫布的 Y 軸是反向的 (從上到下遞增)
-    double canvasLeft = offsetX + (imgRealX - minX) * scale;
-    double canvasTop = size.height - offsetY - ((imgRealY + realHeight) - minY) * scale;
-    double canvasWidth = realWidth * scale;
-    double canvasHeight = realHeight * scale;
+    final double canvasLeft = offsetX + (imgRealX - minX) * scale;
+    final double canvasTop = size.height - offsetY - ((imgRealY + realHeight) - minY) * scale;
+    final double canvasWidth = realWidth * scale;
+    final double canvasHeight = realHeight * scale;
 
     // 翻轉處理
     if (config.flipX) {
