@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:sqflite/sqflite.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:path/path.dart';
 import 'package:bsafe_app/models/report_model.dart';
 
@@ -18,6 +20,12 @@ class DatabaseService {
   }
 
   Future<Database> _initDB() async {
+    // Initialize FFI for desktop platforms
+    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      sqfliteFfiInit();
+      databaseFactory = databaseFactoryFfi;
+    }
+    
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, _dbName);
 

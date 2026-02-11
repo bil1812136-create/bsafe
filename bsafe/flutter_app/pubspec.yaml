@@ -22,6 +22,7 @@ dependencies:
   
   # Local Database (Offline Support)
   sqflite: ^2.3.0
+  sqflite_common_ffi: ^2.3.0
   path: ^1.8.3
   
   # Image Handling
@@ -47,6 +48,7 @@ dependencies:
   flutter_svg: ^2.2.3
   pdfrx: ^2.2.24
 
+  web: any
 dev_dependencies:
   flutter_test:
     sdk: flutter

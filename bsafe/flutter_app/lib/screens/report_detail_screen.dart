@@ -117,10 +117,10 @@ class ReportDetailScreen extends StatelessWidget {
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: AppTheme.getRiskColor(report.riskLevel).withOpacity(0.1),
+                      color: AppTheme.getRiskColor(report.riskLevel).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: AppTheme.getRiskColor(report.riskLevel).withOpacity(0.3),
+                        color: AppTheme.getRiskColor(report.riskLevel).withValues(alpha: 0.3),
                       ),
                     ),
                     child: Row(

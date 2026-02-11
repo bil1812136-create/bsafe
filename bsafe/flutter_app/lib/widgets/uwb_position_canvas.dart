@@ -316,7 +316,7 @@ class UwbCanvasPainter extends CustomPainter {
 
     // 内围栏
     final innerPaint = Paint()
-      ..color = Colors.green.withOpacity(0.2)
+      ..color = Colors.green.withValues(alpha: 0.2)
       ..style = PaintingStyle.fill;
     canvas.drawCircle(center, config.areaRadius1 * scale, innerPaint);
 
@@ -328,7 +328,7 @@ class UwbCanvasPainter extends CustomPainter {
 
     // 外围栏
     final outerPaint = Paint()
-      ..color = Colors.orange.withOpacity(0.1)
+      ..color = Colors.orange.withValues(alpha: 0.1)
       ..style = PaintingStyle.fill;
     canvas.drawCircle(center, config.areaRadius2 * scale, outerPaint);
 
@@ -375,7 +375,7 @@ class UwbCanvasPainter extends CustomPainter {
     for (int i = 1; i < trajectory.length; i++) {
       final opacity = i / trajectory.length;
       final paint = Paint()
-        ..color = Colors.blue.withOpacity(opacity * 0.8)
+        ..color = Colors.blue.withValues(alpha: opacity * 0.8)
         ..strokeWidth = 2
         ..style = PaintingStyle.stroke;
 
@@ -411,7 +411,7 @@ class UwbCanvasPainter extends CustomPainter {
     // 信号波
     if (anchor.isActive) {
       final wavePaint = Paint()
-        ..color = Colors.green.withOpacity(0.5)
+        ..color = Colors.green.withValues(alpha: 0.5)
         ..strokeWidth = 1.5
         ..style = PaintingStyle.stroke;
 
@@ -452,7 +452,7 @@ class UwbCanvasPainter extends CustomPainter {
   void _drawTag(Canvas canvas, Offset position, UwbTag tag) {
     // 标签阴影
     final shadowPaint = Paint()
-      ..color = Colors.black.withOpacity(0.2)
+      ..color = Colors.black.withValues(alpha: 0.2)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
     canvas.drawCircle(position + const Offset(2, 2), 12, shadowPaint);
 
@@ -513,7 +513,7 @@ class UwbCanvasPainter extends CustomPainter {
   void _drawDistanceLine(
       Canvas canvas, Offset tagPos, Offset anchorPos, double distance) {
     final linePaint = Paint()
-      ..color = Colors.grey.withOpacity(0.3)
+      ..color = Colors.grey.withValues(alpha: 0.3)
       ..strokeWidth = 1
       ..style = PaintingStyle.stroke;
 
@@ -553,7 +553,7 @@ class UwbCanvasPainter extends CustomPainter {
       color: Colors.black87,
       fontSize: 14,
       fontWeight: FontWeight.bold,
-      backgroundColor: Colors.white.withOpacity(0.8),
+      backgroundColor: Colors.white.withValues(alpha: 0.8),
     );
 
     // 計算合適的標籤間隔

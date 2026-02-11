@@ -28,7 +28,7 @@ class _LocationScreenState extends State<LocationScreen>
   void initState() {
     super.initState();
     _uwbService = UwbService();
-    _uwbService.initializeDefaultAnchors();
+    _uwbService.loadAnchorsFromStorage(); // 从存储加载基站配置
     _tabController = TabController(length: 2, vsync: this);
   }
 
@@ -153,7 +153,7 @@ class _LocationScreenState extends State<LocationScreen>
             gradient: LinearGradient(
               colors: [
                 AppTheme.primaryColor,
-                AppTheme.primaryColor.withOpacity(0.7),
+                AppTheme.primaryColor.withValues(alpha: 0.7),
               ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
@@ -161,7 +161,7 @@ class _LocationScreenState extends State<LocationScreen>
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: AppTheme.primaryColor.withOpacity(0.3),
+                color: AppTheme.primaryColor.withValues(alpha: 0.3),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
@@ -174,7 +174,7 @@ class _LocationScreenState extends State<LocationScreen>
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(
@@ -285,9 +285,9 @@ class _LocationScreenState extends State<LocationScreen>
                       icon: const Icon(Icons.play_arrow, size: 18),
                       label: const Text('模擬演示'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white.withOpacity(0.2),
+                        backgroundColor: Colors.white.withValues(alpha: 0.2),
                         foregroundColor: Colors.white,
-                        disabledBackgroundColor: Colors.white.withOpacity(0.1),
+                        disabledBackgroundColor: Colors.white.withValues(alpha: 0.1),
                         disabledForegroundColor: Colors.white38,
                         padding: const EdgeInsets.symmetric(vertical: 10),
                         shape: RoundedRectangleBorder(
@@ -303,7 +303,7 @@ class _LocationScreenState extends State<LocationScreen>
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
+                    color: Colors.white.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Row(
@@ -483,7 +483,7 @@ class _LocationScreenState extends State<LocationScreen>
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
           ),
         ],
@@ -576,12 +576,12 @@ class _LocationScreenState extends State<LocationScreen>
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: value
-            ? AppTheme.primaryColor.withOpacity(0.1)
+            ? AppTheme.primaryColor.withValues(alpha: 0.1)
             : Colors.grey.shade100,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: value
-              ? AppTheme.primaryColor.withOpacity(0.3)
+              ? AppTheme.primaryColor.withValues(alpha: 0.3)
               : Colors.grey.shade300,
         ),
       ),
@@ -912,7 +912,7 @@ class _LocationScreenState extends State<LocationScreen>
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -987,9 +987,9 @@ class _LocationScreenState extends State<LocationScreen>
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.3)),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
         ),
         child: Row(
           children: [
@@ -1132,7 +1132,7 @@ class _LocationScreenState extends State<LocationScreen>
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          border: Border.all(color: color.withOpacity(0.3)),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
@@ -1140,7 +1140,7 @@ class _LocationScreenState extends State<LocationScreen>
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(icon, color: color, size: 24),
@@ -1368,7 +1368,7 @@ class _LocationScreenState extends State<LocationScreen>
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            border: Border.all(color: AppTheme.primaryColor.withOpacity(0.3)),
+            border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.3)),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
@@ -1376,7 +1376,7 @@ class _LocationScreenState extends State<LocationScreen>
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppTheme.primaryColor.withOpacity(0.1),
+                  color: AppTheme.primaryColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(

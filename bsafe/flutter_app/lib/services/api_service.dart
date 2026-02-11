@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:bsafe_app/models/report_model.dart';
 
@@ -87,7 +88,7 @@ class ApiService {
         await submitReport(report);
       } catch (e) {
         // Log error but continue with other reports
-        print('Failed to sync report ${report.id}: $e');
+        debugPrint('Failed to sync report ${report.id}: $e');
       }
     }
   }
@@ -143,8 +144,8 @@ class ApiService {
         }),
       );
 
-      print('POE API Response Status: ${response.statusCode}');
-      print('POE API Response Body: ${response.body}');
+      debugPrint('POE API Response Status: ${response.statusCode}');
+      debugPrint('POE API Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
@@ -165,19 +166,19 @@ class ApiService {
           try {
             return jsonDecode(jsonMatch.group(0)!);
           } catch (e) {
-            print('Failed to parse JSON: $e');
+            debugPrint('Failed to parse JSON: $e');
           }
         }
         
         // If no valid JSON found, return a default response
-        print('No valid JSON found in response, using fallback');
+        debugPrint('No valid JSON found in response, using fallback');
         throw Exception('Invalid AI response format');
       } else {
-        print('API Error: ${response.statusCode} - ${response.body}');
+        debugPrint('API Error: ${response.statusCode} - ${response.body}');
         throw Exception('AI analysis failed: ${response.statusCode}');
       }
     } catch (e) {
-      print('AI Analysis Error: $e');
+      debugPrint('AI Analysis Error: $e');
       throw Exception('AI analysis error: $e');
     }
   }

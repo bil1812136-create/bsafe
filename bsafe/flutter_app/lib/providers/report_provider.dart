@@ -33,14 +33,23 @@ class ReportProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      debugPrint('📥 Loading reports from database...');
       _reports = await _db.getAllReports();
+      debugPrint('📊 Loaded ${_reports.length} reports');
+      
       _statistics = await _db.getStatistics();
       _trendData = await _db.getTrendData();
       
       final syncQueue = await _db.getPendingSyncQueue();
       _pendingSyncCount = syncQueue.length;
+      
+      debugPrint('📋 Reports in provider: ${_reports.length}');
+      for (var report in _reports) {
+        debugPrint('  - ${report.id}: ${report.title} (${report.category})');
+      }
     } catch (e) {
       _error = '載入資料失敗: $e';
+      debugPrint('❌ Error loading reports: $e');
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -53,7 +62,7 @@ class ReportProvider extends ChangeNotifier {
       final analysis = await _api.analyzeImageWithAI(imageBase64);
       return analysis;
     } catch (e) {
-      print('AI analysis failed: $e');
+      debugPrint('AI analysis failed: $e');
       // Return fallback local analysis
       return {
         'damage_detected': true,
@@ -122,22 +131,30 @@ class ReportProvider extends ChangeNotifier {
       // Save to local database
       final id = await _db.insertReport(report);
       final savedReport = report.copyWith(id: id);
+      
+      debugPrint('✅ Report saved to database with ID: $id');
+      debugPrint('Report details: ${savedReport.title}, ${savedReport.category}, ${savedReport.severity}');
 
       // Try to sync if online
       if (isOnline) {
         try {
           await _api.submitReport(savedReport);
           await _db.markReportAsSynced(id);
+          debugPrint('✅ Report synced to server');
         } catch (e) {
           // Will sync later
           _pendingSyncCount++;
+          debugPrint('⚠️ Report saved locally, will sync later: $e');
         }
       } else {
         _pendingSyncCount++;
+        debugPrint('📴 Offline mode - report saved locally');
       }
 
       // Reload reports
       await loadReports();
+      
+      debugPrint('📊 Total reports after save: ${_reports.length}');
       
       return savedReport;
     } catch (e) {
@@ -194,7 +211,7 @@ class ReportProvider extends ChangeNotifier {
           }
         } catch (e) {
           // Continue with other reports
-          print('Failed to sync report ${report.id}: $e');
+          debugPrint('Failed to sync report ${report.id}: $e');
         }
       }
 

@@ -94,7 +94,7 @@ class _UwbSettingsPanelState extends State<UwbSettingsPanel>
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -212,31 +212,30 @@ class _UwbSettingsPanelState extends State<UwbSettingsPanel>
           _buildNumberInputRow('區域2 (m)', _area2Controller, (v) {
             _updateConfig(config.copyWith(areaRadius2: v));
           }),
-          Row(
-            children: [
-              Expanded(
-                child: RadioListTile<bool>(
-                  title: const Text('外圍報警', style: TextStyle(fontSize: 12)),
-                  value: false,
-                  groupValue: config.innerFenceAlarm,
-                  onChanged: (v) =>
-                      _updateConfig(config.copyWith(innerFenceAlarm: v)),
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
+          RadioGroup<bool>(
+            groupValue: config.innerFenceAlarm,
+            onChanged: (v) =>
+                _updateConfig(config.copyWith(innerFenceAlarm: v)),
+            child: const Row(
+              children: [
+                Expanded(
+                  child: RadioListTile<bool>(
+                    title: Text('外圍報警', style: TextStyle(fontSize: 12)),
+                    value: false,
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
                 ),
-              ),
-              Expanded(
-                child: RadioListTile<bool>(
-                  title: const Text('內圍報警', style: TextStyle(fontSize: 12)),
-                  value: true,
-                  groupValue: config.innerFenceAlarm,
-                  onChanged: (v) =>
-                      _updateConfig(config.copyWith(innerFenceAlarm: v)),
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
+                Expanded(
+                  child: RadioListTile<bool>(
+                    title: Text('內圍報警', style: TextStyle(fontSize: 12)),
+                    value: true,
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
 
           const SizedBox(height: 16),

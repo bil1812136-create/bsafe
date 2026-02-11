@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:bsafe_app/providers/report_provider.dart';
 import 'package:bsafe_app/providers/connectivity_provider.dart';
+import 'package:bsafe_app/providers/navigation_provider.dart';
 import 'package:bsafe_app/theme/app_theme.dart';
 import 'package:bsafe_app/widgets/ai_analysis_result.dart';
 
@@ -151,6 +152,8 @@ class _ReportScreenState extends State<ReportScreen> {
           Provider.of<ConnectivityProvider>(context, listen: false);
       final reportProvider =
           Provider.of<ReportProvider>(context, listen: false);
+      final navigationProvider =
+          Provider.of<NavigationProvider>(context, listen: false);
 
       final report = await reportProvider.addReport(
         title: _aiTitle ?? '建築安全問題',
@@ -164,8 +167,15 @@ class _ReportScreenState extends State<ReportScreen> {
       );
 
       if (report != null) {
-        _showSuccess('✅ 報告提交成功！');
         _resetForm();
+        _showSuccess('✅ 報告已成功提交！正在跳轉到紀錄頁面...');
+        
+        // 等待一下讓用戶看到成功消息，然後自動切換到歷史記錄頁面
+        Future.delayed(const Duration(milliseconds: 1500), () {
+          if (mounted) {
+            navigationProvider.goToHistory();
+          }
+        });
       }
     } catch (e) {
       _showError('提交失敗: $e');
@@ -242,7 +252,7 @@ class _ReportScreenState extends State<ReportScreen> {
                   Icon(
                     Icons.add_a_photo,
                     size: 60,
-                    color: Colors.white.withOpacity(0.9),
+                    color: Colors.white.withValues(alpha: 0.9),
                   ),
                   const SizedBox(height: 12),
                   const Text(
@@ -257,7 +267,7 @@ class _ReportScreenState extends State<ReportScreen> {
                   Text(
                     'AI 將自動分析問題類別和嚴重程度',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.9),
+                      color: Colors.white.withValues(alpha: 0.9),
                       fontSize: 14,
                     ),
                     textAlign: TextAlign.center,
@@ -287,8 +297,8 @@ class _ReportScreenState extends State<ReportScreen> {
                                   decoration: BoxDecoration(
                                     gradient: LinearGradient(
                                       colors: [
-                                        AppTheme.primaryColor.withOpacity(0.1),
-                                        AppTheme.primaryColor.withOpacity(0.05),
+                                        AppTheme.primaryColor.withValues(alpha: 0.1),
+                                        AppTheme.primaryColor.withValues(alpha: 0.05),
                                       ],
                                       begin: Alignment.topLeft,
                                       end: Alignment.bottomRight,
@@ -296,7 +306,7 @@ class _ReportScreenState extends State<ReportScreen> {
                                     borderRadius: BorderRadius.circular(16),
                                     border: Border.all(
                                       color: AppTheme.primaryColor
-                                          .withOpacity(0.3),
+                                          .withValues(alpha: 0.3),
                                       width: 2,
                                     ),
                                   ),
@@ -307,7 +317,7 @@ class _ReportScreenState extends State<ReportScreen> {
                                         padding: const EdgeInsets.all(16),
                                         decoration: BoxDecoration(
                                           color: AppTheme.primaryColor
-                                              .withOpacity(0.15),
+                                              .withValues(alpha: 0.15),
                                           shape: BoxShape.circle,
                                         ),
                                         child: const Icon(
@@ -348,15 +358,15 @@ class _ReportScreenState extends State<ReportScreen> {
                                   decoration: BoxDecoration(
                                     gradient: LinearGradient(
                                       colors: [
-                                        Colors.purple.withOpacity(0.1),
-                                        Colors.purple.withOpacity(0.05),
+                                        Colors.purple.withValues(alpha: 0.1),
+                                        Colors.purple.withValues(alpha: 0.05),
                                       ],
                                       begin: Alignment.topLeft,
                                       end: Alignment.bottomRight,
                                     ),
                                     borderRadius: BorderRadius.circular(16),
                                     border: Border.all(
-                                      color: Colors.purple.withOpacity(0.3),
+                                      color: Colors.purple.withValues(alpha: 0.3),
                                       width: 2,
                                     ),
                                   ),
@@ -367,7 +377,7 @@ class _ReportScreenState extends State<ReportScreen> {
                                         padding: const EdgeInsets.all(16),
                                         decoration: BoxDecoration(
                                           color:
-                                              Colors.purple.withOpacity(0.15),
+                                              Colors.purple.withValues(alpha: 0.15),
                                           shape: BoxShape.circle,
                                         ),
                                         child: const Icon(
@@ -404,7 +414,7 @@ class _ReportScreenState extends State<ReportScreen> {
                           Positioned.fill(
                             child: Container(
                               decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.7),
+                                color: Colors.black.withValues(alpha: 0.7),
                                 borderRadius: BorderRadius.circular(30),
                               ),
                               child: Center(
@@ -730,9 +740,9 @@ class _ImageSourceButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 24),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withOpacity(0.3)),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
         ),
         child: Column(
           children: [

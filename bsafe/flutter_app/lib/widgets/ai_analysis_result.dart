@@ -21,12 +21,12 @@ class AIAnalysisResult extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: AppTheme.getRiskColor(riskLevel).withOpacity(0.3),
+          color: AppTheme.getRiskColor(riskLevel).withValues(alpha: 0.3),
           width: 2,
         ),
         boxShadow: [
           BoxShadow(
-            color: AppTheme.getRiskColor(riskLevel).withOpacity(0.1),
+            color: AppTheme.getRiskColor(riskLevel).withValues(alpha: 0.1),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -41,7 +41,7 @@ class AIAnalysisResult extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppTheme.primaryColor.withOpacity(0.1),
+                  color: AppTheme.primaryColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(
@@ -96,7 +96,7 @@ class AIAnalysisResult extends StatelessWidget {
                 height: 70,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: AppTheme.getRiskColor(riskLevel).withOpacity(0.1),
+                  color: AppTheme.getRiskColor(riskLevel).withValues(alpha: 0.1),
                   border: Border.all(
                     color: AppTheme.getRiskColor(riskLevel),
                     width: 3,

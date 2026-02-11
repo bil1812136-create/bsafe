@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 import 'dart:io' show File, Platform;
 import 'dart:ui' as ui;
@@ -6,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:pdfrx/pdfrx.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:bsafe_app/models/uwb_model.dart';
 import 'package:bsafe_app/services/desktop_serial_service.dart';
 
@@ -93,6 +95,42 @@ class UwbService extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ===== 持久化存储 =====
+  static const String _anchorsStorageKey = 'uwb_anchors_config';
+
+  // 保存基站配置到本地存储
+  Future<void> _saveAnchorsToStorage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final anchorsJson = _anchors.map((a) => a.toJson()).toList();
+      await prefs.setString(_anchorsStorageKey, jsonEncode(anchorsJson));
+      debugPrint('✅ 基站配置已保存: ${_anchors.length} 个基站');
+    } catch (e) {
+      debugPrint('❌ 保存基站配置失败: $e');
+    }
+  }
+
+  // 从本地存储加载基站配置
+  Future<void> loadAnchorsFromStorage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final anchorsJsonString = prefs.getString(_anchorsStorageKey);
+      
+      if (anchorsJsonString != null && anchorsJsonString.isNotEmpty) {
+        final List<dynamic> anchorsJson = jsonDecode(anchorsJsonString);
+        _anchors = anchorsJson.map((json) => UwbAnchor.fromJson(json)).toList();
+        debugPrint('✅ 已加載保存的基站配置: ${_anchors.length} 个基站');
+        notifyListeners();
+      } else {
+        debugPrint('📝 未找到保存的配置，使用默认基站配置');
+        initializeDefaultAnchors();
+      }
+    } catch (e) {
+      debugPrint('❌ 加載基站配置失敗，使用默認配置: $e');
+      initializeDefaultAnchors();
+    }
+  }
+
   // 初始化默认基站配置 (基于安信可 TWR App 截图)
   void initializeDefaultAnchors() {
     _anchors = [
@@ -101,6 +139,7 @@ class UwbService extends ChangeNotifier {
       UwbAnchor(id: '基站2', x: 0.00, y: -5.51, z: 3.00),
       UwbAnchor(id: '基站3', x: -5.34, y: -5.51, z: 3.00),
     ];
+    _saveAnchorsToStorage(); // 保存默认配置
     notifyListeners();
   }
 
@@ -108,6 +147,7 @@ class UwbService extends ChangeNotifier {
   void updateAnchor(int index, UwbAnchor anchor) {
     if (index >= 0 && index < _anchors.length) {
       _anchors[index] = anchor;
+      _saveAnchorsToStorage(); // 保存到本地存储
       notifyListeners();
     }
   }
@@ -123,6 +163,7 @@ class UwbService extends ChangeNotifier {
         z: old.z,
         isActive: old.isActive,
       );
+      _saveAnchorsToStorage(); // 保存到本地存储
       notifyListeners();
     }
   }
@@ -130,6 +171,7 @@ class UwbService extends ChangeNotifier {
   // 添加基站
   void addAnchor(UwbAnchor anchor) {
     _anchors.add(anchor);
+    _saveAnchorsToStorage(); // 保存到本地存储
     notifyListeners();
   }
 
@@ -137,6 +179,7 @@ class UwbService extends ChangeNotifier {
   void removeAnchor(int index) {
     if (index >= 0 && index < _anchors.length) {
       _anchors.removeAt(index);
+      _saveAnchorsToStorage(); // 保存到本地存储
       notifyListeners();
     }
   }
@@ -1217,7 +1260,7 @@ class UwbService extends ChangeNotifier {
       List<UwbAnchor> anchors, List<double> distances) {
     if (anchors.length < 3) return null;
 
-    double x1 = anchors[0].x, y1 = anchors[0].y;
+    final double x1 = anchors[0].x, y1 = anchors[0].y;
     final double r1 = distances[0];
 
     double sumX = 0, sumY = 0;
@@ -1225,8 +1268,8 @@ class UwbService extends ChangeNotifier {
 
     for (int i = 1; i < anchors.length; i++) {
       for (int j = i + 1; j < anchors.length; j++) {
-        double x2 = anchors[i].x, y2 = anchors[i].y;
-        double x3 = anchors[j].x, y3 = anchors[j].y;
+        final double x2 = anchors[i].x, y2 = anchors[i].y;
+        final double x3 = anchors[j].x, y3 = anchors[j].y;
         final double r2 = distances[i];
         final double r3 = distances[j];
 
