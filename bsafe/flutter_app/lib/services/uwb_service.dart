@@ -119,7 +119,7 @@ class UwbService extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       final anchorsJsonString = prefs.getString(_anchorsStorageKey);
-      
+
       if (anchorsJsonString != null && anchorsJsonString.isNotEmpty) {
         final List<dynamic> anchorsJson = jsonDecode(anchorsJsonString);
         _anchors = anchorsJson.map((json) => UwbAnchor.fromJson(json)).toList();
@@ -198,7 +198,12 @@ class UwbService extends ChangeNotifier {
 
   /// 支援的檔案格式
   static const List<String> supportedImageExtensions = [
-    'png', 'jpg', 'jpeg', 'bmp', 'gif', 'webp',
+    'png',
+    'jpg',
+    'jpeg',
+    'bmp',
+    'gif',
+    'webp',
   ];
   static const List<String> supportedVectorExtensions = ['svg'];
   static const List<String> supportedPdfExtensions = ['pdf'];
@@ -266,7 +271,8 @@ class UwbService extends ChangeNotifier {
       _isLoadingFloorPlan = false;
       notifyListeners();
 
-      debugPrint('平面地圖已載入 ($fileType): ${_floorPlanImage!.width}x${_floorPlanImage!.height}');
+      debugPrint(
+          '平面地圖已載入 ($fileType): ${_floorPlanImage!.width}x${_floorPlanImage!.height}');
     } catch (e) {
       _isLoadingFloorPlan = false;
       _lastError = '載入平面地圖失敗: $e';
@@ -318,9 +324,8 @@ class UwbService extends ChangeNotifier {
     }
     canvas.drawPicture(pictureInfo.picture);
 
-    final ui.Image image = await recorder
-        .endRecording()
-        .toImage(renderWidth, renderHeight);
+    final ui.Image image =
+        await recorder.endRecording().toImage(renderWidth, renderHeight);
 
     pictureInfo.picture.dispose();
 
@@ -346,7 +351,8 @@ class UwbService extends ChangeNotifier {
 
     // 將像素數據轉為 ui.Image
     final pixels = pageImage.pixels;
-    final ui.ImmutableBuffer buffer = await ui.ImmutableBuffer.fromUint8List(pixels);
+    final ui.ImmutableBuffer buffer =
+        await ui.ImmutableBuffer.fromUint8List(pixels);
     final ui.ImageDescriptor descriptor = ui.ImageDescriptor.raw(
       buffer,
       width: pageImage.width,
@@ -449,8 +455,7 @@ class UwbService extends ChangeNotifier {
         }
 
         // 嘗試自動連接
-        final connected =
-            await _mobileSerial!.autoConnect(baudRate: _baudRate);
+        final connected = await _mobileSerial!.autoConnect(baudRate: _baudRate);
 
         if (connected) {
           _serialSubscription = _mobileSerial!.dataStream.listen(
@@ -561,8 +566,8 @@ class UwbService extends ChangeNotifier {
           }
         }
 
-        final connected = await _mobileSerial!.connectByIndex(
-            deviceIndex, baudRate: _baudRate);
+        final connected = await _mobileSerial!
+            .connectByIndex(deviceIndex, baudRate: _baudRate);
 
         if (connected) {
           _serialSubscription = _mobileSerial!.dataStream.listen(
@@ -922,25 +927,23 @@ class UwbService extends ChangeNotifier {
         return null;
       }
 
-      // 調試輸出已關閉以提高性能
-      // debugPrint('BU04 數據區 (${dataBytes.length} bytes): ${dataBytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
-      // for (int pos = 0; pos < dataBytes.length - 1; pos += 2) { ... }
+      // 調試輸出 - 列出所有可能的距離值
+      final StringBuffer rawDebug = StringBuffer('RAW bytes: ');
+      for (int pos = 0; pos < min(dataBytes.length - 1, 40); pos += 2) {
+        final val = dataBytes[pos] | (dataBytes[pos + 1] << 8);
+        if (val > 50 && val < 20000) {
+          rawDebug.write('[${pos}-${pos + 1}]=${val}mm ');
+        }
+      }
+      debugPrint(rawDebug.toString());
 
-      // ===== 根據實際數據分析 BU04 TWR 協議 =====
-      // 91字節數據格式 (基於實際抓包):
-      // [0-7]: 時間戳/序號 (8 bytes)
-      // [8-9]: D0 距離 (2 bytes, 小端序, 毫米)
-      // [10-11]: D1 距離 (2 bytes)
-      // [12-13]: 保留/填充 (通常為0)
-      // [14-15]: D2 距離 (2 bytes) - 確認位置
-      // [16-17]: 保留/填充 (通常為0)
-      // [18-19]: D2 距離 (2 bytes) - 確認位置
-      // [22-23]: D3 距離 (2 bytes)
-      // ...數據可能在後面重複
+      // ===== BU04 TWR 協議 - 智能距離掃描 =====
+      // 不再硬編碼 byte offset，而是掃描所有位置找到有效距離值
+      // 然後按照出現順序映射到 D0, D1, D2, D3
 
       final List<double> distances = [-1.0, -1.0, -1.0, -1.0];
 
-      // 讀取 D0 (位置 8-9) - 確定
+      // 首先確認 D0 在 [8-9]（這個已驗證正確）
       if (dataBytes.length > 9) {
         final int d0mm = dataBytes[8] | (dataBytes[9] << 8);
         if (d0mm > 50 && d0mm < 20000) {
@@ -948,77 +951,41 @@ class UwbService extends ChangeNotifier {
         }
       }
 
-      // 讀取 D1 (位置 10-11) - 確定
-      if (dataBytes.length > 11) {
-        final int d1mm = dataBytes[10] | (dataBytes[11] << 8);
-        if (d1mm > 50 && d1mm < 20000) {
-          distances[1] = d1mm / 1000.0;
-        }
-      }
-
-      // D2 在位置 18-19 (根據實際數據分析確認)
-      if (dataBytes.length > 19) {
-        final int d2mm = dataBytes[18] | (dataBytes[19] << 8);
-        if (d2mm > 50 && d2mm < 20000) {
-          distances[2] = d2mm / 1000.0;
-        }
-      }
-
-      // D3 在位置 22-23
-      if (dataBytes.length > 23) {
-        final int d3mm = dataBytes[22] | (dataBytes[23] << 8);
-        if (d3mm > 50 && d3mm < 20000) {
-          distances[3] = d3mm / 1000.0;
-        }
-      }
-
-      // 如果 D2/D3 還沒找到，搜索其他位置
-      if (distances[2] < 0 || distances[3] < 0) {
-        // 擴展搜索範圍
-        final List<int> candidatePositions = [
-          12,
-          14,
-          16,
-          18,
-          20,
-          24,
-          28,
-          30,
-          32,
-          34
-        ];
-        final List<int> validDistanceValues = [];
-
-        for (int pos in candidatePositions) {
-          if (pos + 1 < dataBytes.length) {
-            final int val = dataBytes[pos] | (dataBytes[pos + 1] << 8);
-            // 有效距離範圍: 50mm - 20000mm
-            if (val > 50 && val < 20000) {
-              validDistanceValues.add(val);
+      // 掃描 [10] 到 [38] 之間所有偶數位的 2-byte 值，找出其餘 3 個距離
+      // 跳過已知的 D0 位置 [8-9]
+      final List<({int pos, int valueMm})> candidates = [];
+      for (int pos = 10; pos < min(dataBytes.length - 1, 40); pos += 2) {
+        final int val = dataBytes[pos] | (dataBytes[pos + 1] << 8);
+        if (val > 50 && val < 20000) {
+          // 排除跟已找到的值太接近的（可能是同一個距離的重複）
+          bool isDuplicate = false;
+          // 排除跟 D0 太接近的值（差距 < 5%）
+          if (distances[0] > 0) {
+            final d0mm = (distances[0] * 1000).round();
+            if ((val - d0mm).abs() < d0mm * 0.05) {
+              isDuplicate = true;
             }
           }
-        }
-
-        // 找不同於 D0, D1 的值作為 D2, D3
-        final d0Raw = distances[0] > 0 ? (distances[0] * 1000).round() : -1;
-        final d1Raw = distances[1] > 0 ? (distances[1] * 1000).round() : -1;
-
-        for (int val in validDistanceValues) {
-          // 如果這個值與 D0 或 D1 差距大於 10%，則視為新的距離
-          final bool notD0 = d0Raw < 0 || (val - d0Raw).abs() > d0Raw * 0.10;
-          final bool notD1 = d1Raw < 0 || (val - d1Raw).abs() > d1Raw * 0.10;
-
-          if (notD0 && notD1) {
-            if (distances[2] < 0) {
-              distances[2] = val / 1000.0;
-            } else if (distances[3] < 0 &&
-                (val - distances[2] * 1000).abs() > 100) {
-              distances[3] = val / 1000.0;
+          // 排除跟已收集的 candidates 太接近的值
+          for (final c in candidates) {
+            if ((val - c.valueMm).abs() < c.valueMm * 0.05) {
+              isDuplicate = true;
               break;
             }
           }
+          if (!isDuplicate) {
+            candidates.add((pos: pos, valueMm: val));
+          }
         }
       }
+
+      // 按順序分配: 第1個不同值 → D1, 第2個 → D2, 第3個 → D3
+      for (int i = 0; i < candidates.length && i < 3; i++) {
+        distances[i + 1] = candidates[i].valueMm / 1000.0;
+      }
+
+      debugPrint(
+          '掃描結果: 找到 ${candidates.length} 個不同距離值: ${candidates.map((c) => "[${c.pos}]=${c.valueMm}mm").join(", ")}');
 
       // ===== 應用安信可距離校正係數 =====
       final double corrA = _config.correctionA; // 0.78
@@ -1033,8 +1000,10 @@ class UwbService extends ChangeNotifier {
       // 计算有效距离数量
       final validCount = distances.where((d) => d > 0).length;
 
-      // debugPrint('BU04 (校正後): D0=${distances[0].toStringAsFixed(2)}m, D1=${distances[1].toStringAsFixed(2)}m, D2=${distances[2].toStringAsFixed(2)}m, D3=${distances[3].toStringAsFixed(2)}m');
-      // debugPrint('有效距離數: $validCount, 基站數: ${_anchors.length}');
+      debugPrint(
+          'BU04 (校正後): D0=${distances[0].toStringAsFixed(2)}m, D1=${distances[1].toStringAsFixed(2)}m, D2=${distances[2].toStringAsFixed(2)}m, D3=${distances[3].toStringAsFixed(2)}m');
+      debugPrint(
+          '有效距離數: $validCount, 基站數: ${_anchors.length}, 基站座標: ${_anchors.map((a) => "(${a.x.toStringAsFixed(1)},${a.y.toStringAsFixed(1)})").join(", ")}');
 
       if (validCount >= 2) {
         // 確保基站已初始化
@@ -1063,8 +1032,21 @@ class UwbService extends ChangeNotifier {
           // debugPrint('雙圓交點計算失敗');
         }
 
-        // 至少返回距離數據
-        return _createTagWithMeasuredDistances(0, 0, 0, '0', distances);
+        // 至少返回距離數據（使用上次已知位置或基站中心，避免跳到原點）
+        if (_currentTag != null) {
+          return _createTagWithMeasuredDistances(
+              _currentTag!.x, _currentTag!.y, 0, '0', distances);
+        }
+        // 沒有歷史位置，使用基站中心點
+        final cx = _anchors.isEmpty
+            ? 0.0
+            : _anchors.map((a) => a.x).reduce((a, b) => a + b) /
+                _anchors.length;
+        final cy = _anchors.isEmpty
+            ? 0.0
+            : _anchors.map((a) => a.y).reduce((a, b) => a + b) /
+                _anchors.length;
+        return _createTagWithMeasuredDistances(cx, cy, 0, '0', distances);
       }
 
       return null;
@@ -1152,15 +1134,28 @@ class UwbService extends ChangeNotifier {
 
     // debugPrint('雙圓交點候選: (${x1.toStringAsFixed(2)}, ${y1.toStringAsFixed(2)}), (${x2.toStringAsFixed(2)}, ${y2.toStringAsFixed(2)})');
 
-    // 選擇在合理範圍內的點
-    // 根據基站配置 x: [-6.84, 0], y: [-5.51, 0]，標籤應該在這個範圍附近
-    final bool valid1 = y1 >= -8.0 && y1 <= 2.0 && x1 >= -10.0 && x1 <= 2.0;
-    final bool valid2 = y2 >= -8.0 && y2 <= 2.0 && x2 >= -10.0 && x2 <= 2.0;
+    // 選擇在合理範圍內的點 - 根據實際基站位置動態計算
+    final allX = _anchors.map((a) => a.x).toList();
+    final allY = _anchors.map((a) => a.y).toList();
+    final anchorMinX = allX.reduce(min);
+    final anchorMaxX = allX.reduce(max);
+    final anchorMinY = allY.reduce(min);
+    final anchorMaxY = allY.reduce(max);
+    final margin =
+        max((anchorMaxX - anchorMinX), (anchorMaxY - anchorMinY)) * 0.5 + 2.0;
+    final bool valid1 = x1 >= anchorMinX - margin &&
+        x1 <= anchorMaxX + margin &&
+        y1 >= anchorMinY - margin &&
+        y1 <= anchorMaxY + margin;
+    final bool valid2 = x2 >= anchorMinX - margin &&
+        x2 <= anchorMaxX + margin &&
+        y2 >= anchorMinY - margin &&
+        y2 <= anchorMaxY + margin;
 
     if (valid1 && valid2) {
       // 兩個都有效，選擇更接近區域中心的
-      const centerX = -3.0; // 區域 x 中心
-      const centerY = -2.75; // 區域 y 中心
+      final centerX = (anchorMinX + anchorMaxX) / 2;
+      final centerY = (anchorMinY + anchorMaxY) / 2;
       final dist1 =
           (x1 - centerX) * (x1 - centerX) + (y1 - centerY) * (y1 - centerY);
       final dist2 =
@@ -1333,17 +1328,22 @@ class UwbService extends ChangeNotifier {
       }
     }
 
-    // 限制在合理範圍內
-    x = x.clamp(-10.0, 2.0);
-    y = y.clamp(-8.0, 2.0);
+    // 限制在合理範圍內 - 根據實際基站位置動態計算
+    final minX = validAnchors.map((a) => a.x).reduce(min);
+    final maxX = validAnchors.map((a) => a.x).reduce(max);
+    final minY = validAnchors.map((a) => a.y).reduce(min);
+    final maxY = validAnchors.map((a) => a.y).reduce(max);
+    final rangeMargin = max((maxX - minX), (maxY - minY)) * 0.3 + 1.0;
+    x = x.clamp(minX - rangeMargin, maxX + rangeMargin);
+    y = y.clamp(minY - rangeMargin, maxY + rangeMargin);
 
-    // 驗證結果：檢查是否在基站構成的區域附近
-    final minX = validAnchors.map((a) => a.x).reduce(min) - 1;
-    final maxX = validAnchors.map((a) => a.x).reduce(max) + 1;
-    final minY = validAnchors.map((a) => a.y).reduce(min) - 1;
-    final maxY = validAnchors.map((a) => a.y).reduce(max) + 1;
+    // 驗證結果：檢查是否在基站構成的區域附近（放寬邊界）
+    final checkMinX = minX - rangeMargin;
+    final checkMaxX = maxX + rangeMargin;
+    final checkMinY = minY - rangeMargin;
+    final checkMaxY = maxY + rangeMargin;
 
-    if (x < minX || x > maxX || y < minY || y > maxY) {
+    if (x < checkMinX || x > checkMaxX || y < checkMinY || y > checkMaxY) {
       // 結果超出合理範圍，使用備用算法
       return _fallbackTrilateration(validAnchors, validDistances);
     }
@@ -1384,12 +1384,18 @@ class UwbService extends ChangeNotifier {
           final double x = (C * E - B * F) / det;
           final double y = (A * F - C * D) / det;
 
+          // 動態邊界：基於基站範圍
+          final fbMinX = anchors.map((a) => a.x).reduce(min) - 5;
+          final fbMaxX = anchors.map((a) => a.x).reduce(max) + 5;
+          final fbMinY = anchors.map((a) => a.y).reduce(min) - 5;
+          final fbMaxY = anchors.map((a) => a.y).reduce(max) + 5;
+
           if (x.isFinite &&
               y.isFinite &&
-              x >= -5 &&
-              x <= 20 &&
-              y >= -5 &&
-              y <= 20) {
+              x >= fbMinX &&
+              x <= fbMaxX &&
+              y >= fbMinY &&
+              y <= fbMaxY) {
             final weight = 1.0 / (r1 + r2 + r3);
             sumX += x * weight;
             sumY += y * weight;

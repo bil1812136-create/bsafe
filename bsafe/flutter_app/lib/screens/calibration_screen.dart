@@ -146,6 +146,7 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
     required Color color,
     required VoidCallback onTap,
   }) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -153,29 +154,36 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(isMobile ? 16 : 24),
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: EdgeInsets.all(isMobile ? 12 : 16),
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, size: 36, color: color),
+                child: Icon(icon, size: isMobile ? 28 : 36, color: color),
               ),
-              const SizedBox(width: 20),
+              const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color)),
+                    Text(title,
+                        style: TextStyle(
+                            fontSize: isMobile ? 16 : 18,
+                            fontWeight: FontWeight.bold,
+                            color: color)),
                     const SizedBox(height: 4),
-                    Text(subtitle, style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                    Text(subtitle,
+                        style: TextStyle(
+                            fontSize: 13, color: Colors.grey.shade600)),
                   ],
                 ),
               ),
-              Icon(Icons.arrow_forward_ios, color: Colors.grey.shade400),
+              Icon(Icons.arrow_forward_ios,
+                  color: Colors.grey.shade400, size: isMobile ? 16 : 20),
             ],
           ),
         ),
@@ -185,6 +193,13 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
 
   // ===== 校正主視圖 =====
   Widget _buildCalibrationView() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
+
+    if (isMobile) {
+      return _buildMobileCalibrationView();
+    }
+
     return Row(
       children: [
         // 左側：畫布
@@ -232,6 +247,165 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
     );
   }
 
+  // ===== 手機版校正視圖 =====
+  Widget _buildMobileCalibrationView() {
+    return Column(
+      children: [
+        // 簡化工具欄
+        _buildMobileToolBar(),
+        // 畫布（佔上半部分）
+        Expanded(
+          flex: 3,
+          child: Container(
+            color: Colors.grey.shade200,
+            child: ClipRect(
+              child: GestureDetector(
+                onTapDown: _handleCanvasTap,
+                child: CustomPaint(
+                  key: _canvasKey,
+                  painter: _CalibrationPainter(
+                    mode: _mode,
+                    floorPlanImage: _floorPlanImage,
+                    roomWidth: _roomWidth,
+                    roomHeight: _roomHeight,
+                    anchors: _placedAnchors,
+                    distancePairs: _distancePairs,
+                    selectedIndex: _selectedAnchorIndex,
+                    secondIndex: _secondAnchorIndex,
+                    calculatedScale: _calculatedScale,
+                  ),
+                  size: Size.infinite,
+                ),
+              ),
+            ),
+          ),
+        ),
+        // 底部設定面板（可滑動）
+        Expanded(
+          flex: 4,
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(16)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, -2),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                // 拖動指示器
+                Container(
+                  margin: const EdgeInsets.symmetric(vertical: 8),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                // 滾動內容
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // 基站高度
+                        _buildHeightSetting(),
+                        const Divider(height: 24),
+
+                        // 已放置的基站列表
+                        _buildAnchorList(),
+                        const Divider(height: 24),
+
+                        // 距離設定
+                        _buildDistanceSection(),
+                        const Divider(height: 24),
+
+                        // 校正結果
+                        if (_isCalibrated) _buildCalibrationResult(),
+
+                        // 操作提示
+                        _buildInstructions(),
+                        const SizedBox(height: 20),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ===== 手機版工具欄 =====
+  Widget _buildMobileToolBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            _mode == 'floor_plan' ? Icons.image : Icons.square_foot,
+            size: 18,
+            color: AppTheme.primaryColor,
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              _mode == 'floor_plan' ? '平面圖校正' : '${_roomWidth}×${_roomHeight}m',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              '已放 ${_placedAnchors.length} 個基站',
+              style: TextStyle(color: Colors.blue.shade700, fontSize: 11),
+            ),
+          ),
+          if (_isCalibrated) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green, size: 14),
+                  SizedBox(width: 2),
+                  Text('已校正',
+                      style: TextStyle(
+                          color: Colors.green,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   // ===== 工具欄 =====
   Widget _buildToolBar() {
     return Container(
@@ -249,7 +423,9 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
           ),
           const SizedBox(width: 8),
           Text(
-            _mode == 'floor_plan' ? '平面圖校正' : '房間尺寸校正 ($_roomWidth × $_roomHeight m)',
+            _mode == 'floor_plan'
+                ? '平面圖校正'
+                : '房間尺寸校正 ($_roomWidth × $_roomHeight m)',
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
           const Spacer(),
@@ -279,7 +455,10 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                   const SizedBox(width: 4),
                   Text(
                     '已校正',
-                    style: TextStyle(color: Colors.green.shade700, fontSize: 13, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                        color: Colors.green.shade700,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
@@ -308,7 +487,11 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
               children: [
                 Icon(Icons.cell_tower, color: Colors.white),
                 SizedBox(width: 8),
-                Text('基站設置', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                Text('基站設置',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16)),
               ],
             ),
           ),
@@ -349,7 +532,8 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('基站高度 (統一)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+        const Text('基站高度 (統一)',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
         const SizedBox(height: 8),
         Row(
           children: [
@@ -359,10 +543,12 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                 decoration: const InputDecoration(
                   border: OutlineInputBorder(),
                   suffixText: '米',
-                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   isDense: true,
                 ),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
                 onChanged: (v) {
                   final h = double.tryParse(v);
                   if (h != null && h > 0) {
@@ -372,7 +558,8 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
               ),
             ),
             const SizedBox(width: 8),
-            Text('(天花板高度)', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            Text('(天花板高度)',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
           ],
         ),
       ],
@@ -386,9 +573,11 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
       children: [
         Row(
           children: [
-            const Text('已放置基站', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            const Text('已放置基站',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
             const Spacer(),
-            Text('${_placedAnchors.length} 個', style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+            Text('${_placedAnchors.length} 個',
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
           ],
         ),
         const SizedBox(height: 8),
@@ -437,23 +626,33 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                   CircleAvatar(
                     radius: 14,
                     backgroundColor: _getAnchorColor(i),
-                    child: Text('${i + 1}', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                    child: Text('${i + 1}',
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold)),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(a.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        Text(a.name,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 13)),
                         if (_isCalibrated && a.realX != null && a.realY != null)
                           Text(
                             '(${a.realX!.toStringAsFixed(2)}, ${a.realY!.toStringAsFixed(2)}) m',
-                            style: TextStyle(fontSize: 11, color: Colors.green.shade700, fontFamily: 'monospace'),
+                            style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.green.shade700,
+                                fontFamily: 'monospace'),
                           )
                         else
                           Text(
                             '像素: (${a.pixelX.toInt()}, ${a.pixelY.toInt()})',
-                            style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                            style: TextStyle(
+                                fontSize: 11, color: Colors.grey.shade600),
                           ),
                       ],
                     ),
@@ -464,7 +663,9 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
-                        color: isSelected || isSecond ? Colors.blue.shade100 : Colors.grey.shade200,
+                        color: isSelected || isSecond
+                            ? Colors.blue.shade100
+                            : Colors.grey.shade200,
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: const Icon(Icons.straighten, size: 16),
@@ -479,7 +680,8 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                         color: Colors.red.shade50,
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: Icon(Icons.close, size: 16, color: Colors.red.shade400),
+                      child: Icon(Icons.close,
+                          size: 16, color: Colors.red.shade400),
                     ),
                   ),
                 ],
@@ -497,7 +699,8 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
       children: [
         Row(
           children: [
-            const Text('基站間距離', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            const Text('基站間距離',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
             const Spacer(),
             if (_placedAnchors.length >= 2)
               TextButton.icon(
@@ -513,7 +716,6 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
           style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
         ),
         const SizedBox(height: 8),
-
         if (_distancePairs.isEmpty && _placedAnchors.length >= 2)
           Container(
             padding: const EdgeInsets.all(12),
@@ -524,18 +726,19 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
             ),
             child: Row(
               children: [
-                Icon(Icons.info_outline, color: Colors.orange.shade700, size: 18),
+                Icon(Icons.info_outline,
+                    color: Colors.orange.shade700, size: 18),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     '需要至少一組距離來計算比例尺',
-                    style: TextStyle(fontSize: 12, color: Colors.orange.shade700),
+                    style:
+                        TextStyle(fontSize: 12, color: Colors.orange.shade700),
                   ),
                 ),
               ],
             ),
           ),
-
         ..._distancePairs.asMap().entries.map((entry) {
           final i = entry.key;
           final pair = entry.value;
@@ -554,7 +757,9 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                     CircleAvatar(
                       radius: 10,
                       backgroundColor: _getAnchorColor(pair.anchorA),
-                      child: Text('${pair.anchorA + 1}', style: const TextStyle(color: Colors.white, fontSize: 9)),
+                      child: Text('${pair.anchorA + 1}',
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 9)),
                     ),
                     const SizedBox(width: 4),
                     const Icon(Icons.swap_horiz, size: 16),
@@ -562,28 +767,34 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                     CircleAvatar(
                       radius: 10,
                       backgroundColor: _getAnchorColor(pair.anchorB),
-                      child: Text('${pair.anchorB + 1}', style: const TextStyle(color: Colors.white, fontSize: 9)),
+                      child: Text('${pair.anchorB + 1}',
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 9)),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: SizedBox(
                         height: 32,
                         child: TextFormField(
-                          initialValue: pair.distance > 0 ? pair.distance.toString() : '',
+                          initialValue:
+                              pair.distance > 0 ? pair.distance.toString() : '',
                           decoration: const InputDecoration(
                             border: OutlineInputBorder(),
                             suffixText: '米',
                             hintText: '距離',
-                            contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                            contentPadding: EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 6),
                             isDense: true,
                           ),
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
                           style: const TextStyle(fontSize: 13),
                           onChanged: (v) {
                             final d = double.tryParse(v);
                             if (d != null && d > 0) {
                               setState(() {
-                                _distancePairs[i] = _DistancePair(pair.anchorA, pair.anchorB, d);
+                                _distancePairs[i] = _DistancePair(
+                                    pair.anchorA, pair.anchorB, d);
                                 _recalculate();
                               });
                             }
@@ -599,7 +810,8 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                           _recalculate();
                         });
                       },
-                      child: Icon(Icons.close, size: 16, color: Colors.red.shade400),
+                      child: Icon(Icons.close,
+                          size: 16, color: Colors.red.shade400),
                     ),
                   ],
                 ),
@@ -608,15 +820,16 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
                       '像素距離: ${pair.pixelDistance.toStringAsFixed(1)} px',
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                      style:
+                          TextStyle(fontSize: 11, color: Colors.grey.shade500),
                     ),
                   ),
               ],
             ),
           );
         }),
-
-        if (_distancePairs.isNotEmpty && _distancePairs.any((d) => d.distance > 0))
+        if (_distancePairs.isNotEmpty &&
+            _distancePairs.any((d) => d.distance > 0))
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: SizedBox(
@@ -655,22 +868,30 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                 children: [
                   Icon(Icons.check_circle, color: Colors.green, size: 20),
                   SizedBox(width: 8),
-                  Text('校正完成', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green, fontSize: 15)),
+                  Text('校正完成',
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
+                          fontSize: 15)),
                 ],
               ),
               const SizedBox(height: 8),
               Text('比例尺: ${_calculatedScale!.toStringAsFixed(4)} 米/像素',
-                  style: const TextStyle(fontSize: 13, fontFamily: 'monospace')),
+                  style:
+                      const TextStyle(fontSize: 13, fontFamily: 'monospace')),
               const SizedBox(height: 8),
-              const Text('基站座標:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-              ..._placedAnchors.where((a) => a.realX != null).map((a) =>
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      '  ${a.name}: (${a.realX!.toStringAsFixed(2)}, ${a.realY!.toStringAsFixed(2)}, ${_anchorHeight.toStringAsFixed(1)})',
-                      style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
-                    ),
-                  )),
+              const Text('基站座標:',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              ..._placedAnchors
+                  .where((a) => a.realX != null)
+                  .map((a) => Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          '  ${a.name}: (${a.realX!.toStringAsFixed(2)}, ${a.realY!.toStringAsFixed(2)}, ${_anchorHeight.toStringAsFixed(1)})',
+                          style: const TextStyle(
+                              fontSize: 12, fontFamily: 'monospace'),
+                        ),
+                      )),
             ],
           ),
         ),
@@ -704,11 +925,16 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('操作步驟:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blue.shade800)),
+          Text('操作步驟:',
+              style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  color: Colors.blue.shade800)),
           const SizedBox(height: 8),
           _buildStep(1, '在畫布上點擊放置基站（至少 2 個）', _placedAnchors.length >= 2),
           _buildStep(2, '點擊 📏 按鈕選擇基站對', _selectedAnchorIndex != null),
-          _buildStep(3, '輸入基站間的實際距離（米）', _distancePairs.any((d) => d.distance > 0)),
+          _buildStep(
+              3, '輸入基站間的實際距離（米）', _distancePairs.any((d) => d.distance > 0)),
           _buildStep(4, '點擊「計算校正」', _isCalibrated),
           _buildStep(5, '點擊「應用到系統」完成', false),
         ],
@@ -797,9 +1023,11 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                 labelText: '房間寬度',
                 suffixText: '米',
                 border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               ),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -808,9 +1036,11 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                 labelText: '房間長度',
                 suffixText: '米',
                 border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               ),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
             ),
             const SizedBox(height: 12),
             Text(
@@ -820,7 +1050,8 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
           ElevatedButton(
             onPressed: () {
               final w = double.tryParse(_roomWidthController.text);
@@ -846,7 +1077,8 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
   }
 
   void _handleCanvasTap(TapDownDetails details) {
-    final RenderBox? box = _canvasKey.currentContext?.findRenderObject() as RenderBox?;
+    final RenderBox? box =
+        _canvasKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null) return;
 
     final localPosition = details.localPosition;
@@ -866,7 +1098,10 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
       // 檢查是否在房間內
       final px = localPosition.dx;
       final py = localPosition.dy;
-      if (px >= ox && px <= ox + _roomWidth * scale && py >= oy && py <= oy + _roomHeight * scale) {
+      if (px >= ox &&
+          px <= ox + _roomWidth * scale &&
+          py >= oy &&
+          py <= oy + _roomHeight * scale) {
         // 轉換為米座標
         final realX = (px - ox) / scale;
         final realY = _roomHeight - (py - oy) / scale; // Y軸翻轉
@@ -924,8 +1159,9 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
     final b = _secondAnchorIndex!;
 
     // 檢查這對是否已存在
-    final exists = _distancePairs.any(
-        (p) => (p.anchorA == a && p.anchorB == b) || (p.anchorA == b && p.anchorB == a));
+    final exists = _distancePairs.any((p) =>
+        (p.anchorA == a && p.anchorB == b) ||
+        (p.anchorA == b && p.anchorB == a));
     if (exists) return;
 
     final pixDist = _pixelDistance(a, b);
@@ -939,8 +1175,9 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
     // 找一對尚未添加的
     for (int i = 0; i < _placedAnchors.length; i++) {
       for (int j = i + 1; j < _placedAnchors.length; j++) {
-        final exists = _distancePairs.any(
-            (p) => (p.anchorA == i && p.anchorB == j) || (p.anchorA == j && p.anchorB == i));
+        final exists = _distancePairs.any((p) =>
+            (p.anchorA == i && p.anchorB == j) ||
+            (p.anchorA == j && p.anchorB == i));
         if (!exists) {
           final pixDist = _pixelDistance(i, j);
           setState(() {
@@ -962,7 +1199,8 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
     setState(() {
       _placedAnchors.removeAt(index);
       // 更新距離對的引用
-      _distancePairs.removeWhere((p) => p.anchorA == index || p.anchorB == index);
+      _distancePairs
+          .removeWhere((p) => p.anchorA == index || p.anchorB == index);
       for (int i = 0; i < _distancePairs.length; i++) {
         final p = _distancePairs[i];
         _distancePairs[i] = _DistancePair(
@@ -988,7 +1226,8 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
   void _updatePixelDistances() {
     for (int i = 0; i < _distancePairs.length; i++) {
       final p = _distancePairs[i];
-      if (p.anchorA < _placedAnchors.length && p.anchorB < _placedAnchors.length) {
+      if (p.anchorA < _placedAnchors.length &&
+          p.anchorB < _placedAnchors.length) {
         _distancePairs[i] = _DistancePair(p.anchorA, p.anchorB, p.distance,
             pixelDistance: _pixelDistance(p.anchorA, p.anchorB));
       }
@@ -1086,17 +1325,21 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
     }
 
     // 如果有平面圖，也設置 floor plan 的比例尺和偏移
-    if (_mode == 'floor_plan' && _floorPlanPath != null && _calculatedScale != null) {
+    if (_mode == 'floor_plan' &&
+        _floorPlanPath != null &&
+        _calculatedScale != null) {
       // 1像素 = _calculatedScale 米
       // xScale = 像素/米 = 1/_calculatedScale
       final pixelsPerMeter = 1.0 / _calculatedScale!;
-      
+
       // 偏移 = 第一個基站 (原點) 的真實座標 = (0, 0)
       // 平面圖左上角的像素位置轉為真實座標
       final originPixelX = _placedAnchors[0].pixelX;
       final originPixelY = _placedAnchors[0].pixelY;
       final offsetX = -originPixelX * _calculatedScale!;
-      final offsetY = -((_floorPlanImage?.height.toDouble() ?? 0) - originPixelY) * _calculatedScale!;
+      final offsetY =
+          -((_floorPlanImage?.height.toDouble() ?? 0) - originPixelY) *
+              _calculatedScale!;
 
       uwb.updateConfig(uwb.config.copyWith(
         xScale: pixelsPerMeter,
@@ -1128,7 +1371,14 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
   }
 
   Color _getAnchorColor(int index) {
-    const colors = [Colors.blue, Colors.red, Colors.green, Colors.orange, Colors.purple, Colors.teal];
+    const colors = [
+      Colors.blue,
+      Colors.red,
+      Colors.green,
+      Colors.orange,
+      Colors.purple,
+      Colors.teal
+    ];
     return colors[index % colors.length];
   }
 }
@@ -1156,7 +1406,8 @@ class _DistancePair {
   final double distance; // 實際距離 (米)
   final double pixelDistance; // 像素距離
 
-  _DistancePair(this.anchorA, this.anchorB, this.distance, {this.pixelDistance = 0});
+  _DistancePair(this.anchorA, this.anchorB, this.distance,
+      {this.pixelDistance = 0});
 }
 
 // ===== 校正畫布 Painter =====
@@ -1183,7 +1434,14 @@ class _CalibrationPainter extends CustomPainter {
     this.calculatedScale,
   });
 
-  static const _anchorColors = [Colors.blue, Colors.red, Colors.green, Colors.orange, Colors.purple, Colors.teal];
+  static const _anchorColors = [
+    Colors.blue,
+    Colors.red,
+    Colors.green,
+    Colors.orange,
+    Colors.purple,
+    Colors.teal
+  ];
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1213,7 +1471,8 @@ class _CalibrationPainter extends CustomPainter {
     final oy = (size.height - roomHeight * scale) / 2;
 
     // 房間背景
-    final roomRect = Rect.fromLTWH(ox, oy, roomWidth * scale, roomHeight * scale);
+    final roomRect =
+        Rect.fromLTWH(ox, oy, roomWidth * scale, roomHeight * scale);
     canvas.drawRect(roomRect, Paint()..color = Colors.white);
     canvas.drawRect(
       roomRect,
@@ -1243,22 +1502,29 @@ class _CalibrationPainter extends CustomPainter {
     }
 
     // 尺寸標註 - 底邊 (寬度)
-    _drawDimensionLabel(canvas,
-      Offset(ox, oy + roomHeight * scale + 20),
-      Offset(ox + roomWidth * scale, oy + roomHeight * scale + 20),
-      '${roomWidth}m');
+    _drawDimensionLabel(
+        canvas,
+        Offset(ox, oy + roomHeight * scale + 20),
+        Offset(ox + roomWidth * scale, oy + roomHeight * scale + 20),
+        '${roomWidth}m');
 
     // 尺寸標註 - 右邊 (長度)
-    _drawDimensionLabel(canvas,
-      Offset(ox + roomWidth * scale + 20, oy),
-      Offset(ox + roomWidth * scale + 20, oy + roomHeight * scale),
-      '${roomHeight}m', vertical: true);
+    _drawDimensionLabel(
+        canvas,
+        Offset(ox + roomWidth * scale + 20, oy),
+        Offset(ox + roomWidth * scale + 20, oy + roomHeight * scale),
+        '${roomHeight}m',
+        vertical: true);
 
     // 角落標註坐標
     _drawCornerLabel(canvas, Offset(ox, oy + roomHeight * scale), '(0, 0)');
-    _drawCornerLabel(canvas, Offset(ox + roomWidth * scale, oy + roomHeight * scale), '($roomWidth, 0)');
+    _drawCornerLabel(
+        canvas,
+        Offset(ox + roomWidth * scale, oy + roomHeight * scale),
+        '($roomWidth, 0)');
     _drawCornerLabel(canvas, Offset(ox, oy), '(0, $roomHeight)');
-    _drawCornerLabel(canvas, Offset(ox + roomWidth * scale, oy), '($roomWidth, $roomHeight)');
+    _drawCornerLabel(canvas, Offset(ox + roomWidth * scale, oy),
+        '($roomWidth, $roomHeight)');
   }
 
   void _drawCornerLabel(Canvas canvas, Offset pos, String text) {
@@ -1273,7 +1539,8 @@ class _CalibrationPainter extends CustomPainter {
     tp.paint(canvas, Offset(pos.dx - tp.width / 2, pos.dy + 4));
   }
 
-  void _drawDimensionLabel(Canvas canvas, Offset start, Offset end, String text, {bool vertical = false}) {
+  void _drawDimensionLabel(Canvas canvas, Offset start, Offset end, String text,
+      {bool vertical = false}) {
     final paint = Paint()
       ..color = Colors.grey.shade600
       ..strokeWidth = 1;
@@ -1292,7 +1559,10 @@ class _CalibrationPainter extends CustomPainter {
     final tp = TextPainter(
       text: TextSpan(
         text: text,
-        style: TextStyle(color: Colors.grey.shade800, fontSize: 13, fontWeight: FontWeight.bold),
+        style: TextStyle(
+            color: Colors.grey.shade800,
+            fontSize: 13,
+            fontWeight: FontWeight.bold),
       ),
       textDirection: TextDirection.ltr,
     );
@@ -1329,7 +1599,8 @@ class _CalibrationPainter extends CustomPainter {
     canvas.drawRect(dstRect, Paint()..color = Colors.white);
 
     // 圖片
-    canvas.drawImageRect(img, srcRect, dstRect, Paint()..filterQuality = FilterQuality.medium);
+    canvas.drawImageRect(
+        img, srcRect, dstRect, Paint()..filterQuality = FilterQuality.medium);
 
     // 邊框
     canvas.drawRect(
@@ -1343,7 +1614,8 @@ class _CalibrationPainter extends CustomPainter {
 
   void _drawDistanceLines(Canvas canvas, Size size) {
     for (final pair in distancePairs) {
-      if (pair.anchorA >= anchors.length || pair.anchorB >= anchors.length) continue;
+      if (pair.anchorA >= anchors.length || pair.anchorB >= anchors.length)
+        continue;
 
       final a = anchors[pair.anchorA];
       final b = anchors[pair.anchorB];
@@ -1382,7 +1654,10 @@ class _CalibrationPainter extends CustomPainter {
         final tp = TextPainter(
           text: TextSpan(
             text: '${pair.distance}m',
-            style: TextStyle(color: Colors.blue.shade700, fontSize: 11, fontWeight: FontWeight.bold),
+            style: TextStyle(
+                color: Colors.blue.shade700,
+                fontSize: 11,
+                fontWeight: FontWeight.bold),
           ),
           textDirection: TextDirection.ltr,
         );
@@ -1404,7 +1679,8 @@ class _CalibrationPainter extends CustomPainter {
         pos,
         24,
         Paint()
-          ..color = (isSelected ? Colors.blue : Colors.orange).withValues(alpha: 0.3)
+          ..color =
+              (isSelected ? Colors.blue : Colors.orange).withValues(alpha: 0.3)
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
       );
     }
@@ -1433,7 +1709,8 @@ class _CalibrationPainter extends CustomPainter {
     final tp = TextPainter(
       text: TextSpan(
         text: '${index + 1}',
-        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+        style: const TextStyle(
+            color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
       ),
       textDirection: TextDirection.ltr,
     );
@@ -1444,7 +1721,10 @@ class _CalibrationPainter extends CustomPainter {
     final nameTp = TextPainter(
       text: TextSpan(
         text: anchor.name,
-        style: TextStyle(color: Colors.grey.shade800, fontSize: 11, fontWeight: FontWeight.bold),
+        style: TextStyle(
+            color: Colors.grey.shade800,
+            fontSize: 11,
+            fontWeight: FontWeight.bold),
       ),
       textDirection: TextDirection.ltr,
     );
@@ -1467,8 +1747,12 @@ class _CalibrationPainter extends CustomPainter {
     if (anchor.realX != null && anchor.realY != null) {
       final coordTp = TextPainter(
         text: TextSpan(
-          text: '(${anchor.realX!.toStringAsFixed(2)}, ${anchor.realY!.toStringAsFixed(2)})',
-          style: TextStyle(color: Colors.green.shade700, fontSize: 9, fontFamily: 'monospace'),
+          text:
+              '(${anchor.realX!.toStringAsFixed(2)}, ${anchor.realY!.toStringAsFixed(2)})',
+          style: TextStyle(
+              color: Colors.green.shade700,
+              fontSize: 9,
+              fontFamily: 'monospace'),
         ),
         textDirection: TextDirection.ltr,
       );
