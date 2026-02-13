@@ -77,11 +77,21 @@ class UwbService extends ChangeNotifier {
   // ===== 位置濾波器 (減少抖動) =====
   final List<double> _xHistory = [];
   final List<double> _yHistory = [];
-  static const int _filterWindowSize = 2; // 滑動平均窗口大小 (減小以加快響應)
+  static const int _filterWindowSize = 5; // 滑動平均窗口大小
 
   // 距離歷史 (用於中值濾波)
   final Map<int, List<double>> _distanceHistory = {};
-  static const int _distanceFilterSize = 2; // 減小以加快響應
+  static const int _distanceFilterSize = 5; // 中值濾波窗口
+
+  // 穩定的距離 byte offset 映射（學習後固定）
+  List<int> _learnedOffsets = []; // [D0_pos, D1_pos, D2_pos, D3_pos]
+  int _offsetLearnCount = 0;
+  final Map<String, int> _offsetPatternCounts = {}; // 記錄各模式出現次數
+  static const int _offsetLearnThreshold = 10; // 學習閾值
+
+  // 最大移動速度限制 (米/秒) - 人走路約 1.5m/s
+  static const double _maxSpeed = 3.0;
+  DateTime? _lastPositionTime;
 
   // 原始数据缓存 (用于调试)
   final List<String> _rawDataLog = [];
@@ -927,65 +937,75 @@ class UwbService extends ChangeNotifier {
         return null;
       }
 
-      // 調試輸出 - 列出所有可能的距離值
-      final StringBuffer rawDebug = StringBuffer('RAW bytes: ');
-      for (int pos = 0; pos < min(dataBytes.length - 1, 40); pos += 2) {
-        final val = dataBytes[pos] | (dataBytes[pos + 1] << 8);
-        if (val > 50 && val < 20000) {
-          rawDebug.write('[${pos}-${pos + 1}]=${val}mm ');
-        }
-      }
-      debugPrint(rawDebug.toString());
-
-      // ===== BU04 TWR 協議 - 智能距離掃描 =====
-      // 不再硬編碼 byte offset，而是掃描所有位置找到有效距離值
-      // 然後按照出現順序映射到 D0, D1, D2, D3
-
+      // ===== BU04 TWR 協議 - 穩定距離解析 =====
       final List<double> distances = [-1.0, -1.0, -1.0, -1.0];
 
-      // 首先確認 D0 在 [8-9]（這個已驗證正確）
-      if (dataBytes.length > 9) {
-        final int d0mm = dataBytes[8] | (dataBytes[9] << 8);
-        if (d0mm > 50 && d0mm < 20000) {
-          distances[0] = d0mm / 1000.0;
-        }
-      }
-
-      // 掃描 [10] 到 [38] 之間所有偶數位的 2-byte 值，找出其餘 3 個距離
-      // 跳過已知的 D0 位置 [8-9]
-      final List<({int pos, int valueMm})> candidates = [];
-      for (int pos = 10; pos < min(dataBytes.length - 1, 40); pos += 2) {
-        final int val = dataBytes[pos] | (dataBytes[pos + 1] << 8);
-        if (val > 50 && val < 20000) {
-          // 排除跟已找到的值太接近的（可能是同一個距離的重複）
-          bool isDuplicate = false;
-          // 排除跟 D0 太接近的值（差距 < 5%）
-          if (distances[0] > 0) {
-            final d0mm = (distances[0] * 1000).round();
-            if ((val - d0mm).abs() < d0mm * 0.05) {
-              isDuplicate = true;
+      if (_learnedOffsets.length == 4) {
+        // 已學習到穩定的 byte offset 映射，直接讀取
+        for (int i = 0; i < 4; i++) {
+          final pos = _learnedOffsets[i];
+          if (pos + 1 < dataBytes.length) {
+            final int val = dataBytes[pos] | (dataBytes[pos + 1] << 8);
+            if (val > 50 && val < 20000) {
+              distances[i] = val / 1000.0;
             }
           }
-          // 排除跟已收集的 candidates 太接近的值
-          for (final c in candidates) {
-            if ((val - c.valueMm).abs() < c.valueMm * 0.05) {
-              isDuplicate = true;
+        }
+      } else {
+        // 學習階段：掃描找出 4 個有效距離的 byte 位置
+        // D0 固定在 [8-9]
+        final List<({int pos, int valueMm})> allValid = [];
+        for (int pos = 8; pos < min(dataBytes.length - 1, 40); pos += 2) {
+          final int val = dataBytes[pos] | (dataBytes[pos + 1] << 8);
+          if (val > 50 && val < 20000) {
+            allValid.add((pos: pos, valueMm: val));
+          }
+        }
+
+        // 去重：保留每組相似值中最早出現的
+        final List<({int pos, int valueMm})> unique = [];
+        for (final v in allValid) {
+          bool isDup = false;
+          for (final u in unique) {
+            if ((v.valueMm - u.valueMm).abs() < max(u.valueMm * 0.08, 80)) {
+              isDup = true;
               break;
             }
           }
-          if (!isDuplicate) {
-            candidates.add((pos: pos, valueMm: val));
+          if (!isDup) unique.add(v);
+        }
+
+        // 分配距離值
+        for (int i = 0; i < unique.length && i < 4; i++) {
+          distances[i] = unique[i].valueMm / 1000.0;
+        }
+
+        // 記錄 offset 模式進行學習
+        if (unique.length >= 3) {
+          final pattern = unique.take(4).map((u) => u.pos).join(',');
+          _offsetPatternCounts[pattern] = (_offsetPatternCounts[pattern] ?? 0) + 1;
+          _offsetLearnCount++;
+
+          if (_offsetLearnCount >= _offsetLearnThreshold) {
+            // 找到最常見的模式
+            String bestPattern = '';
+            int bestCount = 0;
+            _offsetPatternCounts.forEach((p, c) {
+              if (c > bestCount) { bestPattern = p; bestCount = c; }
+            });
+            if (bestCount >= _offsetLearnThreshold * 0.5) {
+              _learnedOffsets = bestPattern.split(',').map(int.parse).toList();
+              debugPrint('✅ 學習完成！固定 byte offsets: $_learnedOffsets (出現 $bestCount/$_offsetLearnCount 次)');
+            } else {
+              // 重置重新學習
+              _offsetLearnCount = 0;
+              _offsetPatternCounts.clear();
+            }
           }
         }
       }
 
-      // 按順序分配: 第1個不同值 → D1, 第2個 → D2, 第3個 → D3
-      for (int i = 0; i < candidates.length && i < 3; i++) {
-        distances[i + 1] = candidates[i].valueMm / 1000.0;
-      }
-
-      debugPrint(
-          '掃描結果: 找到 ${candidates.length} 個不同距離值: ${candidates.map((c) => "[${c.pos}]=${c.valueMm}mm").join(", ")}');
+      debugPrint('距離: D0=${distances[0].toStringAsFixed(2)}m D1=${distances[1].toStringAsFixed(2)}m D2=${distances[2].toStringAsFixed(2)}m D3=${distances[3].toStringAsFixed(2)}m ${_learnedOffsets.isNotEmpty ? "(固定)" : "(學習中 $_offsetLearnCount/$_offsetLearnThreshold)"}');
 
       // ===== 應用安信可距離校正係數 =====
       final double corrA = _config.correctionA; // 0.78
@@ -999,11 +1019,6 @@ class UwbService extends ChangeNotifier {
 
       // 计算有效距离数量
       final validCount = distances.where((d) => d > 0).length;
-
-      debugPrint(
-          'BU04 (校正後): D0=${distances[0].toStringAsFixed(2)}m, D1=${distances[1].toStringAsFixed(2)}m, D2=${distances[2].toStringAsFixed(2)}m, D3=${distances[3].toStringAsFixed(2)}m');
-      debugPrint(
-          '有效距離數: $validCount, 基站數: ${_anchors.length}, 基站座標: ${_anchors.map((a) => "(${a.x.toStringAsFixed(1)},${a.y.toStringAsFixed(1)})").join(", ")}');
 
       if (validCount >= 2) {
         // 確保基站已初始化
@@ -1174,10 +1189,20 @@ class UwbService extends ChangeNotifier {
     }
   }
 
-  // 中值濾波 - 減少距離測量噪聲
+  // 中值濾波 - 減少距離測量噪聲（帶離群值剔除）
   double _medianFilter(int anchorIndex, double newDistance) {
     _distanceHistory.putIfAbsent(anchorIndex, () => []);
     final history = _distanceHistory[anchorIndex]!;
+
+    // 離群值檢測：如果歷史有足夠數據，且新值偏離中值太多，降低其影響
+    if (history.length >= 3) {
+      final sorted = List<double>.from(history)..sort();
+      final median = sorted[sorted.length ~/ 2];
+      // 如果新值偏離中值超過 50%，用中值和新值的平均值代替
+      if ((newDistance - median).abs() > median * 0.5) {
+        newDistance = median * 0.7 + newDistance * 0.3;
+      }
+    }
 
     history.add(newDistance);
     if (history.length > _distanceFilterSize) {
@@ -1191,8 +1216,29 @@ class UwbService extends ChangeNotifier {
     return sorted[sorted.length ~/ 2];
   }
 
-  // 滑動平均濾波 - 平滑位置輸出
+  // 位置平滑 + 速度限制 - 防止跳躍
   (double, double) _smoothPosition(double x, double y) {
+    final now = DateTime.now();
+
+    // 速度限制：如果新位置距離上次太遠，限制移動距離
+    if (_xHistory.isNotEmpty && _lastPositionTime != null) {
+      final lastX = _xHistory.last;
+      final lastY = _yHistory.last;
+      final dt = now.difference(_lastPositionTime!).inMilliseconds / 1000.0;
+      if (dt > 0.01) {
+        final dist = sqrt((x - lastX) * (x - lastX) + (y - lastY) * (y - lastY));
+        final speed = dist / dt;
+        if (speed > _maxSpeed) {
+          // 限制移動到最大速度對應的距離
+          final maxDist = _maxSpeed * dt;
+          final ratio = maxDist / dist;
+          x = lastX + (x - lastX) * ratio;
+          y = lastY + (y - lastY) * ratio;
+        }
+      }
+    }
+    _lastPositionTime = now;
+
     _xHistory.add(x);
     _yHistory.add(y);
 
@@ -1201,10 +1247,10 @@ class UwbService extends ChangeNotifier {
       _yHistory.removeAt(0);
     }
 
-    // 計算加權平均 (最新的權重更高)
+    // 計算加權平均 (最新的權重更高，指數遞增)
     double sumX = 0, sumY = 0, sumWeight = 0;
     for (int i = 0; i < _xHistory.length; i++) {
-      final weight = i + 1.0; // 遞增權重
+      final weight = (i + 1.0) * (i + 1.0); // 指數遞增權重，近期影響更大
       sumX += _xHistory[i] * weight;
       sumY += _yHistory[i] * weight;
       sumWeight += weight;
