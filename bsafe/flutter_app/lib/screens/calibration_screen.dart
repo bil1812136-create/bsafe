@@ -794,8 +794,8 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                             if (d != null && d > 0) {
                               setState(() {
                                 _distancePairs[i] = _DistancePair(
-                                    pair.anchorA, pair.anchorB, d);
-                                _recalculate();
+                                    pair.anchorA, pair.anchorB, d,
+                                    pixelDistance: pair.pixelDistance);
                               });
                             }
                           },
@@ -1254,12 +1254,20 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
     final validPairs = _distancePairs.where((p) => p.distance > 0).toList();
     if (validPairs.isEmpty) return;
 
+    // 先確保 pixelDistance 已更新
+    _updatePixelDistances();
+
     // 計算平均比例尺
     double totalScale = 0;
     int count = 0;
     for (final pair in validPairs) {
-      if (pair.pixelDistance > 0) {
-        totalScale += pair.distance / pair.pixelDistance; // 米/像素
+      // 重新計算像素距離以確保準確
+      final pixDist = (pair.anchorA < _placedAnchors.length &&
+              pair.anchorB < _placedAnchors.length)
+          ? _pixelDistance(pair.anchorA, pair.anchorB)
+          : pair.pixelDistance;
+      if (pixDist > 0) {
+        totalScale += pair.distance / pixDist; // 米/像素
         count++;
       }
     }
@@ -1327,28 +1335,53 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
     // 如果有平面圖，也設置 floor plan 的比例尺和偏移
     if (_mode == 'floor_plan' &&
         _floorPlanPath != null &&
-        _calculatedScale != null) {
-      // 1像素 = _calculatedScale 米
-      // xScale = 像素/米 = 1/_calculatedScale
-      final pixelsPerMeter = 1.0 / _calculatedScale!;
+        _calculatedScale != null &&
+        _floorPlanImage != null) {
+      final img = _floorPlanImage!;
+      final imgWidth = img.width.toDouble();
+      final imgHeight = img.height.toDouble();
 
-      // 偏移 = 第一個基站 (原點) 的真實座標 = (0, 0)
-      // 平面圖左上角的像素位置轉為真實座標
-      final originPixelX = _placedAnchors[0].pixelX;
-      final originPixelY = _placedAnchors[0].pixelY;
-      final offsetX = -originPixelX * _calculatedScale!;
-      final offsetY =
-          -((_floorPlanImage?.height.toDouble() ?? 0) - originPixelY) *
-              _calculatedScale!;
+      // 取得畫布尺寸，計算校正畫面中圖片的顯示變換
+      final RenderBox? box =
+          _canvasKey.currentContext?.findRenderObject() as RenderBox?;
+      if (box != null) {
+        final widgetSize = box.size;
+        // 與 _CalibrationPainter._drawFloorPlan 相同的變換
+        final scaleX = widgetSize.width / imgWidth;
+        final scaleY = widgetSize.height / imgHeight;
+        final displayScale = min(scaleX, scaleY) * 0.9;
+        final ox = (widgetSize.width - imgWidth * displayScale) / 2;
+        final oy = (widgetSize.height - imgHeight * displayScale) / 2;
 
-      uwb.updateConfig(uwb.config.copyWith(
-        xScale: pixelsPerMeter,
-        yScale: pixelsPerMeter,
-        xOffset: offsetX,
-        yOffset: offsetY,
-        flipX: false,
-        flipY: false,
-      ));
+        // 將原點基站從 widget 座標轉換為實際圖片像素座標
+        final originImageX =
+            (_placedAnchors[0].pixelX - ox) / displayScale;
+        final originImageY =
+            (_placedAnchors[0].pixelY - oy) / displayScale;
+
+        // 計算圖片像素的比例尺
+        // _calculatedScale = 米/widget像素
+        // 圖片像素 = widget像素 / displayScale
+        // 米/圖片像素 = _calculatedScale * displayScale
+        final metersPerImagePixel = _calculatedScale! * displayScale;
+        final pixelsPerMeter = 1.0 / metersPerImagePixel;
+
+        // 平面圖偏移：圖片邊緣在 UWB 座標系中的位置
+        // 圖片左邊 (X=0) 的真實座標
+        final offsetX = -originImageX * metersPerImagePixel;
+        // 圖片底邊 (Y=imgHeight) 的真實座標
+        final offsetY =
+            -(imgHeight - originImageY) * metersPerImagePixel;
+
+        uwb.updateConfig(uwb.config.copyWith(
+          xScale: pixelsPerMeter,
+          yScale: pixelsPerMeter,
+          xOffset: offsetX,
+          yOffset: offsetY,
+          flipX: false,
+          flipY: false,
+        ));
+      }
 
       // 載入平面圖
       uwb.loadFloorPlanImage(_floorPlanPath!);

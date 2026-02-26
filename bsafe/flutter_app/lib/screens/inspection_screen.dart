@@ -12,6 +12,7 @@ import 'package:bsafe_app/models/inspection_model.dart';
 import 'package:bsafe_app/services/uwb_service.dart';
 import 'package:bsafe_app/services/desktop_serial_service.dart';
 import 'package:bsafe_app/services/mobile_serial_service.dart';
+import 'package:bsafe_app/services/yolo_service.dart';
 import 'package:bsafe_app/providers/inspection_provider.dart';
 import 'package:bsafe_app/theme/app_theme.dart';
 import 'package:bsafe_app/screens/calibration_screen.dart';
@@ -2535,6 +2536,27 @@ class _PhotoAnalysisDialogState extends State<_PhotoAnalysisDialog> {
   final _noteController = TextEditingController();
   bool _photoTaken = false;
 
+  // YOLO 相關
+  List<YoloDetection> _yoloDetections = [];
+  bool _isYoloDetecting = false;
+  bool _yoloModelLoaded = false;
+  bool _showBoundingBoxes = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _initYolo();
+  }
+
+  Future<void> _initYolo() async {
+    if (YoloService.isSupported) {
+      final loaded = await YoloService.instance.loadModel();
+      if (mounted) {
+        setState(() => _yoloModelLoaded = loaded);
+      }
+    }
+  }
+
   @override
   void dispose() {
     _noteController.dispose();
@@ -2596,14 +2618,65 @@ class _PhotoAnalysisDialogState extends State<_PhotoAnalysisDialog> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // 照片區
+                    // 照片區 (含 YOLO Bounding Box 覆蓋)
                     if (_imageBase64 != null)
                       ClipRRect(
                         borderRadius: BorderRadius.circular(12),
-                        child: Image.memory(
-                          base64Decode(_imageBase64!),
-                          height: 200,
-                          fit: BoxFit.cover,
+                        child: Stack(
+                          children: [
+                            Image.memory(
+                              base64Decode(_imageBase64!),
+                              height: 200,
+                              width: double.infinity,
+                              fit: BoxFit.contain,
+                            ),
+                            // YOLO 偵測框覆蓋
+                            if (_showBoundingBoxes && _yoloDetections.isNotEmpty)
+                              Positioned.fill(
+                                child: LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    return CustomPaint(
+                                      painter: _YoloBoundingBoxPainter(
+                                        detections: _yoloDetections,
+                                        imageBytes: base64Decode(_imageBase64!),
+                                        canvasWidth: constraints.maxWidth,
+                                        canvasHeight: 200,
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            // 偵測結果計數標記
+                            if (_yoloDetections.isNotEmpty)
+                              Positioned(
+                                top: 8,
+                                right: 8,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black87,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.visibility,
+                                          color: Colors.greenAccent, size: 14),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '${_yoloDetections.length} 物件',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                       )
                     else
@@ -2654,6 +2727,85 @@ class _PhotoAnalysisDialogState extends State<_PhotoAnalysisDialog> {
                         ),
                       ],
                     ),
+
+                    const SizedBox(height: 12),
+
+                    // YOLO 偵測按鈕 (僅在支援平台上顯示)
+                    if (YoloService.isSupported && _photoTaken) ...[
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: (_isYoloDetecting || _isAnalyzing)
+                                  ? null
+                                  : _runYoloDetection,
+                              icon: const Icon(Icons.smart_toy, size: 18),
+                              label: Text(_yoloDetections.isNotEmpty
+                                  ? 'YOLO 重新偵測'
+                                  : 'YOLO 物件偵測'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.deepPurple,
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                          ),
+                          if (_yoloDetections.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            IconButton(
+                              onPressed: () {
+                                setState(() {
+                                  _showBoundingBoxes = !_showBoundingBoxes;
+                                });
+                              },
+                              icon: Icon(
+                                _showBoundingBoxes
+                                    ? Icons.visibility
+                                    : Icons.visibility_off,
+                                color: Colors.deepPurple,
+                              ),
+                              tooltip: _showBoundingBoxes ? '隱藏偵測框' : '顯示偵測框',
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      if (!_yoloModelLoaded && !_isYoloDetecting)
+                        Text(
+                          'YOLO 模型載入中...',
+                          style: TextStyle(
+                              color: Colors.grey.shade500, fontSize: 11),
+                        ),
+                    ],
+
+                    // YOLO 偵測進行中
+                    if (_isYoloDetecting) ...[
+                      const SizedBox(height: 12),
+                      const Center(
+                        child: Column(
+                          children: [
+                            SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.deepPurple,
+                              ),
+                            ),
+                            SizedBox(height: 8),
+                            Text('YOLO 正在偵測物件...',
+                                style: TextStyle(
+                                    color: Colors.deepPurple, fontSize: 13)),
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    // YOLO 偵測結果摘要
+                    if (_yoloDetections.isNotEmpty &&
+                        !_isYoloDetecting) ...[
+                      const SizedBox(height: 8),
+                      _buildYoloResultSummary(),
+                    ],
 
                     const SizedBox(height: 12),
 
@@ -2783,6 +2935,7 @@ class _PhotoAnalysisDialogState extends State<_PhotoAnalysisDialog> {
           _imagePath = image!.path;
           _photoTaken = true;
           _analysisResult = null;
+          _yoloDetections = []; // 清除上次偵測結果
         });
       }
     } catch (e) {
@@ -2821,6 +2974,115 @@ class _PhotoAnalysisDialogState extends State<_PhotoAnalysisDialog> {
       });
       debugPrint('AI 分析錯誤: $e');
     }
+  }
+
+  /// YOLO 物件偵測
+  Future<void> _runYoloDetection() async {
+    if (_imageBase64 == null) return;
+
+    setState(() {
+      _isYoloDetecting = true;
+    });
+
+    try {
+      final imageBytes = base64Decode(_imageBase64!);
+      final detections = await YoloService.instance.detect(
+        Uint8List.fromList(imageBytes),
+        confidenceThreshold: 0.25,
+      );
+
+      if (!mounted) return;
+
+      // 將 YOLO 結果也轉為安全分析格式
+      final safetyAnalysis = YoloService.toSafetyAnalysis(detections);
+
+      setState(() {
+        _yoloDetections = detections;
+        _isYoloDetecting = false;
+        // 如果沒有 AI 分析結果，使用 YOLO 結果
+        if (_analysisResult == null) {
+          _analysisResult = safetyAnalysis;
+        } else {
+          // 合併 YOLO 偵測資訊到現有分析結果
+          _analysisResult = {
+            ..._analysisResult!,
+            'yolo_detections': safetyAnalysis['detections'],
+            'yolo_detection_count': safetyAnalysis['detection_count'],
+            'yolo_analysis': safetyAnalysis['analysis'],
+          };
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isYoloDetecting = false;
+      });
+      debugPrint('YOLO 偵測錯誤: $e');
+    }
+  }
+
+  Widget _buildYoloResultSummary() {
+    // 按類別分組
+    final classCount = <String, int>{};
+    for (final det in _yoloDetections) {
+      classCount[det.className] = (classCount[det.className] ?? 0) + 1;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.deepPurple.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.deepPurple.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.smart_toy,
+                  size: 16, color: Colors.deepPurple),
+              const SizedBox(width: 6),
+              const Text(
+                'YOLO 偵測結果',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  color: Colors.deepPurple,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '${_yoloDetections.length} 物件',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.deepPurple,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: classCount.entries.map((e) {
+              return Chip(
+                label: Text(
+                  '${e.key} ×${e.value}',
+                  style: const TextStyle(fontSize: 11),
+                ),
+                backgroundColor:
+                    Colors.deepPurple.withValues(alpha: 0.1),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
   }
 
   void _saveAndClose() {
@@ -2930,6 +3192,109 @@ class _PhotoAnalysisDialogState extends State<_PhotoAnalysisDialog> {
         ],
       ),
     );
+  }
+}
+
+// ===== YOLO Bounding Box 繪製器 =====
+class _YoloBoundingBoxPainter extends CustomPainter {
+  final List<YoloDetection> detections;
+  final Uint8List imageBytes;
+  final double canvasWidth;
+  final double canvasHeight;
+
+  _YoloBoundingBoxPainter({
+    required this.detections,
+    required this.imageBytes,
+    required this.canvasWidth,
+    required this.canvasHeight,
+  });
+
+  // 為不同類別分配不同顏色
+  static final List<Color> _colors = [
+    Colors.red,
+    Colors.green,
+    Colors.blue,
+    Colors.orange,
+    Colors.purple,
+    Colors.cyan,
+    Colors.pink,
+    Colors.teal,
+    Colors.amber,
+    Colors.indigo,
+  ];
+
+  Color _getColorForClass(String className) {
+    final hash = className.hashCode.abs();
+    return _colors[hash % _colors.length];
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Image.memory with BoxFit.contain will fit the image within the widget.
+    // We need to compute the same transform to match bounding boxes.
+    // For simplicity, draw boxes relative to the canvas size.
+    // The YOLO predictions return normalized coords (0-1) relative to the image.
+    // With BoxFit.contain, we need to figure out the displayed image region.
+
+    // Use canvas size to map normalized YOLO coordinates
+    // The image is displayed with BoxFit.contain inside the widget
+
+    for (final det in detections) {
+      final color = _getColorForClass(det.className);
+
+      // Convert normalized YOLO coords to canvas coords
+      // YOLO returns center_x, center_y, width, height (all normalized 0-1)
+      final left = (det.x - det.width / 2) * size.width;
+      final top = (det.y - det.height / 2) * size.height;
+      final boxWidth = det.width * size.width;
+      final boxHeight = det.height * size.height;
+
+      final rect = Rect.fromLTWH(left, top, boxWidth, boxHeight);
+
+      // 繪製 bounding box
+      final boxPaint = Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0;
+      canvas.drawRect(rect, boxPaint);
+
+      // 繪製標籤背景
+      final label =
+          '${det.className} ${(det.confidence * 100).toStringAsFixed(0)}%';
+      final textPainter = TextPainter(
+        text: TextSpan(
+          text: label,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+
+      final bgRect = Rect.fromLTWH(
+        left,
+        top - textPainter.height - 4,
+        textPainter.width + 8,
+        textPainter.height + 4,
+      );
+
+      final bgPaint = Paint()
+        ..color = color.withValues(alpha: 0.85)
+        ..style = PaintingStyle.fill;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(bgRect, const Radius.circular(2)),
+        bgPaint,
+      );
+
+      textPainter.paint(canvas, Offset(left + 4, top - textPainter.height - 2));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _YoloBoundingBoxPainter oldDelegate) {
+    return oldDelegate.detections != detections;
   }
 }
 
