@@ -459,6 +459,62 @@ class _InspectionScreenState extends State<InspectionScreen> {
                             label: const Text('添加基站'),
                           ),
                         ),
+
+                        const SizedBox(height: 20),
+
+                        // ---- 距離索引映射 ----
+                        _buildSectionHeader('距離索引映射', Icons.swap_horiz),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.orange.shade200),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '如果標籤位置顯示在錯誤的基站附近，可以交換距離對應關係。',
+                                style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                '目前映射: ${_describeDistanceMapping(uwbService.config.distanceIndexMap)}',
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            _buildDistanceSwapButton(uwbService, 'D0↔D1', [1, 0, 2, 3]),
+                            _buildDistanceSwapButton(uwbService, 'D0↔D2', [2, 1, 0, 3]),
+                            _buildDistanceSwapButton(uwbService, 'D0↔D3', [3, 1, 2, 0]),
+                            _buildDistanceSwapButton(uwbService, 'D1↔D2', [0, 2, 1, 3]),
+                            _buildDistanceSwapButton(uwbService, 'D1↔D3', [0, 3, 2, 1]),
+                            _buildDistanceSwapButton(uwbService, 'D2↔D3', [0, 1, 3, 2]),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: TextButton.icon(
+                            onPressed: () {
+                              uwbService.updateConfig(
+                                uwbService.config.copyWith(
+                                  distanceIndexMap: const [0, 1, 2, 3],
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.restore, size: 16),
+                            label: const Text('重置為預設'),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -2012,6 +2068,72 @@ class _InspectionScreenState extends State<InspectionScreen> {
                         .updateConfig(uwbService.config.copyWith(showFence: v)),
                     title: const Text('顯示圍欄', style: TextStyle(fontSize: 13)),
                   ),
+
+                  const SizedBox(height: 20),
+
+                  // ---- 距離索引映射 ----
+                  _buildSectionHeader('距離索引映射', Icons.swap_horiz),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue.shade200),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '修正硬體距離順序與基站編號不匹配。\n'
+                          '例如：站在基站2旁但顯示在基站3，\n'
+                          '可交換 D2↔D3 的映射。',
+                          style: TextStyle(fontSize: 11, color: Colors.blue.shade700),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '目前映射: ${uwbService.config.distanceIndexMap}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontFamily: 'monospace',
+                            color: Colors.blue.shade900,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          _describeDistanceMapping(uwbService.config.distanceIndexMap),
+                          style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      _buildDistanceSwapButton(uwbService, 'D0↔D1', [1, 0, 2, 3]),
+                      _buildDistanceSwapButton(uwbService, 'D0↔D2', [2, 1, 0, 3]),
+                      _buildDistanceSwapButton(uwbService, 'D0↔D3', [3, 1, 2, 0]),
+                      _buildDistanceSwapButton(uwbService, 'D1↔D2', [0, 2, 1, 3]),
+                      _buildDistanceSwapButton(uwbService, 'D1↔D3', [0, 3, 2, 1]),
+                      _buildDistanceSwapButton(uwbService, 'D2↔D3', [0, 1, 3, 2]),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        uwbService.updateConfig(
+                          uwbService.config.copyWith(distanceIndexMap: [0, 1, 2, 3]),
+                        );
+                        setState(() {});
+                      },
+                      icon: const Icon(Icons.restore, size: 16),
+                      label: const Text('重置為預設 [0,1,2,3]'),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -2029,6 +2151,61 @@ class _InspectionScreenState extends State<InspectionScreen> {
         Text(title,
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
       ],
+    );
+  }
+
+  String _describeDistanceMapping(List<int> map) {
+    if (map.length != 4) return '無效映射';
+    if (map[0] == 0 && map[1] == 1 && map[2] == 2 && map[3] == 3) {
+      return '預設順序（無交換）';
+    }
+    final swaps = <String>[];
+    for (int i = 0; i < 4; i++) {
+      if (map[i] != i) {
+        swaps.add('硬體D$i → 基站${map[i]}');
+      }
+    }
+    return swaps.join('，');
+  }
+
+  Widget _buildDistanceSwapButton(
+      UwbService uwbService, String label, List<int> mapping) {
+    final current = uwbService.config.distanceIndexMap;
+    final isActive = current.length == 4 &&
+        current[0] == mapping[0] &&
+        current[1] == mapping[1] &&
+        current[2] == mapping[2] &&
+        current[3] == mapping[3];
+
+    return SizedBox(
+      height: 32,
+      child: isActive
+          ? ElevatedButton(
+              onPressed: () {
+                uwbService.updateConfig(
+                  uwbService.config.copyWith(distanceIndexMap: [0, 1, 2, 3]),
+                );
+                setState(() {});
+              },
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                textStyle: const TextStyle(fontSize: 12),
+              ),
+              child: Text(label),
+            )
+          : OutlinedButton(
+              onPressed: () {
+                uwbService.updateConfig(
+                  uwbService.config.copyWith(distanceIndexMap: mapping),
+                );
+                setState(() {});
+              },
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                textStyle: const TextStyle(fontSize: 12),
+              ),
+              child: Text(label),
+            ),
     );
   }
 
