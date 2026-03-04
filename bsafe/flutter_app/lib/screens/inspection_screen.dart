@@ -18,6 +18,7 @@ import 'package:bsafe_app/providers/inspection_provider.dart';
 import 'package:bsafe_app/theme/app_theme.dart';
 import 'package:bsafe_app/screens/calibration_screen.dart';
 import 'package:bsafe_app/services/api_service.dart';
+import 'package:bsafe_app/services/word_export_service.dart';
 import 'package:uuid/uuid.dart';
 
 class InspectionScreen extends StatefulWidget {
@@ -200,7 +201,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
                     ],
                   ),
                 ),
-              const PopupMenuItem(value: 'export_pdf', child: Text('匯出 PDF')),
+              const PopupMenuItem(value: 'export_word', child: Text('匯出 Word')),
               const PopupMenuDivider(),
               const PopupMenuItem(value: 'clear_pins', child: Text('清除所有 Pin')),
             ],
@@ -705,7 +706,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
                     ],
                   ),
                 ),
-              const PopupMenuItem(value: 'export_pdf', child: Text('匯出 PDF')),
+              const PopupMenuItem(value: 'export_word', child: Text('匯出 Word')),
               const PopupMenuDivider(),
               const PopupMenuItem(value: 'clear_pins', child: Text('清除所有 Pin')),
             ],
@@ -2596,8 +2597,8 @@ class _InspectionScreenState extends State<InspectionScreen> {
       case 'load_session':
         _showLoadSessionDialog(inspection);
         break;
-      case 'export_pdf':
-        _exportPdf(inspection);
+      case 'export_word':
+        _exportWord(inspection);
         break;
       case 'clear_pins':
         if (inspection.currentPins.isNotEmpty) {
@@ -2786,9 +2787,19 @@ class _InspectionScreenState extends State<InspectionScreen> {
     );
   }
 
-  // ===== PDF 匯出 =====
-  Future<void> _exportPdf(InspectionProvider inspection) async {
-    if (inspection.currentPins.isEmpty) {
+  // ===== Word 匯出 =====
+  Future<void> _exportWord(InspectionProvider inspection) async {
+    // 收集該專案所有樓層的 sessions
+    final projectId = widget.project?.id;
+    final projectSessions = projectId != null
+        ? inspection.sessions
+            .where((s) => s.projectId == projectId)
+            .toList()
+        : [if (inspection.currentSession != null) inspection.currentSession!];
+
+    final allPinsCount =
+        projectSessions.fold<int>(0, (sum, s) => sum + s.pins.length);
+    if (allPinsCount == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content: Text('沒有巡檢點可以匯出'), backgroundColor: Colors.orange),
@@ -2796,22 +2807,33 @@ class _InspectionScreenState extends State<InspectionScreen> {
       return;
     }
 
+    final buildingName = widget.project?.buildingName ?? '未命名建築';
+
     // 選擇保存路徑
     final outputPath = await FilePicker.platform.saveFile(
-      dialogTitle: '保存巡檢報告 PDF',
-      fileName: '巡檢報告_${DateTime.now().toString().substring(0, 10)}.pdf',
+      dialogTitle: '保存巡檢報告 Word',
+      fileName: '${buildingName}_巡檢報告_${DateTime.now().toString().substring(0, 10)}.docx',
       type: FileType.custom,
-      allowedExtensions: ['pdf'],
+      allowedExtensions: ['docx'],
     );
 
     if (outputPath == null) return;
 
     try {
-      await _generatePdfReport(outputPath, inspection);
+      final finalPath = outputPath.endsWith('.docx')
+          ? outputPath
+          : '$outputPath.docx';
+
+      await WordExportService.exportReport(
+        outputPath: finalPath,
+        buildingName: buildingName,
+        sessions: projectSessions,
+      );
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('PDF 已保存至: $outputPath'),
+            content: Text('Word 報告已保存至: $finalPath'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 3),
           ),
@@ -2825,65 +2847,6 @@ class _InspectionScreenState extends State<InspectionScreen> {
         );
       }
     }
-  }
-
-  Future<void> _generatePdfReport(
-      String outputPath, InspectionProvider inspection) async {
-    // 使用 basic file writing 生成簡單的 HTML/文字報告
-    // (完整的 PDF 生成需要 pdf package)
-    final session = inspection.currentSession!;
-    final buffer = StringBuffer();
-
-    buffer.writeln('B-SAFE 巡檢報告');
-    buffer.writeln('=' * 50);
-    buffer.writeln('會話名稱: ${session.name}');
-    buffer.writeln('建立時間: ${session.createdAt}');
-    buffer.writeln('巡檢點數: ${session.totalPins}');
-    buffer.writeln('已分析: ${session.analyzedPins}');
-    buffer.writeln('低風險缺陷: ${session.lowRiskDefects}');
-    buffer.writeln('中風險缺陷: ${session.mediumRiskDefects}');
-    buffer.writeln('高風險缺陷: ${session.highRiskDefects}');
-    buffer.writeln('平均風險: ${session.averageRiskScore.toStringAsFixed(1)}');
-    buffer.writeln('');
-    buffer.writeln('巡檢點詳細:');
-    buffer.writeln('-' * 50);
-
-    for (int i = 0; i < session.pins.length; i++) {
-      final pin = session.pins[i];
-      buffer.writeln('');
-      buffer.writeln('巡檢點 #${i + 1}');
-      buffer.writeln(
-          '  座標: (${pin.x.toStringAsFixed(2)}, ${pin.y.toStringAsFixed(2)})');
-      buffer.writeln('  狀態: ${pin.statusLabel}');
-      buffer.writeln('  缺陷數: ${pin.defects.length}');
-      if (pin.defects.isNotEmpty) {
-        for (int j = 0; j < pin.defects.length; j++) {
-          final defect = pin.defects[j];
-          buffer.writeln('  缺陷 #${j + 1}: ${defect.riskLevelLabel} (${defect.riskScore})');
-          if (defect.description != null) {
-            buffer.writeln('    描述: ${defect.description}');
-          }
-        }
-      }
-      if (pin.description != null) {
-        buffer.writeln('  AI 分析: ${pin.description}');
-      }
-      if (pin.recommendations.isNotEmpty) {
-        buffer.writeln('  建議:');
-        for (final rec in pin.recommendations) {
-          buffer.writeln('    - $rec');
-        }
-      }
-      if (pin.note != null) {
-        buffer.writeln('  備註: ${pin.note}');
-      }
-    }
-
-    // 保存為純文字 (PDF 完整生成可後續加入 pdf package)
-    final file = File(outputPath.replaceAll('.pdf', '.txt'));
-    await file.writeAsString(buffer.toString());
-
-    debugPrint('✅ 報告已匯出至: ${file.path}');
   }
 }
 
