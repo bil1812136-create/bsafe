@@ -96,10 +96,11 @@ class ApiService {
   // ==================== POE AI Analysis API ====================
 
   /// Analyze image using POE API for building damage assessment
-  Future<Map<String, dynamic>> analyzeImageWithAI(String imageBase64) async {
+  Future<Map<String, dynamic>> analyzeImageWithAI(String imageBase64,
+      {String? additionalContext}) async {
     try {
       // Create a simplified prompt for AI analysis
-      const prompt = '''
+      String prompt = '''
 請分析建築物損壞情況並評估風險。
 
 根據用戶提供的資訊，請進行以下評估：
@@ -124,6 +125,10 @@ class ApiService {
 
 注意：只返回JSON，不要包含其他文字。
 ''';
+
+      if (additionalContext != null && additionalContext.isNotEmpty) {
+        prompt += '\n用戶補充資訊：$additionalContext\n請根據以上補充資訊重新評估。';
+      }
 
       // Send request to POE API
       final response = await http.post(
