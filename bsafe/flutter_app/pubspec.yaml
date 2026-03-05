@@ -51,7 +51,15 @@ dependencies:
   flutter_svg: ^2.2.3
   pdfrx: ^2.2.24
 
+  # YOLO Object Detection (Android/iOS)
+  ultralytics_yolo: ^0.2.0
+  path_provider: ^2.1.1
+
   web: any
+
+  # Cloud Database & Storage (Supabase)
+  supabase_flutter: ^2.3.4
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

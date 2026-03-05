@@ -43,10 +43,13 @@ class InspectionProvider extends ChangeNotifier {
   // ===== 會話管理 =====
 
   /// 建立新的巡檢會話
-  Future<InspectionSession> createSession(String name, {String? floorPlanPath}) async {
+  Future<InspectionSession> createSession(String name,
+      {String? floorPlanPath, String? projectId, int floor = 1}) async {
     final session = InspectionSession(
       id: _uuid.v4(),
       name: name,
+      projectId: projectId,
+      floor: floor,
       floorPlanPath: floorPlanPath,
     );
 
@@ -286,6 +289,69 @@ class InspectionProvider extends ChangeNotifier {
       );
       updatePin(fallbackPin);
       return fallbackPin;
+    } finally {
+      _isAnalyzing = false;
+      notifyListeners();
+    }
+  }
+
+  /// 分析單一 defect（帶聊天上下文）
+  Future<Defect> analyzeDefect(
+    Defect defect, {
+    required String imageBase64,
+    String? imagePath,
+    String? chatContext,
+  }) async {
+    _isAnalyzing = true;
+    notifyListeners();
+
+    try {
+      Map<String, dynamic> analysis;
+
+      try {
+        analysis = await _api.analyzeImageWithAI(
+          imageBase64,
+          additionalContext: chatContext,
+        );
+      } catch (e) {
+        analysis = ApiService.localAnalysis('moderate', 'structural');
+      }
+
+      final chatMessages = List<ChatMessage>.from(defect.chatMessages);
+      // Add AI response as chat message
+      chatMessages.add(ChatMessage(
+        id: _uuid.v4(),
+        role: 'ai',
+        content: analysis['analysis'] as String? ?? '分析完成。',
+      ));
+
+      return defect.copyWith(
+        imagePath: imagePath ?? defect.imagePath,
+        imageBase64: imageBase64,
+        aiResult: analysis,
+        category: analysis['category'] as String?,
+        severity: analysis['severity'] as String?,
+        riskScore: analysis['risk_score'] as int? ?? 50,
+        riskLevel: analysis['risk_level'] as String? ?? 'medium',
+        description: analysis['analysis'] as String?,
+        recommendations: (analysis['recommendations'] as List<dynamic>?)
+                ?.map((e) => e.toString())
+                .toList() ??
+            [],
+        status: 'analyzed',
+        chatMessages: chatMessages,
+      );
+    } catch (e) {
+      debugPrint('AI 缺陷分析失敗: $e');
+      return defect.copyWith(
+        imagePath: imagePath ?? defect.imagePath,
+        imageBase64: imageBase64,
+        riskScore: 50,
+        riskLevel: 'medium',
+        description: 'AI 分析服務暫時不可用，使用本地評估',
+        recommendations: ['建議安排專業人員檢查'],
+        status: 'analyzed',
+      );
     } finally {
       _isAnalyzing = false;
       notifyListeners();

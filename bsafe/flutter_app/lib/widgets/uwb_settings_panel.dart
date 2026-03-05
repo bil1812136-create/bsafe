@@ -278,12 +278,77 @@ class _UwbSettingsPanelState extends State<UwbSettingsPanel>
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () {
-                // TODO: 设置校正系数到设备
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('校正係數已設置')),
                 );
               },
               child: const Text('設置校正係數'),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // 距離索引映射設置
+          _buildSectionTitle('距離索引映射'),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.blue.shade200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '修正硬體距離順序與基站編號不匹配的問題。\n'
+                  '例如：如果站在基站2旁但顯示在基站3，\n'
+                  '可交換 D2↔D3 的映射。',
+                  style: TextStyle(fontSize: 11, color: Colors.blue.shade700),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '目前映射: ${config.distanceIndexMap}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontFamily: 'monospace',
+                    color: Colors.blue.shade900,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  _describeMapping(config.distanceIndexMap),
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          // 快速交換按鈕
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              _buildSwapButton('D0↔D1', [1, 0, 2, 3]),
+              _buildSwapButton('D0↔D2', [2, 1, 0, 3]),
+              _buildSwapButton('D0↔D3', [3, 1, 2, 0]),
+              _buildSwapButton('D1↔D2', [0, 2, 1, 3]),
+              _buildSwapButton('D1↔D3', [0, 3, 2, 1]),
+              _buildSwapButton('D2↔D3', [0, 1, 3, 2]),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                _updateConfig(config.copyWith(
+                  distanceIndexMap: [0, 1, 2, 3],
+                ));
+                setState(() {});
+              },
+              icon: const Icon(Icons.restore, size: 16),
+              label: const Text('重置為預設 [0,1,2,3]'),
             ),
           ),
         ],
@@ -933,6 +998,60 @@ class _UwbSettingsPanelState extends State<UwbSettingsPanel>
           ),
         ],
       ),
+    );
+  }
+
+  String _describeMapping(List<int> map) {
+    if (map.length != 4) return '無效映射';
+    if (map[0] == 0 && map[1] == 1 && map[2] == 2 && map[3] == 3) {
+      return '預設順序（無交換）';
+    }
+    final swaps = <String>[];
+    for (int i = 0; i < 4; i++) {
+      if (map[i] != i) {
+        swaps.add('硬體D$i → 基站${map[i]}');
+      }
+    }
+    return swaps.join('，');
+  }
+
+  Widget _buildSwapButton(String label, List<int> mapping) {
+    final config = widget.uwbService.config;
+    final isActive = config.distanceIndexMap.length == 4 &&
+        config.distanceIndexMap[0] == mapping[0] &&
+        config.distanceIndexMap[1] == mapping[1] &&
+        config.distanceIndexMap[2] == mapping[2] &&
+        config.distanceIndexMap[3] == mapping[3];
+
+    return SizedBox(
+      height: 32,
+      child: isActive
+          ? ElevatedButton(
+              onPressed: () {
+                _updateConfig(config.copyWith(
+                  distanceIndexMap: [0, 1, 2, 3],
+                ));
+                setState(() {});
+              },
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                textStyle: const TextStyle(fontSize: 12),
+              ),
+              child: Text(label),
+            )
+          : OutlinedButton(
+              onPressed: () {
+                _updateConfig(config.copyWith(
+                  distanceIndexMap: mapping,
+                ));
+                setState(() {});
+              },
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                textStyle: const TextStyle(fontSize: 12),
+              ),
+              child: Text(label),
+            ),
     );
   }
 

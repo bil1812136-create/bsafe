@@ -128,6 +128,7 @@ class UwbConfig {
   final bool showFloorPlan; // 是否顯示平面地圖
   final double floorPlanOpacity; // 平面地圖透明度
   final String floorPlanFileType; // 平面地圖檔案類型 (image/svg/pdf/dwg)
+  final List<int> distanceIndexMap; // 距離索引映射 [0,1,2,3] = 預設, 可調整數據D0~D3對應哪個基站
 
   UwbConfig({
     this.positioningMode = '二維定位',
@@ -157,6 +158,7 @@ class UwbConfig {
     this.showFloorPlan = false,
     this.floorPlanOpacity = 0.5,
     this.floorPlanFileType = 'image',
+    this.distanceIndexMap = const [0, 1, 2, 3],
   });
 
   UwbConfig copyWith({
@@ -187,6 +189,7 @@ class UwbConfig {
     bool? showFloorPlan,
     double? floorPlanOpacity,
     String? floorPlanFileType,
+    List<int>? distanceIndexMap,
   }) {
     return UwbConfig(
       positioningMode: positioningMode ?? this.positioningMode,
@@ -217,6 +220,7 @@ class UwbConfig {
       showFloorPlan: showFloorPlan ?? this.showFloorPlan,
       floorPlanOpacity: floorPlanOpacity ?? this.floorPlanOpacity,
       floorPlanFileType: floorPlanFileType ?? this.floorPlanFileType,
+      distanceIndexMap: distanceIndexMap ?? this.distanceIndexMap,
     );
   }
 }

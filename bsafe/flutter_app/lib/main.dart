@@ -2,15 +2,25 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:bsafe_app/providers/report_provider.dart';
 import 'package:bsafe_app/providers/connectivity_provider.dart';
 import 'package:bsafe_app/providers/inspection_provider.dart';
+<<<<<<< HEAD
+<<<<<<< HEAD
 import 'package:bsafe_app/screens/home_screen.dart';
 import 'package:bsafe_app/screens/report_screen.dart';
 import 'package:bsafe_app/screens/history_screen.dart';
 import 'package:bsafe_app/screens/analysis_screen.dart';
 import 'package:bsafe_app/screens/inspection_screen.dart';
+=======
+import 'package:bsafe_app/screens/project_list_screen.dart';
+>>>>>>> f3066d3c7b0941a0d0072f36a840553cb88696ab
+=======
+import 'package:bsafe_app/screens/project_list_screen.dart';
+>>>>>>> f3066d3c7b0941a0d0072f36a840553cb88696ab
 import 'package:bsafe_app/theme/app_theme.dart';
+import 'package:bsafe_app/services/supabase_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,6 +32,21 @@ void main() async {
       statusBarIconBrightness: Brightness.light,
     ),
   );
+
+  // Initialize Supabase (只有在填入 URL/Key 後才啟用)
+  if (SupabaseService.isConfigured) {
+    try {
+      await Supabase.initialize(
+        url: SupabaseService.supabaseUrl,
+        anonKey: SupabaseService.supabaseAnonKey,
+      );
+      debugPrint('✅ Supabase 雲端已連接');
+    } catch (e) {
+      debugPrint('⚠️ Supabase 初始化失敗（離線模式）: $e');
+    }
+  } else {
+    debugPrint('ℹ️ Supabase 未設定，使用純本地模式');
+  }
 
   runApp(const BSafeApp());
 }
@@ -41,7 +66,15 @@ class BSafeApp extends StatelessWidget {
         title: 'B-SAFE 建築安全',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
+<<<<<<< HEAD
+<<<<<<< HEAD
         home: const MainNavigationScreen(),
+=======
+        home: const ProjectListScreen(),
+>>>>>>> f3066d3c7b0941a0d0072f36a840553cb88696ab
+=======
+        home: const ProjectListScreen(),
+>>>>>>> f3066d3c7b0941a0d0072f36a840553cb88696ab
       ),
     );
   }

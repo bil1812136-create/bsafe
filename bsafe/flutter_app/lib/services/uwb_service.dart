@@ -1051,8 +1051,30 @@ class UwbService extends ChangeNotifier {
         }
       }
 
+<<<<<<< HEAD
+<<<<<<< HEAD
       debugPrint(
           '距離: D0=${distances[0].toStringAsFixed(2)}m D1=${distances[1].toStringAsFixed(2)}m D2=${distances[2].toStringAsFixed(2)}m D3=${distances[3].toStringAsFixed(2)}m ${_learnedOffsets.isNotEmpty ? "(固定)" : "(學習中 $_offsetLearnCount/$_offsetLearnThreshold)"}');
+=======
+=======
+>>>>>>> f3066d3c7b0941a0d0072f36a840553cb88696ab
+      debugPrint('原始距離: D0=${distances[0].toStringAsFixed(2)}m D1=${distances[1].toStringAsFixed(2)}m D2=${distances[2].toStringAsFixed(2)}m D3=${distances[3].toStringAsFixed(2)}m ${_learnedOffsets.isNotEmpty ? "(固定)" : "(學習中 $_offsetLearnCount/$_offsetLearnThreshold)"}');
+
+      // ===== 應用距離索引映射 (修正硬體距離順序與基站編號不匹配) =====
+      final indexMap = _config.distanceIndexMap;
+      if (indexMap.length == 4 && !(indexMap[0] == 0 && indexMap[1] == 1 && indexMap[2] == 2 && indexMap[3] == 3)) {
+        final original = List<double>.from(distances);
+        for (int i = 0; i < 4; i++) {
+          if (indexMap[i] >= 0 && indexMap[i] < 4) {
+            distances[indexMap[i]] = original[i];
+          }
+        }
+        debugPrint('映射後距離: D0=${distances[0].toStringAsFixed(2)}m D1=${distances[1].toStringAsFixed(2)}m D2=${distances[2].toStringAsFixed(2)}m D3=${distances[3].toStringAsFixed(2)}m (映射: $indexMap)');
+      }
+<<<<<<< HEAD
+>>>>>>> f3066d3c7b0941a0d0072f36a840553cb88696ab
+=======
+>>>>>>> f3066d3c7b0941a0d0072f36a840553cb88696ab
 
       // ===== 應用安信可距離校正係數 =====
       final double corrA = _config.correctionA; // 0.78
@@ -1078,6 +1100,7 @@ class UwbService extends ChangeNotifier {
         if (validCount >= 3 && _anchors.length >= 3) {
           final pos = _trilaterationWithDistances(distances);
           if (pos != null) {
+            debugPrint('📍 定位結果: (${pos.$1.toStringAsFixed(3)}, ${pos.$2.toStringAsFixed(3)}) | 基站: ${_anchors.map((a) => "${a.id}(${a.x.toStringAsFixed(2)},${a.y.toStringAsFixed(2)})").join(" ")}');
             return _createTagWithMeasuredDistances(
                 pos.$1, pos.$2, 0.0, '0', distances);
           }

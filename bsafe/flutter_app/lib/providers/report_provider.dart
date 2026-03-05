@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:bsafe_app/models/report_model.dart';
 import 'package:bsafe_app/services/database_service.dart';
 import 'package:bsafe_app/services/api_service.dart';
+import 'package:bsafe_app/services/supabase_service.dart';
 
 class ReportProvider extends ChangeNotifier {
   List<ReportModel> _reports = [];
@@ -36,13 +37,13 @@ class ReportProvider extends ChangeNotifier {
       debugPrint('📥 Loading reports from database...');
       _reports = await _db.getAllReports();
       debugPrint('📊 Loaded ${_reports.length} reports');
-      
+
       _statistics = await _db.getStatistics();
       _trendData = await _db.getTrendData();
-      
+
       final syncQueue = await _db.getPendingSyncQueue();
       _pendingSyncCount = syncQueue.length;
-      
+
       debugPrint('📋 Reports in provider: ${_reports.length}');
       for (var report in _reports) {
         debugPrint('  - ${report.id}: ${report.title} (${report.category})');
@@ -98,7 +99,7 @@ class ReportProvider extends ChangeNotifier {
     try {
       // Perform AI analysis or local analysis
       Map<String, dynamic> analysis;
-      
+
       if (isOnline && imageBase64 != null) {
         try {
           analysis = await _api.analyzeImageWithAI(imageBase64);
@@ -131,9 +132,10 @@ class ReportProvider extends ChangeNotifier {
       // Save to local database
       final id = await _db.insertReport(report);
       final savedReport = report.copyWith(id: id);
-      
+
       debugPrint('✅ Report saved to database with ID: $id');
-      debugPrint('Report details: ${savedReport.title}, ${savedReport.category}, ${savedReport.severity}');
+      debugPrint(
+          'Report details: ${savedReport.title}, ${savedReport.category}, ${savedReport.severity}');
 
       // Try to sync if online
       if (isOnline) {
@@ -146,6 +148,15 @@ class ReportProvider extends ChangeNotifier {
           _pendingSyncCount++;
           debugPrint('⚠️ Report saved locally, will sync later: $e');
         }
+
+        // Supabase 雲端同步（非阻塞，失敗不影響主流程）
+        SupabaseService.instance.syncReport(savedReport).then((cloudId) {
+          if (cloudId != null) {
+            debugPrint('☁️ Supabase 同步成功: cloud_id=$cloudId');
+          }
+        }).catchError((e) {
+          debugPrint('⚠️ Supabase 同步失敗（不影響本地資料）: $e');
+        });
       } else {
         _pendingSyncCount++;
         debugPrint('📴 Offline mode - report saved locally');
@@ -153,9 +164,9 @@ class ReportProvider extends ChangeNotifier {
 
       // Reload reports
       await loadReports();
-      
+
       debugPrint('📊 Total reports after save: ${_reports.length}');
-      
+
       return savedReport;
     } catch (e) {
       _error = '提交報告失敗: $e';
@@ -202,7 +213,7 @@ class ReportProvider extends ChangeNotifier {
 
     try {
       final unsyncedReports = await _db.getUnsyncedReports();
-      
+
       for (final report in unsyncedReports) {
         try {
           await _api.submitReport(report);
