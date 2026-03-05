@@ -706,6 +706,9 @@ class _InspectionScreenState extends State<InspectionScreen> {
   Widget _buildMapArea(UwbService uwbService, InspectionProvider inspection) {
     return Column(
       children: [
+        // 樓層選擇器
+        _buildFloorSelector(uwbService, inspection),
+
         // 快捷設置面板
         if (_showSettings) _buildQuickSettings(uwbService),
 
@@ -1454,10 +1457,239 @@ class _InspectionScreenState extends State<InspectionScreen> {
     );
     if (result != null && result.files.single.path != null) {
       final path = result.files.single.path!;
-      await uwbService.loadFloorPlanImage(path);
+      await uwbService.loadFloorPlanForFloor(uwbService.currentFloor, path);
       uwbService.updateConfig(uwbService.config.copyWith(showFloorPlan: true));
       inspection.updateFloorPlan(path);
     }
+  }
+
+  // ===== 樓層選擇器 =====
+  Widget _buildFloorSelector(
+      UwbService uwbService, InspectionProvider inspection) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // 樓層圖標
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: AppTheme.primaryColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(Icons.layers,
+                size: 18, color: AppTheme.primaryColor),
+          ),
+          const SizedBox(width: 8),
+
+          // 樓層按鈕列表（可滾動）
+          Expanded(
+            child: SizedBox(
+              height: 32,
+              child: uwbService.totalFloors <= 1
+                  ? const Center(
+                      child: Text(
+                        '未設定樓層',
+                        style: TextStyle(color: Colors.grey, fontSize: 13),
+                      ),
+                    )
+                  : ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: uwbService.totalFloors,
+                      itemBuilder: (context, index) {
+                        final floor = index + 1;
+                        final isActive = floor == uwbService.currentFloor;
+                        final hasFloorPlan =
+                            uwbService.floorPlanPaths.containsKey(floor);
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: GestureDetector(
+                            onTap: () {
+                              uwbService.setCurrentFloor(floor);
+                            },
+                            child: Container(
+                              constraints: const BoxConstraints(minWidth: 36),
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 10),
+                              decoration: BoxDecoration(
+                                color: isActive
+                                    ? AppTheme.primaryColor
+                                    : hasFloorPlan
+                                        ? AppTheme.primaryColor
+                                            .withValues(alpha: 0.1)
+                                        : Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(8),
+                                border: isActive
+                                    ? null
+                                    : Border.all(
+                                        color: hasFloorPlan
+                                            ? AppTheme.primaryColor
+                                                .withValues(alpha: 0.3)
+                                            : Colors.grey.shade300,
+                                      ),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                '${floor}F',
+                                style: TextStyle(
+                                  color: isActive
+                                      ? Colors.white
+                                      : Colors.grey.shade700,
+                                  fontSize: 13,
+                                  fontWeight: isActive
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ),
+
+          const SizedBox(width: 4),
+
+          // 載入平面圖按鈕
+          IconButton(
+            onPressed: () => _loadFloorPlan(uwbService, inspection),
+            icon: const Icon(Icons.map, size: 20),
+            tooltip: '載入當前樓層平面圖',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            color: AppTheme.primaryColor,
+          ),
+
+          // 樓層設定按鈕
+          IconButton(
+            onPressed: () => _showFloorSettingsDialog(uwbService),
+            icon: const Icon(Icons.settings, size: 20),
+            tooltip: '設定樓層數',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            color: Colors.grey.shade600,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ===== 樓層設定對話框 =====
+  void _showFloorSettingsDialog(UwbService uwbService) {
+    int tempFloors = uwbService.totalFloors;
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Row(
+                children: [
+                  Icon(Icons.layers, color: AppTheme.primaryColor),
+                  SizedBox(width: 8),
+                  Text('樓層設定'),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '設定建築物總樓層數',
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        onPressed: tempFloors > 1
+                            ? () => setDialogState(() => tempFloors--)
+                            : null,
+                        icon: const Icon(Icons.remove_circle_outline),
+                        iconSize: 32,
+                        color: AppTheme.primaryColor,
+                      ),
+                      const SizedBox(width: 16),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 24, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppTheme.primaryColor.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Text(
+                          '$tempFloors',
+                          style: const TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.primaryColor,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      IconButton(
+                        onPressed: tempFloors < 99
+                            ? () => setDialogState(() => tempFloors++)
+                            : null,
+                        icon: const Icon(Icons.add_circle_outline),
+                        iconSize: 32,
+                        color: AppTheme.primaryColor,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    '提示：設定後可為每層載入不同的平面圖',
+                    style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('取消'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    uwbService.setTotalFloors(tempFloors);
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('已設定 $tempFloors 層樓'),
+                        behavior: SnackBarBehavior.floating,
+                        backgroundColor: AppTheme.primaryColor,
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryColor,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('確認'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   // ===== 連接對話框 =====

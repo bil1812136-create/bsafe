@@ -1,12 +1,13 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:bsafe_app/models/report_model.dart';
 
 class ApiService {
   // Base URL for your PHP API
   static const String baseUrl = 'http://your-server.com/api';
-  
+
   // POE API for AI image analysis
   static const String poeApiKey = 'HTLbuegNjtBmxNX5rWeH7cyxFfNc1oANBPRtdY_aO4E';
   static const String poeBotName = 'B-SAFE'; // Your POE bot name
@@ -18,9 +19,9 @@ class ApiService {
 
   // Headers for API requests
   Map<String, String> get _headers => {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-  };
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      };
 
   // ==================== Report API ====================
 
@@ -95,92 +96,259 @@ class ApiService {
 
   // ==================== POE AI Analysis API ====================
 
+  /// Step 1: Upload image to get a public URL (tries catbox.moe first, then 0x0.st)
+  Future<String> _uploadImageToPublicHost(String imageBase64) async {
+    debugPrint('⬆️ Uploading image to get public URL...');
+    final bytes = base64Decode(imageBase64);
+
+    // Try catbox.moe first (more reliable)
+    try {
+      debugPrint('🔄 Trying catbox.moe...');
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('https://catbox.moe/user/api.php'),
+      );
+      request.fields['reqtype'] = 'fileupload';
+      request.files.add(http.MultipartFile.fromBytes(
+        'fileToUpload',
+        bytes,
+        filename: 'building_photo.jpg',
+        contentType: MediaType('image', 'jpeg'),
+      ));
+
+      final streamed =
+          await request.send().timeout(const Duration(seconds: 30));
+      final responseText = await streamed.stream.bytesToString();
+
+      if (streamed.statusCode == 200 && responseText.startsWith('https://')) {
+        final url = responseText.trim();
+        debugPrint('✅ Image uploaded (catbox.moe): $url');
+        return url;
+      }
+      debugPrint(
+          '⚠️ catbox.moe failed: ${streamed.statusCode} - $responseText');
+    } catch (e) {
+      debugPrint('⚠️ catbox.moe error: $e');
+    }
+
+    // Fallback: try 0x0.st
+    debugPrint('🔄 Trying 0x0.st as fallback...');
+    final request2 = http.MultipartRequest(
+      'POST',
+      Uri.parse('https://0x0.st/'),
+    );
+    request2.files.add(http.MultipartFile.fromBytes(
+      'file',
+      bytes,
+      filename: 'building_photo.jpg',
+      contentType: MediaType('image', 'jpeg'),
+    ));
+
+    final streamed2 =
+        await request2.send().timeout(const Duration(seconds: 30));
+    final responseText2 = await streamed2.stream.bytesToString();
+
+    if (streamed2.statusCode == 200) {
+      final url = responseText2.trim();
+      debugPrint('✅ Image uploaded (0x0.st): $url');
+      return url;
+    }
+    throw Exception(
+        'All upload services failed. Last: ${streamed2.statusCode} - $responseText2');
+  }
+
   /// Analyze image using POE API for building damage assessment
   Future<Map<String, dynamic>> analyzeImageWithAI(String imageBase64) async {
     try {
-      // Create a simplified prompt for AI analysis
-      const prompt = '''
-請分析建築物損壞情況並評估風險。
+      debugPrint('📸 Uploading image then sending to Poe B-SAFE bot...');
 
-根據用戶提供的資訊，請進行以下評估：
-1. 識別損壞類型（結構性損壞、外觀損壞、電氣問題、水管問題等）
-2. 評估損壞嚴重程度（輕微 mild/中度 moderate/嚴重 severe）
-3. 判斷風險等級（低 low/中 medium/高 high）
-4. 計算風險評分（0-100分）
-5. 是否需要緊急處理（true/false）
-6. 提供處理建議
+      // Step 1: Upload image to get a real public URL
+      final imageUrl = await _uploadImageToPublicHost(imageBase64);
 
-請以JSON格式返回，格式如下：
-{
-  "damage_detected": true,
-  "damage_types": ["裂縫", "剝落"],
-  "severity": "moderate",
-  "risk_level": "medium",
-  "risk_score": 65,
-  "is_urgent": false,
-  "analysis": "發現中度損壞，建議盡快處理",
-  "recommendations": ["安排專業檢查", "監控是否惡化"]
-}
-
-注意：只返回JSON，不要包含其他文字。
-''';
-
-      // Send request to POE API
-      final response = await http.post(
-        Uri.parse('https://api.poe.com/bot/$poeBotName'),
-        headers: {
-          'Authorization': 'Bearer $poeApiKey',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'version': '1.0',
+      // Step 2: Query the Poe B-SAFE bot with the image URL
+      // IMPORTANT: Must include ALL QueryRequest fields (matching fastapi_poe's model_dump())
+      final client = http.Client();
+      try {
+        final request = http.Request(
+          'POST',
+          Uri.parse('https://api.poe.com/bot/$poeBotName'),
+        );
+        request.headers['Authorization'] = 'Bearer $poeApiKey';
+        request.headers['Content-Type'] = 'application/json';
+        request.body = jsonEncode({
+          'version': '1.2',
           'type': 'query',
           'query': [
             {
               'role': 'user',
-              'content': prompt,
+              'content': imageUrl,
+              'content_type': 'text/markdown',
+              'timestamp': 0,
+              'message_id': '',
+              'feedback': [],
+              'attachments': [],
+              'parameters': {},
+              'sender': null,
+              'sender_id': null,
+              'metadata': null,
+              'message_type': null,
+              'referenced_message': null,
+              'reactions': [],
             }
           ],
-        }),
-      );
+          'user_id': '',
+          'conversation_id': '',
+          'message_id': '',
+          'metadata': '',
+          'api_key': '<missing>',
+          'access_key': '<missing>',
+          'temperature': null,
+          'skip_system_prompt': false,
+          'logit_bias': {},
+          'stop_sequences': [],
+          'language_code': 'zh-Hant',
+          'adopt_current_bot_name': null,
+          'bot_query_id': '',
+          'users': [],
+          'tools': null,
+          'tool_calls': null,
+          'tool_results': null,
+          'query_creation_time': null,
+          'extra_params': null,
+        });
 
-      debugPrint('POE API Response Status: ${response.statusCode}');
-      debugPrint('POE API Response Body: ${response.body}');
+        final streamedResponse =
+            await client.send(request).timeout(const Duration(seconds: 180));
+        final responseBody = await streamedResponse.stream.bytesToString();
 
-      if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
-        
-        // Extract text from response
-        String text = '';
-        if (responseData is Map && responseData.containsKey('text')) {
-          text = responseData['text'];
-        } else if (responseData is Map && responseData.containsKey('data')) {
-          text = responseData['data'].toString();
-        } else {
-          text = response.body;
+        debugPrint('Poe response status: ${streamedResponse.statusCode}');
+        debugPrint(
+            'Poe response (first 800): ${responseBody.length > 800 ? responseBody.substring(0, 800) : responseBody}');
+
+        if (streamedResponse.statusCode == 200) {
+          return _parsePoeSSE(responseBody);
         }
-        
-        // Try to extract JSON from the response
-        final jsonMatch = RegExp(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}').firstMatch(text);
-        if (jsonMatch != null) {
-          try {
-            return jsonDecode(jsonMatch.group(0)!);
-          } catch (e) {
-            debugPrint('Failed to parse JSON: $e');
-          }
-        }
-        
-        // If no valid JSON found, return a default response
-        debugPrint('No valid JSON found in response, using fallback');
-        throw Exception('Invalid AI response format');
-      } else {
-        debugPrint('API Error: ${response.statusCode} - ${response.body}');
-        throw Exception('AI analysis failed: ${response.statusCode}');
+        throw Exception(
+            'Poe API ${streamedResponse.statusCode}: $responseBody');
+      } finally {
+        client.close();
       }
     } catch (e) {
-      debugPrint('AI Analysis Error: $e');
-      throw Exception('AI analysis error: $e');
+      debugPrint('❌ AI Analysis Error: $e');
+      return _localImageAnalysisFallback();
     }
+  }
+
+  /// Parse Poe SSE response and accumulate full AI text
+  Map<String, dynamic> _parsePoeSSE(String responseBody) {
+    String accumulatedText = '';
+    String lastReplace = '';
+    String currentEvent = '';
+
+    for (final rawLine in responseBody.split('\n')) {
+      final line = rawLine.trim();
+      if (line.startsWith('event:')) {
+        currentEvent = line.substring(6).trim();
+      } else if (line.startsWith('data:')) {
+        final dataStr = line.substring(5).trim();
+        if (dataStr.isEmpty || dataStr == '{}') continue;
+
+        // Handle error events from Poe
+        if (currentEvent == 'error') {
+          try {
+            final data = jsonDecode(dataStr);
+            throw Exception('Poe error: ${data['text']}');
+          } catch (e) {
+            if (e.toString().contains('Poe error')) rethrow;
+            throw Exception('Poe error: $dataStr');
+          }
+        }
+
+        try {
+          final data = jsonDecode(dataStr);
+          if (data is Map && data.containsKey('text')) {
+            final t = data['text'].toString();
+            // Skip "Thinking..." status messages
+            if (t.startsWith('Thinking...')) continue;
+            if (currentEvent == 'replace_response') {
+              lastReplace = t;
+            } else if (currentEvent == 'text') {
+              accumulatedText += t;
+            }
+          }
+        } catch (_) {}
+      }
+    }
+
+    // Prefer accumulated text events; fall back to last replace_response
+    final fullText = accumulatedText.isNotEmpty ? accumulatedText : lastReplace;
+
+    if (fullText.isEmpty) {
+      throw Exception('No text found in Poe SSE response');
+    }
+
+    debugPrint(
+        'AI full text (first 200): ${fullText.length > 200 ? fullText.substring(0, 200) : fullText}');
+    return _buildResultFromText(fullText);
+  }
+
+  /// Build a structured result map from the AI full response text.
+  /// Directly places the AI response in 'analysis' for display.
+  Map<String, dynamic> _buildResultFromText(String text) {
+    debugPrint('🔍 Building result from text (${text.length} chars)');
+
+    // Simple keyword-based risk detection from AI response
+    final lower = text.toLowerCase();
+
+    String severity = 'moderate';
+    String riskLevel = 'medium';
+    int riskScore = 55;
+    bool isUrgent = false;
+
+    if (lower.contains('severe') ||
+        lower.contains('嚴重') ||
+        lower.contains('危險') ||
+        lower.contains('高風險') ||
+        lower.contains('立即')) {
+      severity = 'severe';
+      riskLevel = 'high';
+      riskScore = 85;
+      isUrgent = true;
+    } else if (lower.contains('mild') ||
+        lower.contains('輕微') ||
+        lower.contains('低風險') ||
+        lower.contains('minor')) {
+      severity = 'mild';
+      riskLevel = 'low';
+      riskScore = 25;
+    }
+
+    return {
+      'damage_detected': true,
+      'severity': severity,
+      'risk_level': riskLevel,
+      'risk_score': riskScore,
+      'is_urgent': isUrgent,
+      'analysis': text,
+    };
+  }
+
+  /// Local fallback when Poe API is unavailable
+  Map<String, dynamic> _localImageAnalysisFallback() {
+    return {
+      'damage_detected': true,
+      'category': 'structural',
+      'severity': 'moderate',
+      'risk_level': 'medium',
+      'risk_score': 50,
+      'is_urgent': false,
+      'title': '建築安全問題',
+      'analysis': 'AI 分析服務暫時不可用（請確認網絡連線）。照片已保存，請稍後重新分析。',
+      'recommendations': [
+        '請確認網絡連線後重試',
+        '建議安排專業人員現場檢查',
+      ],
+    };
   }
 
   /// Local fallback analysis when offline or AI unavailable

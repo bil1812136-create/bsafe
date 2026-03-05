@@ -45,6 +45,47 @@ class UwbService extends ChangeNotifier {
   bool _isLoadingFloorPlan = false;
   bool get isLoadingFloorPlan => _isLoadingFloorPlan;
 
+  // 多樓層支持
+  int _totalFloors = 1;
+  int get totalFloors => _totalFloors;
+  int _currentFloor = 1;
+  int get currentFloor => _currentFloor;
+  final Map<int, String> _floorPlanPaths = {}; // 每層的平面圖路徑
+  Map<int, String> get floorPlanPaths => _floorPlanPaths;
+  final Map<int, ui.Image?> _floorPlanImages = {}; // 每層的平面圖圖片快取
+
+  void setTotalFloors(int total) {
+    _totalFloors = total.clamp(1, 99);
+    if (_currentFloor > _totalFloors) {
+      _currentFloor = _totalFloors;
+    }
+    notifyListeners();
+  }
+
+  void setCurrentFloor(int floor) {
+    if (floor < 1 || floor > _totalFloors) return;
+    _currentFloor = floor;
+    // 切換到該樓層的平面圖
+    if (_floorPlanImages.containsKey(floor) &&
+        _floorPlanImages[floor] != null) {
+      _floorPlanImage = _floorPlanImages[floor];
+    } else if (_floorPlanPaths.containsKey(floor)) {
+      // 需要載入
+      loadFloorPlanForFloor(floor, _floorPlanPaths[floor]!);
+    } else {
+      _floorPlanImage = null;
+    }
+    notifyListeners();
+  }
+
+  /// 為指定樓層載入平面圖
+  Future<void> loadFloorPlanForFloor(int floor, String filePath) async {
+    _floorPlanPaths[floor] = filePath;
+    await loadFloorPlanImage(filePath);
+    _floorPlanImages[floor] = _floorPlanImage;
+    notifyListeners();
+  }
+
   // 串口服务（桌面平台）
   DesktopSerialService? _desktopSerial;
 
@@ -983,7 +1024,8 @@ class UwbService extends ChangeNotifier {
         // 記錄 offset 模式進行學習
         if (unique.length >= 3) {
           final pattern = unique.take(4).map((u) => u.pos).join(',');
-          _offsetPatternCounts[pattern] = (_offsetPatternCounts[pattern] ?? 0) + 1;
+          _offsetPatternCounts[pattern] =
+              (_offsetPatternCounts[pattern] ?? 0) + 1;
           _offsetLearnCount++;
 
           if (_offsetLearnCount >= _offsetLearnThreshold) {
@@ -991,11 +1033,15 @@ class UwbService extends ChangeNotifier {
             String bestPattern = '';
             int bestCount = 0;
             _offsetPatternCounts.forEach((p, c) {
-              if (c > bestCount) { bestPattern = p; bestCount = c; }
+              if (c > bestCount) {
+                bestPattern = p;
+                bestCount = c;
+              }
             });
             if (bestCount >= _offsetLearnThreshold * 0.5) {
               _learnedOffsets = bestPattern.split(',').map(int.parse).toList();
-              debugPrint('✅ 學習完成！固定 byte offsets: $_learnedOffsets (出現 $bestCount/$_offsetLearnCount 次)');
+              debugPrint(
+                  '✅ 學習完成！固定 byte offsets: $_learnedOffsets (出現 $bestCount/$_offsetLearnCount 次)');
             } else {
               // 重置重新學習
               _offsetLearnCount = 0;
@@ -1005,7 +1051,8 @@ class UwbService extends ChangeNotifier {
         }
       }
 
-      debugPrint('距離: D0=${distances[0].toStringAsFixed(2)}m D1=${distances[1].toStringAsFixed(2)}m D2=${distances[2].toStringAsFixed(2)}m D3=${distances[3].toStringAsFixed(2)}m ${_learnedOffsets.isNotEmpty ? "(固定)" : "(學習中 $_offsetLearnCount/$_offsetLearnThreshold)"}');
+      debugPrint(
+          '距離: D0=${distances[0].toStringAsFixed(2)}m D1=${distances[1].toStringAsFixed(2)}m D2=${distances[2].toStringAsFixed(2)}m D3=${distances[3].toStringAsFixed(2)}m ${_learnedOffsets.isNotEmpty ? "(固定)" : "(學習中 $_offsetLearnCount/$_offsetLearnThreshold)"}');
 
       // ===== 應用安信可距離校正係數 =====
       final double corrA = _config.correctionA; // 0.78
@@ -1226,7 +1273,8 @@ class UwbService extends ChangeNotifier {
       final lastY = _yHistory.last;
       final dt = now.difference(_lastPositionTime!).inMilliseconds / 1000.0;
       if (dt > 0.01) {
-        final dist = sqrt((x - lastX) * (x - lastX) + (y - lastY) * (y - lastY));
+        final dist =
+            sqrt((x - lastX) * (x - lastX) + (y - lastY) * (y - lastY));
         final speed = dist / dt;
         if (speed > _maxSpeed) {
           // 限制移動到最大速度對應的距離

@@ -110,6 +110,8 @@ class _ReportScreenState extends State<ReportScreen> {
       // 調用 POE API 進行 AI 分析
       final result = await reportProvider.analyzeImage(_imageBase64!);
 
+      if (!mounted) return;
+
       if (result != null && result['damage_detected'] == true) {
         setState(() {
           _aiResult = result;
@@ -124,11 +126,14 @@ class _ReportScreenState extends State<ReportScreen> {
         _showError('未檢測到明顯損壞，請重新拍照');
       }
     } catch (e) {
+      if (!mounted) return;
       _showError('AI 分析失敗: $e');
     } finally {
-      setState(() {
-        _isAnalyzing = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isAnalyzing = false;
+        });
+      }
     }
   }
 
@@ -169,7 +174,7 @@ class _ReportScreenState extends State<ReportScreen> {
       if (report != null) {
         _resetForm();
         _showSuccess('✅ 報告已成功提交！正在跳轉到紀錄頁面...');
-        
+
         // 等待一下讓用戶看到成功消息，然後自動切換到歷史記錄頁面
         Future.delayed(const Duration(milliseconds: 1500), () {
           if (mounted) {
@@ -297,8 +302,10 @@ class _ReportScreenState extends State<ReportScreen> {
                                   decoration: BoxDecoration(
                                     gradient: LinearGradient(
                                       colors: [
-                                        AppTheme.primaryColor.withValues(alpha: 0.1),
-                                        AppTheme.primaryColor.withValues(alpha: 0.05),
+                                        AppTheme.primaryColor
+                                            .withValues(alpha: 0.1),
+                                        AppTheme.primaryColor
+                                            .withValues(alpha: 0.05),
                                       ],
                                       begin: Alignment.topLeft,
                                       end: Alignment.bottomRight,
@@ -366,7 +373,8 @@ class _ReportScreenState extends State<ReportScreen> {
                                     ),
                                     borderRadius: BorderRadius.circular(16),
                                     border: Border.all(
-                                      color: Colors.purple.withValues(alpha: 0.3),
+                                      color:
+                                          Colors.purple.withValues(alpha: 0.3),
                                       width: 2,
                                     ),
                                   ),
@@ -376,8 +384,8 @@ class _ReportScreenState extends State<ReportScreen> {
                                       Container(
                                         padding: const EdgeInsets.all(16),
                                         decoration: BoxDecoration(
-                                          color:
-                                              Colors.purple.withValues(alpha: 0.15),
+                                          color: Colors.purple
+                                              .withValues(alpha: 0.15),
                                           shape: BoxShape.circle,
                                         ),
                                         child: const Icon(
