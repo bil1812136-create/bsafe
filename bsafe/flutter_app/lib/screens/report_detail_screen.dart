@@ -1,7 +1,9 @@
 import 'dart:io';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:bsafe_app/models/report_model.dart';
 import 'package:bsafe_app/providers/report_provider.dart';
 import 'package:bsafe_app/theme/app_theme.dart';
@@ -29,103 +31,27 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     });
   }
 
-  /// 顯示更新狀態對話框（手機只能設為「待處理」或「處理中」，已解決由公司 Web 設定）
-  Future<void> _showUpdateStatusDialog() async {
-    final statuses = [
-      {
-        'key': 'pending',
-        'label': '待處理',
-        'icon': Icons.pending_actions,
-        'color': Colors.grey
-      },
-      {
-        'key': 'in_progress',
-        'label': '處理中',
-        'icon': Icons.engineering,
-        'color': Colors.orange
-      },
-    ];
-
-    final selected = await showDialog<String>(
+  /// 打開「更新資料」表單 — 上傳圖片＋輸入文字＋發送
+  void _showUpdateForm() {
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('更新處理狀態'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ...statuses.map((s) {
-              final isActive = s['key'] == _report.status;
-              return ListTile(
-                leading: Icon(
-                  s['icon'] as IconData,
-                  color: isActive ? s['color'] as Color : Colors.grey,
-                ),
-                title: Text(
-                  s['label'] as String,
-                  style: TextStyle(
-                    fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-                    color: isActive ? s['color'] as Color : null,
-                  ),
-                ),
-                trailing: isActive
-                    ? Icon(Icons.check, color: s['color'] as Color)
-                    : null,
-                onTap: () => Navigator.pop(context, s['key'] as String),
-              );
-            }),
-            const Divider(),
-            Row(
-              children: [
-                Icon(Icons.info_outline, size: 14, color: Colors.grey.shade500),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    '「已解決」由公司後台設定',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
-        ],
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => _WorkerResponseForm(
+        report: _report,
+        onSubmitted: (updatedReport) {
+          setState(() => _report = updatedReport);
+        },
       ),
     );
-
-    if (selected != null && selected != _report.status && mounted) {
-      final provider = context.read<ReportProvider>();
-      final success = await provider.updateReportStatus(_report, selected);
-      if (success && mounted) {
-        setState(() {
-          _report =
-              _report.copyWith(status: selected, updatedAt: DateTime.now());
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle, color: Colors.white),
-                const SizedBox(width: 8),
-                Text(
-                    '狀態已更新為「${statuses.firstWhere((s) => s['key'] == selected)['label']}」'),
-              ],
-            ),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    }
   }
 
   /// 構建圖片區域 — 支援本地檔案、網路 URL、Base64
   Widget _buildImageSection() {
-    // 優先用 imagePath（本地檔案），再試 imageUrl（雲端 URL），最後試 imageBase64
-    if (_report.imagePath != null && _report.imagePath!.isNotEmpty) {
+    // 手機本地檔案（Web 不支援 Image.file）
+    if (!kIsWeb && _report.imagePath != null && _report.imagePath!.isNotEmpty) {
       final file = File(_report.imagePath!);
       return Container(
         width: double.infinity,
@@ -413,6 +339,14 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
 
                   const SizedBox(height: 20),
 
+                  // 工人回覆區塊
+                  if (_report.workerResponse != null &&
+                      _report.workerResponse!.isNotEmpty)
+                    _WorkerResponseSection(
+                      response: _report.workerResponse!,
+                      responseImage: _report.workerResponseImage,
+                    ),
+
                   // Status Section
                   const Text(
                     '處理狀態',
@@ -457,9 +391,9 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: _showUpdateStatusDialog,
-                  icon: const Icon(Icons.update),
-                  label: const Text('更新狀態'),
+                  onPressed: _showUpdateForm,
+                  icon: const Icon(Icons.edit_note),
+                  label: const Text('更新資料'),
                 ),
               ),
             ],
@@ -663,6 +597,390 @@ class _StatusStepper extends StatelessWidget {
           ),
         );
       }).toList(),
+    );
+  }
+}
+
+/// 已提交的工人回覆顯示區塊
+class _WorkerResponseSection extends StatelessWidget {
+  final String response;
+  final String? responseImage;
+  const _WorkerResponseSection(
+      {required this.response, this.responseImage});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.engineering, size: 18, color: Colors.teal.shade700),
+              const SizedBox(width: 6),
+              Text(
+                '工人回覆',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.teal.shade700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.teal.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.teal.shade200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 回覆圖片
+                if (responseImage != null && responseImage!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: _buildResponseImage(),
+                    ),
+                  ),
+                Text(
+                  response,
+                  style: TextStyle(fontSize: 15, color: Colors.teal.shade900),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResponseImage() {
+    // 如果是 URL
+    if (responseImage!.startsWith('http')) {
+      return Image.network(
+        responseImage!,
+        width: double.infinity,
+        height: 150,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+      );
+    }
+    // 否則當作 base64
+    try {
+      final bytes = base64Decode(responseImage!);
+      return Image.memory(
+        bytes,
+        width: double.infinity,
+        height: 150,
+        fit: BoxFit.cover,
+      );
+    } catch (_) {
+      return const SizedBox.shrink();
+    }
+  }
+}
+
+/// 更新資料表單（底部抽屜） — 上傳圖片＋輸入文字＋發送
+class _WorkerResponseForm extends StatefulWidget {
+  final ReportModel report;
+  final ValueChanged<ReportModel> onSubmitted;
+
+  const _WorkerResponseForm({
+    required this.report,
+    required this.onSubmitted,
+  });
+
+  @override
+  State<_WorkerResponseForm> createState() => _WorkerResponseFormState();
+}
+
+class _WorkerResponseFormState extends State<_WorkerResponseForm> {
+  final _textController = TextEditingController();
+  final _picker = ImagePicker();
+  String? _imageBase64;
+  Uint8List? _imageBytes;
+  bool _isSending = false;
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: source,
+        maxWidth: 1280,
+        maxHeight: 1280,
+        imageQuality: 75,
+      );
+      if (image == null) return;
+      final bytes = await image.readAsBytes();
+      setState(() {
+        _imageBytes = bytes;
+        _imageBase64 = base64Encode(bytes);
+      });
+    } catch (e) {
+      debugPrint('選取圖片失敗: $e');
+    }
+  }
+
+  Future<void> _submit() async {
+    final text = _textController.text.trim();
+    if (text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('請輸入回覆內容'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSending = true);
+
+    final provider = context.read<ReportProvider>();
+    final success = await provider.submitWorkerResponse(
+      widget.report,
+      text,
+      _imageBase64,
+    );
+
+    if (!mounted) return;
+    setState(() => _isSending = false);
+
+    if (success) {
+      final updated = widget.report.copyWith(
+        status: 'in_progress',
+        workerResponse: text,
+        workerResponseImage: _imageBase64,
+        updatedAt: DateTime.now(),
+      );
+      widget.onSubmitted(updated);
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 8),
+              Text('回覆已發送，狀態更新為「處理中」'),
+            ],
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('發送失敗，請稍後再試'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 16,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 標題列
+          Row(
+            children: [
+              const Icon(Icons.edit_note, color: AppTheme.primaryColor),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  '更新資料',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
+              IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.close),
+              ),
+            ],
+          ),
+          const Divider(),
+          const SizedBox(height: 8),
+
+          // 公司任務提示
+          if (widget.report.companyNotes != null &&
+              widget.report.companyNotes!.isNotEmpty)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.task_alt, size: 18, color: Colors.blue.shade700),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      widget.report.companyNotes!,
+                      style: TextStyle(
+                          fontSize: 13, color: Colors.blue.shade900),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          // 上傳圖片區域
+          const Text('📷 上傳圖片', style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          GestureDetector(
+            onTap: () => _showImageSourceDialog(),
+            child: Container(
+              width: double.infinity,
+              height: 150,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: _imageBytes != null
+                  ? Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.memory(
+                            _imageBytes!,
+                            width: double.infinity,
+                            height: 150,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        Positioned(
+                          top: 4,
+                          right: 4,
+                          child: GestureDetector(
+                            onTap: () => setState(() {
+                              _imageBytes = null;
+                              _imageBase64 = null;
+                            }),
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: const BoxDecoration(
+                                color: Colors.red,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.close,
+                                  color: Colors.white, size: 16),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.add_a_photo,
+                            size: 40, color: Colors.grey.shade400),
+                        const SizedBox(height: 8),
+                        Text('點擊上傳現場照片',
+                            style: TextStyle(color: Colors.grey.shade500)),
+                      ],
+                    ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // 文字輸入
+          const Text('📝 回覆內容', style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _textController,
+            maxLines: 4,
+            decoration: InputDecoration(
+              hintText: '輸入處理情況、進度說明...',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              contentPadding: const EdgeInsets.all(12),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // 發送按鈕
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton.icon(
+              onPressed: _isSending ? null : _submit,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              icon: _isSending
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.send),
+              label: Text(_isSending ? '發送中...' : '發送回覆'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showImageSourceDialog() {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('拍照'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickImage(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('從相簿選擇'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickImage(ImageSource.gallery);
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

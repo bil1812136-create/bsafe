@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:bsafe_app/models/report_model.dart';
 import 'package:bsafe_app/theme/app_theme.dart';
@@ -40,24 +42,7 @@ class RecentReportCard extends StatelessWidget {
                   color: Colors.grey.shade200,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: report.imagePath != null
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.file(
-                          File(report.imagePath!),
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Icon(
-                              Icons.image,
-                              color: Colors.grey.shade400,
-                            );
-                          },
-                        ),
-                      )
-                    : Icon(
-                        Icons.image,
-                        color: Colors.grey.shade400,
-                      ),
+                child: _buildThumbnail(report),
               ),
               const SizedBox(width: 12),
 
@@ -162,6 +147,49 @@ class RecentReportCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// 縮圖：依序試 localFile (mobile only) → URL → base64 → placeholder
+  Widget _buildThumbnail(ReportModel report) {
+    final radius = BorderRadius.circular(12);
+    if (!kIsWeb && report.imagePath != null && report.imagePath!.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: radius,
+        child: Image.file(
+          File(report.imagePath!),
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _urlOrBase64Thumbnail(report, radius),
+        ),
+      );
+    }
+    return _urlOrBase64Thumbnail(report, radius);
+  }
+
+  Widget _urlOrBase64Thumbnail(ReportModel report, BorderRadius radius) {
+    if (report.imageUrl != null && report.imageUrl!.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: radius,
+        child: Image.network(
+          report.imageUrl!,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _base64Thumbnail(report, radius),
+        ),
+      );
+    }
+    return _base64Thumbnail(report, radius);
+  }
+
+  Widget _base64Thumbnail(ReportModel report, BorderRadius radius) {
+    if (report.imageBase64 != null && report.imageBase64!.isNotEmpty) {
+      try {
+        final bytes = base64Decode(report.imageBase64!);
+        return ClipRRect(
+          borderRadius: radius,
+          child: Image.memory(bytes, fit: BoxFit.cover),
+        );
+      } catch (_) {}
+    }
+    return Icon(Icons.image, color: Colors.grey.shade400);
   }
 }
 

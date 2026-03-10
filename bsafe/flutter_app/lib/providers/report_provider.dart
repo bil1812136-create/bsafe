@@ -200,6 +200,36 @@ class ReportProvider extends ChangeNotifier {
     }
   }
 
+  /// 提交工人回覆並更新狀態為「處理中」
+  Future<bool> submitWorkerResponse(
+      ReportModel report, String responseText, String? imageBase64) async {
+    try {
+      if (!SupabaseService.isConfigured || report.id == null) return false;
+
+      final success = await SupabaseService.instance
+          .submitWorkerResponse(report.id!, responseText, imageBase64);
+      if (!success) return false;
+
+      // 更新本地列表
+      final index = _reports.indexWhere((r) => r.id == report.id);
+      if (index >= 0) {
+        _reports[index] = report.copyWith(
+          status: 'in_progress',
+          workerResponse: responseText,
+          workerResponseImage: imageBase64,
+          updatedAt: DateTime.now(),
+        );
+        _statistics = _computeStatistics(_reports);
+        notifyListeners();
+      }
+      return true;
+    } catch (e) {
+      _error = '提交回覆失敗: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
   /// 從 Supabase 重新刷新（含 company_notes 最新值）
   Future<void> refreshFromCloud() async {
     await loadReports();

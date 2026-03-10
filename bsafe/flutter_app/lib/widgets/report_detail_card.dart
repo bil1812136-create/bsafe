@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:bsafe_app/models/report_model.dart';
 import 'package:bsafe_app/theme/app_theme.dart';
@@ -34,7 +36,11 @@ class ReportDetailCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Image Header
-            if (report.imagePath != null)
+            if ((!kIsWeb &&
+                    report.imagePath != null &&
+                    report.imagePath!.isNotEmpty) ||
+                (report.imageUrl != null && report.imageUrl!.isNotEmpty) ||
+                (report.imageBase64 != null && report.imageBase64!.isNotEmpty))
               Stack(
                 children: [
                   ClipRRect(
@@ -45,19 +51,7 @@ class ReportDetailCard extends StatelessWidget {
                       height: 120,
                       width: double.infinity,
                       color: Colors.grey.shade200,
-                      child: Image.file(
-                        File(report.imagePath!),
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Center(
-                            child: Icon(
-                              Icons.image,
-                              size: 40,
-                              color: Colors.grey.shade400,
-                            ),
-                          );
-                        },
-                      ),
+                      child: _buildHeaderImage(report),
                     ),
                   ),
                   // Risk Badge Overlay
@@ -193,7 +187,8 @@ class ReportDetailCard extends StatelessWidget {
                   // Footer
                   Row(
                     children: [
-                      if (report.location != null && report.location!.isNotEmpty) ...[
+                      if (report.location != null &&
+                          report.location!.isNotEmpty) ...[
                         Icon(
                           Icons.location_on,
                           size: 14,
@@ -255,6 +250,41 @@ class ReportDetailCard extends StatelessWidget {
       default:
         return AppTheme.riskLow;
     }
+  }
+
+  /// 標頭圖片：依序試 localFile (mobile only) → URL → base64 → placeholder
+  Widget _buildHeaderImage(ReportModel report) {
+    if (!kIsWeb && report.imagePath != null && report.imagePath!.isNotEmpty) {
+      return Image.file(
+        File(report.imagePath!),
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _urlOrBase64Header(report),
+      );
+    }
+    return _urlOrBase64Header(report);
+  }
+
+  Widget _urlOrBase64Header(ReportModel report) {
+    if (report.imageUrl != null && report.imageUrl!.isNotEmpty) {
+      return Image.network(
+        report.imageUrl!,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _base64Header(report),
+      );
+    }
+    return _base64Header(report);
+  }
+
+  Widget _base64Header(ReportModel report) {
+    if (report.imageBase64 != null && report.imageBase64!.isNotEmpty) {
+      try {
+        final bytes = base64Decode(report.imageBase64!);
+        return Image.memory(bytes, fit: BoxFit.cover);
+      } catch (_) {}
+    }
+    return Center(
+      child: Icon(Icons.image, size: 40, color: Colors.grey.shade400),
+    );
   }
 }
 

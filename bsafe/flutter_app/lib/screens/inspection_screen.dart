@@ -19,6 +19,7 @@ import 'package:bsafe_app/theme/app_theme.dart';
 import 'package:bsafe_app/screens/calibration_screen.dart';
 import 'package:bsafe_app/services/api_service.dart';
 import 'package:bsafe_app/services/word_export_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 class InspectionScreen extends StatefulWidget {
@@ -48,6 +49,17 @@ class _InspectionScreenState extends State<InspectionScreen> {
     if (widget.project != null) {
       _currentFloor = widget.project!.currentFloor;
     }
+    // 恢復上次選擇的樓層
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (widget.project != null && mounted) {
+        final prefs = await SharedPreferences.getInstance();
+        final savedFloor = prefs.getInt('project_floor_${widget.project!.id}');
+        if (savedFloor != null && savedFloor != _currentFloor && mounted) {
+          final inspection = context.read<InspectionProvider>();
+          _switchFloor(inspection, widget.project!, savedFloor);
+        }
+      }
+    });
   }
 
   @override
@@ -201,6 +213,26 @@ class _InspectionScreenState extends State<InspectionScreen> {
                     ],
                   ),
                 ),
+              const PopupMenuItem(
+                value: 'new_session',
+                child: Row(
+                  children: [
+                    Icon(Icons.add_circle_outline, size: 18),
+                    SizedBox(width: 8),
+                    Text('新建巡檢'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'load_session',
+                child: Row(
+                  children: [
+                    Icon(Icons.folder_open, size: 18),
+                    SizedBox(width: 8),
+                    Text('載入巡檢'),
+                  ],
+                ),
+              ),
               const PopupMenuItem(value: 'export_word', child: Text('匯出 Word')),
               const PopupMenuDivider(),
               const PopupMenuItem(value: 'clear_pins', child: Text('清除所有 Pin')),
@@ -514,12 +546,15 @@ class _InspectionScreenState extends State<InspectionScreen> {
                             children: [
                               Text(
                                 '可同時選擇多組交換。例如：選 D0↔D1 再選 D2↔D3。',
-                                style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.orange.shade800),
                               ),
                               const SizedBox(height: 8),
                               Text(
                                 '目前映射: ${_describeDistanceMapping(uwbService.config.distanceIndexMap)}',
-                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                style: const TextStyle(
+                                    fontSize: 12, fontWeight: FontWeight.bold),
                               ),
                             ],
                           ),
@@ -706,6 +741,26 @@ class _InspectionScreenState extends State<InspectionScreen> {
                     ],
                   ),
                 ),
+              const PopupMenuItem(
+                value: 'new_session',
+                child: Row(
+                  children: [
+                    Icon(Icons.add_circle_outline, size: 18),
+                    SizedBox(width: 8),
+                    Text('新建巡檢'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'load_session',
+                child: Row(
+                  children: [
+                    Icon(Icons.folder_open, size: 18),
+                    SizedBox(width: 8),
+                    Text('載入巡檢'),
+                  ],
+                ),
+              ),
               const PopupMenuItem(value: 'export_word', child: Text('匯出 Word')),
               const PopupMenuDivider(),
               const PopupMenuItem(value: 'clear_pins', child: Text('清除所有 Pin')),
@@ -1250,11 +1305,14 @@ class _InspectionScreenState extends State<InspectionScreen> {
       ),
       child: Row(
         children: [
-          _buildStatBadge('低風險', session.lowRiskDefects.toString(), Colors.blue),
+          _buildStatBadge(
+              '低風險', session.lowRiskDefects.toString(), Colors.blue),
           const SizedBox(width: 8),
-          _buildStatBadge('中風險', session.mediumRiskDefects.toString(), Colors.orange),
+          _buildStatBadge(
+              '中風險', session.mediumRiskDefects.toString(), Colors.orange),
           const SizedBox(width: 8),
-          _buildStatBadge('高風險', session.highRiskDefects.toString(), Colors.red),
+          _buildStatBadge(
+              '高風險', session.highRiskDefects.toString(), Colors.red),
         ],
       ),
     );
@@ -1392,9 +1450,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
-                                pin.isAnalyzed
-                                    ? '已分析'
-                                    : pin.statusLabel,
+                                pin.isAnalyzed ? '已分析' : pin.statusLabel,
                                 style: TextStyle(
                                   fontSize: 11,
                                   color: pin.isAnalyzed
@@ -1655,6 +1711,10 @@ class _InspectionScreenState extends State<InspectionScreen> {
                           child: GestureDetector(
                             onTap: () {
                               uwbService.setCurrentFloor(floor);
+                              if (widget.project != null) {
+                                _switchFloor(
+                                    inspection, widget.project!, floor);
+                              }
                             },
                             child: Container(
                               constraints: const BoxConstraints(minWidth: 36),
@@ -1727,6 +1787,8 @@ class _InspectionScreenState extends State<InspectionScreen> {
   // ===== 樓層設定對話框 =====
   void _showFloorSettingsDialog(UwbService uwbService) {
     int tempFloors = uwbService.totalFloors;
+    final floorTextController =
+        TextEditingController(text: '${uwbService.totalFloors}');
     showDialog(
       context: context,
       builder: (ctx) {
@@ -1754,36 +1816,62 @@ class _InspectionScreenState extends State<InspectionScreen> {
                     children: [
                       IconButton(
                         onPressed: tempFloors > 1
-                            ? () => setDialogState(() => tempFloors--)
+                            ? () {
+                                setDialogState(() => tempFloors--);
+                                floorTextController.text = '$tempFloors';
+                              }
                             : null,
                         icon: const Icon(Icons.remove_circle_outline),
                         iconSize: 32,
                         color: AppTheme.primaryColor,
                       ),
                       const SizedBox(width: 16),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 24, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: AppTheme.primaryColor.withValues(alpha: 0.3),
-                          ),
-                        ),
-                        child: Text(
-                          '$tempFloors',
+                      SizedBox(
+                        width: 90,
+                        child: TextField(
+                          controller: floorTextController,
+                          keyboardType: TextInputType.number,
+                          textAlign: TextAlign.center,
                           style: const TextStyle(
                             fontSize: 28,
                             fontWeight: FontWeight.bold,
                             color: AppTheme.primaryColor,
                           ),
+                          decoration: InputDecoration(
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 10),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: AppTheme.primaryColor
+                                    .withValues(alpha: 0.3),
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                  color: AppTheme.primaryColor, width: 2),
+                            ),
+                            filled: true,
+                            fillColor:
+                                AppTheme.primaryColor.withValues(alpha: 0.1),
+                          ),
+                          onChanged: (value) {
+                            final parsed = int.tryParse(value);
+                            if (parsed != null && parsed >= 1 && parsed <= 99) {
+                              setDialogState(() => tempFloors = parsed);
+                            }
+                          },
                         ),
                       ),
                       const SizedBox(width: 16),
                       IconButton(
                         onPressed: tempFloors < 99
-                            ? () => setDialogState(() => tempFloors++)
+                            ? () {
+                                setDialogState(() => tempFloors++);
+                                floorTextController.text = '$tempFloors';
+                              }
                             : null,
                         icon: const Icon(Icons.add_circle_outline),
                         iconSize: 32,
@@ -2358,7 +2446,8 @@ class _InspectionScreenState extends State<InspectionScreen> {
                         Text(
                           '可同時選擇多組交換。\n'
                           '例如：選 D0↔D1 再選 D2↔D3。',
-                          style: TextStyle(fontSize: 11, color: Colors.blue.shade700),
+                          style: TextStyle(
+                              fontSize: 11, color: Colors.blue.shade700),
                         ),
                         const SizedBox(height: 6),
                         Text(
@@ -2371,8 +2460,10 @@ class _InspectionScreenState extends State<InspectionScreen> {
                           ),
                         ),
                         Text(
-                          _describeDistanceMapping(uwbService.config.distanceIndexMap),
-                          style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                          _describeDistanceMapping(
+                              uwbService.config.distanceIndexMap),
+                          style: TextStyle(
+                              fontSize: 11, color: Colors.grey.shade700),
                         ),
                       ],
                     ),
@@ -2396,7 +2487,8 @@ class _InspectionScreenState extends State<InspectionScreen> {
                     child: OutlinedButton.icon(
                       onPressed: () {
                         uwbService.updateConfig(
-                          uwbService.config.copyWith(distanceIndexMap: [0, 1, 2, 3]),
+                          uwbService.config
+                              .copyWith(distanceIndexMap: [0, 1, 2, 3]),
                         );
                         setState(() {});
                       },
@@ -2494,7 +2586,8 @@ class _InspectionScreenState extends State<InspectionScreen> {
               onPressed: () => _toggleSwap(uwbService, a, b),
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                textStyle:
+                    const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
               ),
               child: Text('✓ $label'),
             )
@@ -2865,71 +2958,125 @@ class _InspectionScreenState extends State<InspectionScreen> {
   void _showFloorSelector(InspectionProvider inspection) {
     if (widget.project == null) return;
     final project = widget.project!;
+    final floorController = TextEditingController();
 
     showModalBottomSheet(
       context: context,
-      builder: (ctx) => Container(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.layers, color: AppTheme.primaryColor),
-                const SizedBox(width: 8),
-                Text('切換樓層 - ${project.buildingName}',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 16)),
-              ],
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 200,
-              child: GridView.builder(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 5,
-                  mainAxisSpacing: 8,
-                  crossAxisSpacing: 8,
-                  childAspectRatio: 1.6,
-                ),
-                itemCount: project.floorCount,
-                itemBuilder: (context, index) {
-                  final floor = index + 1;
-                  final isActive = floor == _currentFloor;
-                  // Check if this floor has pins
-                  final hasPins = inspection.sessions.any(
-                      (s) => s.projectId == project.id && s.floor == floor && s.pins.isNotEmpty);
-
-                  return Material(
-                    color: isActive
-                        ? AppTheme.primaryColor
-                        : hasPins
-                            ? Colors.green.shade50
-                            : Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(8),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(8),
-                      onTap: () {
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(ctx).viewInsets.bottom,
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.layers, color: AppTheme.primaryColor),
+                  const SizedBox(width: 8),
+                  Text('切換樓層 - ${project.buildingName}',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 16)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // 手動輸入樓層
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: floorController,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: '輸入樓層號碼',
+                        hintText: '例如: 5',
+                        border: const OutlineInputBorder(),
+                        suffixText: 'F',
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () {
+                      final input = int.tryParse(floorController.text);
+                      if (input != null &&
+                          input >= 1 &&
+                          input <= project.floorCount) {
                         Navigator.pop(ctx);
-                        _switchFloor(inspection, project, floor);
-                      },
-                      child: Center(
-                        child: Text(
-                          '${floor}F',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: isActive ? Colors.white : Colors.black87,
-                            fontSize: 14,
+                        _switchFloor(inspection, project, input);
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content:
+                                Text('請輸入 1 ~ ${project.floorCount} 之間的樓層'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    },
+                    child: const Text('前往'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              const Text('或選擇樓層：',
+                  style: TextStyle(fontSize: 13, color: Colors.grey)),
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 200,
+                child: GridView.builder(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 5,
+                    mainAxisSpacing: 8,
+                    crossAxisSpacing: 8,
+                    childAspectRatio: 1.6,
+                  ),
+                  itemCount: project.floorCount,
+                  itemBuilder: (context, index) {
+                    final floor = index + 1;
+                    final isActive = floor == _currentFloor;
+                    // Check if this floor has pins
+                    final hasPins = inspection.sessions.any((s) =>
+                        s.projectId == project.id &&
+                        s.floor == floor &&
+                        s.pins.isNotEmpty);
+
+                    return Material(
+                      color: isActive
+                          ? AppTheme.primaryColor
+                          : hasPins
+                              ? Colors.green.shade50
+                              : Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(8),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(8),
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          _switchFloor(inspection, project, floor);
+                        },
+                        child: Center(
+                          child: Text(
+                            '${floor}F',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: isActive ? Colors.white : Colors.black87,
+                              fontSize: 14,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -2937,6 +3084,9 @@ class _InspectionScreenState extends State<InspectionScreen> {
 
   void _switchFloor(InspectionProvider inspection, Project project, int floor) {
     setState(() => _currentFloor = floor);
+    // 自動儲存最後選擇的樓層
+    SharedPreferences.getInstance()
+        .then((prefs) => prefs.setInt('project_floor_${project.id}', floor));
     // Find or create session for this floor
     final existing = inspection.sessions.where(
       (s) => s.projectId == project.id && s.floor == floor,
@@ -2999,7 +3149,16 @@ class _InspectionScreenState extends State<InspectionScreen> {
                     return ListTile(
                       title: Text(session.name),
                       subtitle: Text(
-                          '${session.totalPins} 個巡檢點  ${session.createdAt.toString().substring(0, 16)}'),
+                          '${session.floor}F  ·  ${session.totalPins} 個巡檢點  ·  ${session.createdAt.toString().substring(0, 16)}'),
+                      leading: CircleAvatar(
+                        backgroundColor:
+                            AppTheme.primaryColor.withValues(alpha: 0.15),
+                        child: Text('${session.floor}F',
+                            style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.primaryColor)),
+                      ),
                       trailing: session.id == inspection.currentSession?.id
                           ? const Icon(Icons.check_circle, color: Colors.green)
                           : null,
@@ -3024,9 +3183,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
     // 收集該專案所有樓層的 sessions
     final projectId = widget.project?.id;
     final projectSessions = projectId != null
-        ? inspection.sessions
-            .where((s) => s.projectId == projectId)
-            .toList()
+        ? inspection.sessions.where((s) => s.projectId == projectId).toList()
         : [if (inspection.currentSession != null) inspection.currentSession!];
 
     final allPinsCount =
@@ -3044,7 +3201,8 @@ class _InspectionScreenState extends State<InspectionScreen> {
     // 選擇保存路徑
     final outputPath = await FilePicker.platform.saveFile(
       dialogTitle: '保存巡檢報告 Word',
-      fileName: '${buildingName}_巡檢報告_${DateTime.now().toString().substring(0, 10)}.docx',
+      fileName:
+          '${buildingName}_巡檢報告_${DateTime.now().toString().substring(0, 10)}.docx',
       type: FileType.custom,
       allowedExtensions: ['docx'],
     );
@@ -3052,9 +3210,8 @@ class _InspectionScreenState extends State<InspectionScreen> {
     if (outputPath == null) return;
 
     try {
-      final finalPath = outputPath.endsWith('.docx')
-          ? outputPath
-          : '$outputPath.docx';
+      final finalPath =
+          outputPath.endsWith('.docx') ? outputPath : '$outputPath.docx';
 
       await WordExportService.exportReport(
         outputPath: finalPath,
@@ -3267,7 +3424,10 @@ class _PinDetailDialogState extends State<_PinDetailDialog> {
                     const SizedBox(height: 16),
 
                     // --- AI 分析按鈕 (有照片但未分析) ---
-                    if (hasPhoto && !_isAnalyzing && _status != 'analyzed' && _expandedDefectIndex == null)
+                    if (hasPhoto &&
+                        !_isAnalyzing &&
+                        _status != 'analyzed' &&
+                        _expandedDefectIndex == null)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 12),
                         child: ElevatedButton.icon(
@@ -3299,8 +3459,7 @@ class _PinDetailDialogState extends State<_PinDetailDialog> {
                       ),
 
                     // --- 風險等級（只在選中缺陷時顯示）---
-                    if (_expandedDefectIndex != null)
-                      _buildRiskSection(),
+                    if (_expandedDefectIndex != null) _buildRiskSection(),
 
                     if (_expandedDefectIndex != null)
                       const SizedBox(height: 16),
@@ -3329,8 +3488,8 @@ class _PinDetailDialogState extends State<_PinDetailDialog> {
                     onPressed: () => _confirmDelete(),
                     icon: const Icon(Icons.delete_outline,
                         size: 18, color: Colors.red),
-                    label: const Text('刪除',
-                        style: TextStyle(color: Colors.red)),
+                    label:
+                        const Text('刪除', style: TextStyle(color: Colors.red)),
                   ),
                   const Spacer(),
                   // AI 分析 (有照片但未分析時顯示)
@@ -3356,12 +3515,14 @@ class _PinDetailDialogState extends State<_PinDetailDialog> {
                   const SizedBox(width: 8),
                   // 關閉
                   ElevatedButton(
-                    onPressed: _isAnalyzing ? null : () {
-                      if (_hasChanges) {
-                        _saveChanges();
-                      }
-                      Navigator.pop(context);
-                    },
+                    onPressed: _isAnalyzing
+                        ? null
+                        : () {
+                            if (_hasChanges) {
+                              _saveChanges();
+                            }
+                            Navigator.pop(context);
+                          },
                     child: const Text('確定'),
                   ),
                 ],
@@ -3453,8 +3614,7 @@ class _PinDetailDialogState extends State<_PinDetailDialog> {
             children: [
               Icon(Icons.add_a_photo, size: 36, color: Colors.grey.shade400),
               const SizedBox(height: 6),
-              Text('點擊拍照',
-                  style: TextStyle(color: Colors.grey.shade500)),
+              Text('點擊拍照', style: TextStyle(color: Colors.grey.shade500)),
             ],
           ),
         ),
@@ -3533,9 +3693,8 @@ class _PinDetailDialogState extends State<_PinDetailDialog> {
                     constraints: BoxConstraints(
                         maxWidth: MediaQuery.of(context).size.width * 0.55),
                     decoration: BoxDecoration(
-                      color: isUser
-                          ? AppTheme.primaryColor
-                          : Colors.green.shade50,
+                      color:
+                          isUser ? AppTheme.primaryColor : Colors.green.shade50,
                       borderRadius: BorderRadius.circular(10),
                       border: isUser
                           ? null
@@ -3628,8 +3787,7 @@ class _PinDetailDialogState extends State<_PinDetailDialog> {
             _buildRiskChip('high', '高', Colors.red),
           ] else
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
               decoration: BoxDecoration(
                 color: _riskColor.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12),
@@ -3689,7 +3847,8 @@ class _PinDetailDialogState extends State<_PinDetailDialog> {
             const Icon(Icons.report_problem, size: 18, color: Colors.orange),
             const SizedBox(width: 6),
             Text('缺陷記錄 (${defects.length})',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
             const Spacer(),
             TextButton.icon(
               onPressed: widget.onRetakePhoto,
@@ -3740,7 +3899,7 @@ class _PinDetailDialogState extends State<_PinDetailDialog> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
         side: isSelected
-            ? BorderSide(color: AppTheme.primaryColor, width: 2)
+            ? const BorderSide(color: AppTheme.primaryColor, width: 2)
             : BorderSide.none,
       ),
       clipBehavior: Clip.antiAlias,
@@ -3979,12 +4138,13 @@ class _PinDetailDialogState extends State<_PinDetailDialog> {
       if (!mounted) return;
 
       setState(() {
-        _aiResult = updatedPin.aiResult ?? {
-          'risk_level': updatedPin.riskLevel,
-          'risk_score': updatedPin.riskScore,
-          'analysis': updatedPin.description,
-          'recommendations': updatedPin.recommendations,
-        };
+        _aiResult = updatedPin.aiResult ??
+            {
+              'risk_level': updatedPin.riskLevel,
+              'risk_score': updatedPin.riskScore,
+              'analysis': updatedPin.description,
+              'recommendations': updatedPin.recommendations,
+            };
         _riskLevel = updatedPin.riskLevel;
         _riskScore = updatedPin.riskScore;
         _description = updatedPin.description;
@@ -4155,7 +4315,8 @@ class _PhotoAnalysisDialogState extends State<_PhotoAnalysisDialog> {
                               fit: BoxFit.contain,
                             ),
                             // YOLO 偵測框覆蓋
-                            if (_showBoundingBoxes && _yoloDetections.isNotEmpty)
+                            if (_showBoundingBoxes &&
+                                _yoloDetections.isNotEmpty)
                               Positioned.fill(
                                 child: LayoutBuilder(
                                   builder: (context, constraints) {
@@ -4325,8 +4486,7 @@ class _PhotoAnalysisDialogState extends State<_PhotoAnalysisDialog> {
                     ],
 
                     // YOLO 偵測結果摘要
-                    if (_yoloDetections.isNotEmpty &&
-                        !_isYoloDetecting) ...[
+                    if (_yoloDetections.isNotEmpty && !_isYoloDetecting) ...[
                       const SizedBox(height: 8),
                       _buildYoloResultSummary(),
                     ],
@@ -4735,8 +4895,7 @@ class _PhotoAnalysisDialogState extends State<_PhotoAnalysisDialog> {
         children: [
           Row(
             children: [
-              const Icon(Icons.smart_toy,
-                  size: 16, color: Colors.deepPurple),
+              const Icon(Icons.smart_toy, size: 16, color: Colors.deepPurple),
               const SizedBox(width: 6),
               const Text(
                 'YOLO 偵測結果',
@@ -4767,8 +4926,7 @@ class _PhotoAnalysisDialogState extends State<_PhotoAnalysisDialog> {
                   '${e.key} ×${e.value}',
                   style: const TextStyle(fontSize: 11),
                 ),
-                backgroundColor:
-                    Colors.deepPurple.withValues(alpha: 0.1),
+                backgroundColor: Colors.deepPurple.withValues(alpha: 0.1),
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 visualDensity: VisualDensity.compact,
                 padding: EdgeInsets.zero,
@@ -4795,11 +4953,10 @@ class _PhotoAnalysisDialogState extends State<_PhotoAnalysisDialog> {
         riskScore: _analysisResult?['risk_score'] as int? ?? 0,
         riskLevel: _analysisResult?['risk_level'] as String? ?? 'low',
         description: _analysisResult?['analysis'] as String?,
-        recommendations:
-            (_analysisResult?['recommendations'] as List<dynamic>?)
-                    ?.map((e) => e.toString())
-                    .toList() ??
-                [],
+        recommendations: (_analysisResult?['recommendations'] as List<dynamic>?)
+                ?.map((e) => e.toString())
+                .toList() ??
+            [],
         status: _analysisResult != null ? 'analyzed' : 'pending',
         chatMessages: List<ChatMessage>.from(_chatMessages),
         createdAt: DateTime.now(),

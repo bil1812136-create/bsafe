@@ -275,3 +275,15 @@ e3a8048  Billy Version - fix Poe AI analysis (SSE parsing, image URL, setState d
 - [ ] 確認 `report-images` Storage bucket 已建立且為 Public
 - [ ] 測試完整流程：手機上報 → Web 看到 → Web 填寫回饋 → 手機同步顯示回饋 → 手機更新狀態為處理中 → Web 設定已解決
 
+
+-----
+電腦:
+cd "C:\Users\student\Downloads\bsafe\bsafe\flutter_app"
+flutter run -d chrome --target lib/main_web.dart
+
+手機:
+cd "C:\Users\student\Downloads\bsafe\bsafe\flutter_app"
+flutter run -d android
+
+flutter run -d R5CR30PFFTN
+

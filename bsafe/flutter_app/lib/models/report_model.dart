@@ -17,6 +17,8 @@ class ReportModel {
   final double? longitude;
   final String? aiAnalysis;
   final String? companyNotes; // 公司後台回饋 / 跟進任務
+  final String? workerResponse; // 工人回覆文字
+  final String? workerResponseImage; // 工人回覆圖片 (base64 / URL)
   final DateTime createdAt;
   final DateTime? updatedAt;
   final bool synced;
@@ -39,6 +41,8 @@ class ReportModel {
     this.longitude,
     this.aiAnalysis,
     this.companyNotes,
+    this.workerResponse,
+    this.workerResponseImage,
     DateTime? createdAt,
     this.updatedAt,
     this.synced = false,
@@ -90,6 +94,8 @@ class ReportModel {
       longitude: map['longitude'] as double?,
       aiAnalysis: map['ai_analysis'] as String?,
       companyNotes: map['company_notes'] as String?,
+      workerResponse: map['worker_response'] as String?,
+      workerResponseImage: map['worker_response_image'] as String?,
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: map['updated_at'] != null
           ? DateTime.parse(map['updated_at'] as String)
@@ -117,6 +123,8 @@ class ReportModel {
       'longitude': longitude,
       'ai_analysis': aiAnalysis,
       'company_notes': companyNotes,
+      'worker_response': workerResponse,
+      'worker_response_image': workerResponseImage,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
     };
@@ -141,6 +149,8 @@ class ReportModel {
       longitude: (json['longitude'] as num?)?.toDouble(),
       aiAnalysis: json['ai_analysis'] as String?,
       companyNotes: json['company_notes'] as String?,
+      workerResponse: json['worker_response'] as String?,
+      workerResponseImage: json['worker_response_image'] as String?,
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'] as String)
           : DateTime.now(),
@@ -170,6 +180,8 @@ class ReportModel {
     double? longitude,
     String? aiAnalysis,
     String? companyNotes,
+    String? workerResponse,
+    String? workerResponseImage,
     DateTime? createdAt,
     DateTime? updatedAt,
     bool? synced,
@@ -192,6 +204,8 @@ class ReportModel {
       longitude: longitude ?? this.longitude,
       aiAnalysis: aiAnalysis ?? this.aiAnalysis,
       companyNotes: companyNotes ?? this.companyNotes,
+      workerResponse: workerResponse ?? this.workerResponse,
+      workerResponseImage: workerResponseImage ?? this.workerResponseImage,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       synced: synced ?? this.synced,

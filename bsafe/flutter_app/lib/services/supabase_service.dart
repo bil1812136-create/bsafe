@@ -70,14 +70,21 @@ class SupabaseService {
   Future<String?> syncReport(ReportModel report) async {
     if (!isConfigured) return null;
     try {
-      // 先上傳圖片到 Storage，取得公開 URL
+      // 先嘗試上傳圖片到 Storage，取得公開 URL
       String? imageUrl;
+      String? fallbackBase64;
       if (report.imageBase64 != null && report.imageBase64!.isNotEmpty) {
         imageUrl = await _uploadReportImage(
           report.imageBase64!,
           report.id?.toString() ??
               DateTime.now().millisecondsSinceEpoch.toString(),
         );
+        if (imageUrl == null) {
+          fallbackBase64 = report.imageBase64;
+          debugPrint('⚠️ Storage 上傳失敗，圖片改以 base64 存入 DB');
+        } else {
+          debugPrint('✅ 圖片已上傳 Storage: $imageUrl');
+        }
       }
 
       final data = {
@@ -91,6 +98,7 @@ class SupabaseService {
         'is_urgent': report.isUrgent,
         'status': report.status,
         'image_url': imageUrl,
+        'image_base64': fallbackBase64,
         'location': report.location,
         'latitude': report.latitude,
         'longitude': report.longitude,
@@ -147,12 +155,21 @@ class SupabaseService {
       {String? imageBase64}) async {
     if (!isConfigured) return null;
     try {
+      // 先嘗試上傳到 Storage，取得公開 URL
       String? imageUrl;
+      String? fallbackBase64;
       if (imageBase64 != null && imageBase64.isNotEmpty) {
         imageUrl = await _uploadReportImage(
           imageBase64,
           DateTime.now().millisecondsSinceEpoch.toString(),
         );
+        if (imageUrl == null) {
+          // Storage 上傳失敗 → 以 base64 存入資料庫欄位作後備
+          fallbackBase64 = imageBase64;
+          debugPrint('⚠️ Storage 上傳失敗，圖片改以 base64 存入 DB');
+        } else {
+          debugPrint('✅ 圖片已上傳 Storage: $imageUrl');
+        }
       }
 
       final data = {
@@ -165,6 +182,7 @@ class SupabaseService {
         'is_urgent': report.isUrgent,
         'status': report.status,
         'image_url': imageUrl,
+        'image_base64': fallbackBase64,
         'location': report.location,
         'latitude': report.latitude,
         'longitude': report.longitude,
@@ -183,6 +201,42 @@ class SupabaseService {
     }
   }
 
+  /// 提交工人回覆（文字 + 圖片）並將狀態改為「處理中」
+  Future<bool> submitWorkerResponse(
+      int reportId, String responseText, String? imageBase64) async {
+    if (!isConfigured) return false;
+    try {
+      // 嘗試將圖片上傳到 Storage
+      String? responseImageUrl;
+      String? fallbackBase64;
+      if (imageBase64 != null && imageBase64.isNotEmpty) {
+        responseImageUrl = await _uploadReportImage(
+          imageBase64,
+          'response_${reportId}_${DateTime.now().millisecondsSinceEpoch}',
+        );
+        if (responseImageUrl == null) {
+          fallbackBase64 = imageBase64;
+          debugPrint('⚠️ 回覆圖片 Storage 上傳失敗，改用 base64');
+        } else {
+          debugPrint('✅ 回覆圖片已上傳: $responseImageUrl');
+        }
+      }
+
+      await client.from('reports').update({
+        'worker_response': responseText,
+        'worker_response_image': responseImageUrl ?? fallbackBase64,
+        'status': 'in_progress',
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('id', reportId);
+
+      debugPrint('✅ 工人回覆已提交，狀態更新為處理中');
+      return true;
+    } catch (e) {
+      debugPrint('❌ submitWorkerResponse 失敗: $e');
+      return false;
+    }
+  }
+
   /// 將 Supabase 原始 Map 轉換為 ReportModel
   static ReportModel mapToReportModel(Map<String, dynamic> data) {
     return ReportModel(
@@ -196,11 +250,14 @@ class SupabaseService {
       isUrgent: data['is_urgent'] == true,
       status: data['status'] as String? ?? 'pending',
       imageUrl: data['image_url'] as String?,
+      imageBase64: data['image_base64'] as String?,
       location: data['location'] as String?,
       latitude: (data['latitude'] as num?)?.toDouble(),
       longitude: (data['longitude'] as num?)?.toDouble(),
       aiAnalysis: data['ai_analysis'] as String?,
       companyNotes: data['company_notes'] as String?,
+      workerResponse: data['worker_response'] as String?,
+      workerResponseImage: data['worker_response_image'] as String?,
       createdAt: data['created_at'] != null
           ? DateTime.tryParse(data['created_at'] as String) ?? DateTime.now()
           : DateTime.now(),
