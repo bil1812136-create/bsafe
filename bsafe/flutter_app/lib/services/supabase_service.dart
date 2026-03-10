@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:bsafe_app/models/report_model.dart';
@@ -96,6 +95,7 @@ class SupabaseService {
         'latitude': report.latitude,
         'longitude': report.longitude,
         'ai_analysis': report.aiAnalysis,
+        'company_notes': report.companyNotes,
         'created_at': report.createdAt.toIso8601String(),
         'updated_at': DateTime.now().toIso8601String(),
       };
@@ -140,6 +140,75 @@ class SupabaseService {
       debugPrint('❌ Supabase fetchAllReports 失敗: $e');
       return [];
     }
+  }
+
+  /// 直接在 Supabase 建立新報告（不需要 local_id），回傳包含雲端 id 的 ReportModel
+  Future<ReportModel?> createReport(ReportModel report,
+      {String? imageBase64}) async {
+    if (!isConfigured) return null;
+    try {
+      String? imageUrl;
+      if (imageBase64 != null && imageBase64.isNotEmpty) {
+        imageUrl = await _uploadReportImage(
+          imageBase64,
+          DateTime.now().millisecondsSinceEpoch.toString(),
+        );
+      }
+
+      final data = {
+        'title': report.title,
+        'description': report.description,
+        'category': report.category,
+        'severity': report.severity,
+        'risk_level': report.riskLevel,
+        'risk_score': report.riskScore,
+        'is_urgent': report.isUrgent,
+        'status': report.status,
+        'image_url': imageUrl,
+        'location': report.location,
+        'latitude': report.latitude,
+        'longitude': report.longitude,
+        'ai_analysis': report.aiAnalysis,
+        'created_at': report.createdAt.toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+
+      final response =
+          await client.from('reports').insert(data).select().single();
+      debugPrint('✅ Supabase: 新報告建立成功 id=${response['id']}');
+      return mapToReportModel(response);
+    } catch (e) {
+      debugPrint('❌ Supabase createReport 失敗: $e');
+      return null;
+    }
+  }
+
+  /// 將 Supabase 原始 Map 轉換為 ReportModel
+  static ReportModel mapToReportModel(Map<String, dynamic> data) {
+    return ReportModel(
+      id: (data['id'] as num?)?.toInt(),
+      title: data['title'] as String? ?? '未命名',
+      description: data['description'] as String? ?? '',
+      category: data['category'] as String? ?? 'structural',
+      severity: data['severity'] as String? ?? 'moderate',
+      riskLevel: data['risk_level'] as String? ?? 'low',
+      riskScore: (data['risk_score'] as num?)?.toInt() ?? 0,
+      isUrgent: data['is_urgent'] == true,
+      status: data['status'] as String? ?? 'pending',
+      imageUrl: data['image_url'] as String?,
+      location: data['location'] as String?,
+      latitude: (data['latitude'] as num?)?.toDouble(),
+      longitude: (data['longitude'] as num?)?.toDouble(),
+      aiAnalysis: data['ai_analysis'] as String?,
+      companyNotes: data['company_notes'] as String?,
+      createdAt: data['created_at'] != null
+          ? DateTime.tryParse(data['created_at'] as String) ?? DateTime.now()
+          : DateTime.now(),
+      updatedAt: data['updated_at'] != null
+          ? DateTime.tryParse(data['updated_at'] as String)
+          : null,
+      synced: true,
+    );
   }
 
   /// 刪除雲端報告（by local_id）

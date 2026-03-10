@@ -6,19 +6,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:bsafe_app/providers/report_provider.dart';
 import 'package:bsafe_app/providers/connectivity_provider.dart';
 import 'package:bsafe_app/providers/inspection_provider.dart';
-<<<<<<< HEAD
-<<<<<<< HEAD
+import 'package:bsafe_app/providers/navigation_provider.dart';
 import 'package:bsafe_app/screens/home_screen.dart';
 import 'package:bsafe_app/screens/report_screen.dart';
 import 'package:bsafe_app/screens/history_screen.dart';
 import 'package:bsafe_app/screens/analysis_screen.dart';
 import 'package:bsafe_app/screens/inspection_screen.dart';
-=======
-import 'package:bsafe_app/screens/project_list_screen.dart';
->>>>>>> f3066d3c7b0941a0d0072f36a840553cb88696ab
-=======
-import 'package:bsafe_app/screens/project_list_screen.dart';
->>>>>>> f3066d3c7b0941a0d0072f36a840553cb88696ab
 import 'package:bsafe_app/theme/app_theme.dart';
 import 'package:bsafe_app/services/supabase_service.dart';
 
@@ -61,20 +54,13 @@ class BSafeApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ConnectivityProvider()),
         ChangeNotifierProvider(create: (_) => ReportProvider()),
         ChangeNotifierProvider(create: (_) => InspectionProvider()),
+        ChangeNotifierProvider(create: (_) => NavigationProvider()),
       ],
       child: MaterialApp(
         title: 'B-SAFE 建築安全',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
-<<<<<<< HEAD
-<<<<<<< HEAD
         home: const MainNavigationScreen(),
-=======
-        home: const ProjectListScreen(),
->>>>>>> f3066d3c7b0941a0d0072f36a840553cb88696ab
-=======
-        home: const ProjectListScreen(),
->>>>>>> f3066d3c7b0941a0d0072f36a840553cb88696ab
       ),
     );
   }
@@ -88,8 +74,6 @@ class MainNavigationScreen extends StatefulWidget {
 }
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
-  int _currentIndex = 0;
-
   final List<Widget> _screens = [
     const HomeScreen(),
     const ReportScreen(),
@@ -100,10 +84,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final navigationProvider = Provider.of<NavigationProvider>(context);
+    final int currentIndex = navigationProvider.currentIndex;
     final connectivityProvider = Provider.of<ConnectivityProvider>(context);
 
     return Scaffold(
-      appBar: _currentIndex == 4
+      appBar: currentIndex == 4
           ? null // 位置頁面（InspectionScreen）有自己的 AppBar
           : AppBar(
               title: Row(
@@ -184,7 +170,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       body: Column(
         children: [
           // Offline Banner（位置頁面不顯示，因為它有自己的 UI）
-          if (!connectivityProvider.isOnline && _currentIndex != 4)
+          if (!connectivityProvider.isOnline && currentIndex != 4)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
@@ -218,7 +204,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               ),
             ),
           // Main Content
-          Expanded(child: _screens[_currentIndex]),
+          Expanded(child: _screens[currentIndex]),
         ],
       ),
       extendBody: true,
@@ -250,8 +236,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               child: BottomNavigationBar(
                 elevation: 0,
                 backgroundColor: Colors.transparent,
-                currentIndex: _currentIndex,
-                onTap: (index) => setState(() => _currentIndex = index),
+                currentIndex: currentIndex,
+                onTap: (index) => navigationProvider.setIndex(index),
                 type: BottomNavigationBarType.fixed,
                 selectedItemColor: AppTheme.primaryColor,
                 unselectedItemColor: Colors.grey.shade400,

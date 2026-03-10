@@ -1,13 +1,188 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:bsafe_app/models/report_model.dart';
+import 'package:bsafe_app/providers/report_provider.dart';
 import 'package:bsafe_app/theme/app_theme.dart';
 import 'package:intl/intl.dart';
 
-class ReportDetailScreen extends StatelessWidget {
+class ReportDetailScreen extends StatefulWidget {
   final ReportModel report;
 
   const ReportDetailScreen({super.key, required this.report});
+
+  @override
+  State<ReportDetailScreen> createState() => _ReportDetailScreenState();
+}
+
+class _ReportDetailScreenState extends State<ReportDetailScreen> {
+  late ReportModel _report;
+
+  @override
+  void initState() {
+    super.initState();
+    _report = widget.report;
+    // 從雲端刷新最新資料（包含 company_notes）
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ReportProvider>().refreshFromCloud();
+    });
+  }
+
+  /// 顯示更新狀態對話框（手機只能設為「待處理」或「處理中」，已解決由公司 Web 設定）
+  Future<void> _showUpdateStatusDialog() async {
+    final statuses = [
+      {
+        'key': 'pending',
+        'label': '待處理',
+        'icon': Icons.pending_actions,
+        'color': Colors.grey
+      },
+      {
+        'key': 'in_progress',
+        'label': '處理中',
+        'icon': Icons.engineering,
+        'color': Colors.orange
+      },
+    ];
+
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('更新處理狀態'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ...statuses.map((s) {
+              final isActive = s['key'] == _report.status;
+              return ListTile(
+                leading: Icon(
+                  s['icon'] as IconData,
+                  color: isActive ? s['color'] as Color : Colors.grey,
+                ),
+                title: Text(
+                  s['label'] as String,
+                  style: TextStyle(
+                    fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                    color: isActive ? s['color'] as Color : null,
+                  ),
+                ),
+                trailing: isActive
+                    ? Icon(Icons.check, color: s['color'] as Color)
+                    : null,
+                onTap: () => Navigator.pop(context, s['key'] as String),
+              );
+            }),
+            const Divider(),
+            Row(
+              children: [
+                Icon(Icons.info_outline, size: 14, color: Colors.grey.shade500),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '「已解決」由公司後台設定',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+        ],
+      ),
+    );
+
+    if (selected != null && selected != _report.status && mounted) {
+      final provider = context.read<ReportProvider>();
+      final success = await provider.updateReportStatus(_report, selected);
+      if (success && mounted) {
+        setState(() {
+          _report =
+              _report.copyWith(status: selected, updatedAt: DateTime.now());
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 8),
+                Text(
+                    '狀態已更新為「${statuses.firstWhere((s) => s['key'] == selected)['label']}」'),
+              ],
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    }
+  }
+
+  /// 構建圖片區域 — 支援本地檔案、網路 URL、Base64
+  Widget _buildImageSection() {
+    // 優先用 imagePath（本地檔案），再試 imageUrl（雲端 URL），最後試 imageBase64
+    if (_report.imagePath != null && _report.imagePath!.isNotEmpty) {
+      final file = File(_report.imagePath!);
+      return Container(
+        width: double.infinity,
+        height: 250,
+        decoration: BoxDecoration(color: Colors.grey.shade200),
+        child: Image.file(
+          file,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _buildImageFromUrl(),
+        ),
+      );
+    }
+    return _buildImageFromUrl();
+  }
+
+  Widget _buildImageFromUrl() {
+    if (_report.imageUrl != null && _report.imageUrl!.isNotEmpty) {
+      return Container(
+        width: double.infinity,
+        height: 250,
+        decoration: BoxDecoration(color: Colors.grey.shade200),
+        child: Image.network(
+          _report.imageUrl!,
+          fit: BoxFit.cover,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return Center(
+              child: CircularProgressIndicator(
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded /
+                        loadingProgress.expectedTotalBytes!
+                    : null,
+              ),
+            );
+          },
+          errorBuilder: (_, __, ___) => _buildImageFromBase64(),
+        ),
+      );
+    }
+    return _buildImageFromBase64();
+  }
+
+  Widget _buildImageFromBase64() {
+    if (_report.imageBase64 != null && _report.imageBase64!.isNotEmpty) {
+      try {
+        final bytes = base64Decode(_report.imageBase64!);
+        return Container(
+          width: double.infinity,
+          height: 250,
+          decoration: BoxDecoration(color: Colors.grey.shade200),
+          child: Image.memory(bytes, fit: BoxFit.cover),
+        );
+      } catch (_) {}
+    }
+    // 無圖片
+    return const SizedBox.shrink();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -16,9 +191,25 @@ class ReportDetailScreen extends StatelessWidget {
         title: const Text('報告詳情'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.share),
-            onPressed: () {
-              // TODO: Share report
+            icon: const Icon(Icons.refresh),
+            tooltip: '從雲端刷新',
+            onPressed: () async {
+              await context.read<ReportProvider>().refreshFromCloud();
+              // 重新取得最新報告
+              final provider = context.read<ReportProvider>();
+              final updated = provider.reports.cast<ReportModel?>().firstWhere(
+                    (r) => r?.id == _report.id,
+                    orElse: () => null,
+                  );
+              if (updated != null && mounted) {
+                setState(() => _report = updated);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('已從雲端刷新'),
+                    duration: Duration(seconds: 1),
+                  ),
+                );
+              }
             },
           ),
         ],
@@ -28,27 +219,7 @@ class ReportDetailScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Image Section
-            if (report.imagePath != null)
-              Container(
-                width: double.infinity,
-                height: 250,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade200,
-                ),
-                child: Image.file(
-                  File(report.imagePath!),
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Center(
-                      child: Icon(
-                        Icons.image_not_supported,
-                        size: 64,
-                        color: Colors.grey.shade400,
-                      ),
-                    );
-                  },
-                ),
-              ),
+            _buildImageSection(),
 
             Padding(
               padding: const EdgeInsets.all(16),
@@ -61,7 +232,7 @@ class ReportDetailScreen extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          report.title,
+                          _report.title,
                           style: const TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.bold,
@@ -69,7 +240,7 @@ class ReportDetailScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      _RiskBadge(riskLevel: report.riskLevel),
+                      _RiskBadge(riskLevel: _report.riskLevel),
                     ],
                   ),
 
@@ -85,14 +256,15 @@ class ReportDetailScreen extends StatelessWidget {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        DateFormat('yyyy/MM/dd HH:mm').format(report.createdAt),
+                        DateFormat('yyyy/MM/dd HH:mm')
+                            .format(_report.createdAt),
                         style: TextStyle(
                           color: Colors.grey.shade600,
                           fontSize: 14,
                         ),
                       ),
                       const SizedBox(width: 16),
-                      if (!report.synced) ...[
+                      if (!_report.synced) ...[
                         Icon(
                           Icons.cloud_off,
                           size: 16,
@@ -117,10 +289,12 @@ class ReportDetailScreen extends StatelessWidget {
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: AppTheme.getRiskColor(report.riskLevel).withValues(alpha: 0.1),
+                      color: AppTheme.getRiskColor(_report.riskLevel)
+                          .withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: AppTheme.getRiskColor(report.riskLevel).withValues(alpha: 0.3),
+                        color: AppTheme.getRiskColor(_report.riskLevel)
+                            .withValues(alpha: 0.3),
                       ),
                     ),
                     child: Row(
@@ -132,17 +306,17 @@ class ReportDetailScreen extends StatelessWidget {
                             shape: BoxShape.circle,
                             color: Colors.white,
                             border: Border.all(
-                              color: AppTheme.getRiskColor(report.riskLevel),
+                              color: AppTheme.getRiskColor(_report.riskLevel),
                               width: 4,
                             ),
                           ),
                           child: Center(
                             child: Text(
-                              '${report.riskScore}',
+                              '${_report.riskScore}',
                               style: TextStyle(
                                 fontSize: 28,
                                 fontWeight: FontWeight.bold,
-                                color: AppTheme.getRiskColor(report.riskLevel),
+                                color: AppTheme.getRiskColor(_report.riskLevel),
                               ),
                             ),
                           ),
@@ -161,14 +335,15 @@ class ReportDetailScreen extends StatelessWidget {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                AppTheme.getRiskLabel(report.riskLevel),
+                                AppTheme.getRiskLabel(_report.riskLevel),
                                 style: TextStyle(
                                   fontSize: 20,
                                   fontWeight: FontWeight.bold,
-                                  color: AppTheme.getRiskColor(report.riskLevel),
+                                  color:
+                                      AppTheme.getRiskColor(_report.riskLevel),
                                 ),
                               ),
-                              if (report.isUrgent)
+                              if (_report.isUrgent)
                                 Container(
                                   margin: const EdgeInsets.only(top: 8),
                                   padding: const EdgeInsets.symmetric(
@@ -201,34 +376,40 @@ class ReportDetailScreen extends StatelessWidget {
                   _DetailSection(
                     title: '問題類別',
                     icon: Icons.category,
-                    content: ReportModel.getCategoryLabel(report.category),
+                    content: ReportModel.getCategoryLabel(_report.category),
                   ),
 
                   _DetailSection(
                     title: '嚴重程度',
                     icon: Icons.warning_amber,
-                    content: ReportModel.getSeverityLabel(report.severity),
+                    content: ReportModel.getSeverityLabel(_report.severity),
                   ),
 
                   _DetailSection(
                     title: '詳細描述',
                     icon: Icons.description,
-                    content: report.description,
+                    content: _report.description,
                   ),
 
-                  if (report.location != null && report.location!.isNotEmpty)
+                  if (_report.location != null && _report.location!.isNotEmpty)
                     _DetailSection(
                       title: '位置資訊',
                       icon: Icons.location_on,
-                      content: report.location!,
+                      content: _report.location!,
                     ),
 
-                  if (report.aiAnalysis != null && report.aiAnalysis!.isNotEmpty)
+                  if (_report.aiAnalysis != null &&
+                      _report.aiAnalysis!.isNotEmpty)
                     _DetailSection(
                       title: 'AI 分析結果',
                       icon: Icons.auto_awesome,
-                      content: report.aiAnalysis!,
+                      content: _report.aiAnalysis!,
                     ),
+
+                  // 公司回饋 / 跟進任務
+                  if (_report.companyNotes != null &&
+                      _report.companyNotes!.isNotEmpty)
+                    _CompanyFeedbackSection(notes: _report.companyNotes!),
 
                   const SizedBox(height: 20),
 
@@ -241,7 +422,7 @@ class ReportDetailScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  _StatusStepper(status: report.status),
+                  _StatusStepper(status: _report.status),
 
                   const SizedBox(height: 30),
                 ],
@@ -257,19 +438,26 @@ class ReportDetailScreen extends StatelessWidget {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () {
-                    // TODO: Edit report
+                  onPressed: () async {
+                    await context.read<ReportProvider>().refreshFromCloud();
+                    final provider = context.read<ReportProvider>();
+                    final updated =
+                        provider.reports.cast<ReportModel?>().firstWhere(
+                              (r) => r?.id == _report.id,
+                              orElse: () => null,
+                            );
+                    if (updated != null && mounted) {
+                      setState(() => _report = updated);
+                    }
                   },
-                  icon: const Icon(Icons.edit),
-                  label: const Text('編輯'),
+                  icon: const Icon(Icons.cloud_download),
+                  label: const Text('同步雲端'),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () {
-                    // TODO: Update status
-                  },
+                  onPressed: _showUpdateStatusDialog,
                   icon: const Icon(Icons.update),
                   label: const Text('更新狀態'),
                 ),
@@ -358,6 +546,52 @@ class _DetailSection extends StatelessWidget {
   }
 }
 
+/// 公司回饋 / 跟進任務區塊
+class _CompanyFeedbackSection extends StatelessWidget {
+  final String notes;
+  const _CompanyFeedbackSection({required this.notes});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.feedback, size: 18, color: Colors.blue.shade700),
+              const SizedBox(width: 6),
+              Text(
+                '公司回饋 / 跟進任務',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.blue.shade700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.blue.shade200),
+            ),
+            child: Text(
+              notes,
+              style: TextStyle(fontSize: 15, color: Colors.blue.shade900),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _StatusStepper extends StatelessWidget {
   final String status;
 
@@ -392,7 +626,9 @@ class _StatusStepper extends StatelessWidget {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: isActive
-                            ? (isCurrent ? AppTheme.primaryColor : AppTheme.riskLow)
+                            ? (isCurrent
+                                ? AppTheme.primaryColor
+                                : AppTheme.riskLow)
                             : Colors.grey.shade300,
                       ),
                       child: Icon(
@@ -406,7 +642,8 @@ class _StatusStepper extends StatelessWidget {
                       s['label'] as String,
                       style: TextStyle(
                         fontSize: 12,
-                        fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                        fontWeight:
+                            isCurrent ? FontWeight.bold : FontWeight.normal,
                         color: isActive ? AppTheme.primaryColor : Colors.grey,
                       ),
                     ),

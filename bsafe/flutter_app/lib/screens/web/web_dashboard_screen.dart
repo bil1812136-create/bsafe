@@ -450,42 +450,48 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
           child: SingleChildScrollView(
-            child: DataTable(
-              headingRowColor: WidgetStateProperty.all(
-                AppTheme.primaryColor.withOpacity(0.05),
+            scrollDirection: Axis.horizontal,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.vertical,
+              child: DataTable(
+                headingRowColor: WidgetStateProperty.all(
+                  AppTheme.primaryColor.withOpacity(0.05),
+                ),
+                columnSpacing: 16,
+                dataRowMinHeight: 48,
+                dataRowMaxHeight: 56,
+                columns: const [
+                  DataColumn(
+                      label: Text('#',
+                          style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(
+                      label: Text('標題',
+                          style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(
+                      label: Text('類別',
+                          style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(
+                      label: Text('風險等級',
+                          style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(
+                      label: Text('風險分數',
+                          style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(
+                      label: Text('狀態',
+                          style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(
+                      label: Text('日期',
+                          style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(
+                      label: Text('操作',
+                          style: TextStyle(fontWeight: FontWeight.bold))),
+                ],
+                rows: _reports.asMap().entries.map((entry) {
+                  final idx = entry.key;
+                  final report = entry.value;
+                  return _buildRow(idx, report);
+                }).toList(),
               ),
-              columnSpacing: 24,
-              columns: const [
-                DataColumn(
-                    label: Text('#',
-                        style: TextStyle(fontWeight: FontWeight.bold))),
-                DataColumn(
-                    label: Text('標題',
-                        style: TextStyle(fontWeight: FontWeight.bold))),
-                DataColumn(
-                    label: Text('類別',
-                        style: TextStyle(fontWeight: FontWeight.bold))),
-                DataColumn(
-                    label: Text('風險等級',
-                        style: TextStyle(fontWeight: FontWeight.bold))),
-                DataColumn(
-                    label: Text('風險分數',
-                        style: TextStyle(fontWeight: FontWeight.bold))),
-                DataColumn(
-                    label: Text('狀態',
-                        style: TextStyle(fontWeight: FontWeight.bold))),
-                DataColumn(
-                    label: Text('日期',
-                        style: TextStyle(fontWeight: FontWeight.bold))),
-                DataColumn(
-                    label: Text('操作',
-                        style: TextStyle(fontWeight: FontWeight.bold))),
-              ],
-              rows: _reports.asMap().entries.map((entry) {
-                final idx = entry.key;
-                final report = entry.value;
-                return _buildRow(idx, report);
-              }).toList(),
             ),
           ),
         ),

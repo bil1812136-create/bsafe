@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:bsafe_app/theme/app_theme.dart';
@@ -68,6 +69,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
         'title': _titleController.text,
         'description': _descriptionController.text,
         'ai_analysis': _analysisController.text,
+        'company_notes': _notesController.text,
         'status': _status,
         'severity': _severity,
         'updated_at': DateTime.now().toIso8601String(),
@@ -115,6 +117,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
             .format(DateTime.parse(r['created_at']).toLocal())
         : '-';
     final imageUrl = r['image_url'] as String?;
+    final imageBase64 = r['image_base64'] as String?;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF0F2F5),
@@ -153,7 +156,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // 圖片
-                  _buildImageCard(imageUrl),
+                  _buildImageCard(imageUrl, imageBase64),
                   const SizedBox(height: 24),
                   // 基本資訊
                   _buildInfoCard(riskLevel, riskScore, riskColor, createdAt),
@@ -192,6 +195,16 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
                     highlight: true,
                   ),
                   const SizedBox(height: 24),
+                  _buildEditableSection(
+                    title: '公司回饋 / 跟進任務',
+                    icon: Icons.feedback,
+                    controller: _notesController,
+                    maxLines: 5,
+                    highlight: true,
+                    highlightColor: Colors.blue,
+                    hintText: '輸入需要手機端用戶跟進的任務或回饋...',
+                  ),
+                  const SizedBox(height: 24),
                   // 儲存按鈕
                   if (_hasChanges)
                     SizedBox(
@@ -225,7 +238,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
 
   // ═══════════ Widget builders ═══════════
 
-  Widget _buildImageCard(String? imageUrl) {
+  Widget _buildImageCard(String? imageUrl, String? imageBase64) {
     return _card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -249,7 +262,20 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => _noImagePlaceholder(),
                   )
-                : _noImagePlaceholder(),
+                : imageBase64 != null && imageBase64.isNotEmpty
+                    ? Image.memory(
+                        Uri.parse('data:image/jpeg;base64,$imageBase64').data !=
+                                null
+                            ? Uri.parse('data:image/jpeg;base64,$imageBase64')
+                                .data!
+                                .contentAsBytes()
+                            : base64Decode(imageBase64),
+                        height: 260,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => _noImagePlaceholder(),
+                      )
+                    : _noImagePlaceholder(),
           ),
         ],
       ),
@@ -467,7 +493,10 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
     required TextEditingController controller,
     int maxLines = 1,
     bool highlight = false,
+    Color? highlightColor,
+    String? hintText,
   }) {
+    final color = highlightColor ?? Colors.deepOrange;
     return _card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -475,14 +504,13 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
           Row(
             children: [
               Icon(icon,
-                  color: highlight ? Colors.deepOrange : AppTheme.primaryColor,
-                  size: 20),
+                  color: highlight ? color : AppTheme.primaryColor, size: 20),
               const SizedBox(width: 8),
               Text(title,
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
-                    color: highlight ? Colors.deepOrange : null,
+                    color: highlight ? color : null,
                   )),
               if (highlight) ...[
                 const SizedBox(width: 8),
@@ -490,13 +518,13 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: Colors.deepOrange.withOpacity(0.1),
+                    color: color.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: const Text(
+                  child: Text(
                     '可編輯',
                     style: TextStyle(
-                      color: Colors.deepOrange,
+                      color: color,
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                     ),
@@ -513,31 +541,28 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(
-                  color: highlight
-                      ? Colors.deepOrange.withOpacity(0.3)
-                      : AppTheme.borderColor,
+                  color:
+                      highlight ? color.withOpacity(0.3) : AppTheme.borderColor,
                 ),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(
-                  color: highlight
-                      ? Colors.deepOrange.withOpacity(0.3)
-                      : AppTheme.borderColor,
+                  color:
+                      highlight ? color.withOpacity(0.3) : AppTheme.borderColor,
                 ),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(
-                  color: highlight ? Colors.deepOrange : AppTheme.primaryColor,
+                  color: highlight ? color : AppTheme.primaryColor,
                   width: 2,
                 ),
               ),
               filled: true,
-              fillColor: highlight
-                  ? Colors.orange.withOpacity(0.03)
-                  : Colors.grey.shade50,
-              hintText: highlight ? '在此修改 AI 分析內容...' : null,
+              fillColor:
+                  highlight ? color.withOpacity(0.03) : Colors.grey.shade50,
+              hintText: hintText ?? (highlight ? '在此修改 AI 分析內容...' : null),
             ),
             style: TextStyle(
               fontSize: 14,

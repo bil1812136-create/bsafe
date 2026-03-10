@@ -138,3 +138,15 @@ flutter build ios
 3. **POE API 整合** - AI 圖像分析
 
 需要我繼續創建後端嗎？
+
+-----
+電腦:
+cd "C:\Users\student\Downloads\bsafe\bsafe\flutter_app"
+flutter run -d chrome --target lib/main_web.dart
+
+手機:
+cd "C:\Users\student\Downloads\bsafe\bsafe\flutter_app"
+flutter run -d android
+
+flutter run -d R5CR30PFFTN
+

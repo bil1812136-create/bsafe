@@ -42,9 +42,81 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }).toList();
   }
 
+  bool _isSyncing = false;
+
+  Future<void> _syncToCloud() async {
+    setState(() => _isSyncing = true);
+    final provider = context.read<ReportProvider>();
+    final count = await provider.syncAllToCloud();
+    if (mounted) {
+      setState(() => _isSyncing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.cloud_done, color: Colors.white),
+              const SizedBox(width: 8),
+              Text(count > 0 ? '已同步 $count 筆報告到雲端' : '所有報告已是最新'),
+            ],
+          ),
+          backgroundColor: count > 0 ? Colors.green : Colors.grey.shade700,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('歷史記錄'),
+        actions: [
+          Consumer<ReportProvider>(
+            builder: (context, provider, _) {
+              final unsyncedCount =
+                  provider.reports.where((r) => !r.synced).length;
+              return Stack(
+                alignment: Alignment.center,
+                children: [
+                  IconButton(
+                    icon: _isSyncing
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white))
+                        : const Icon(Icons.cloud_upload),
+                    tooltip: '同步到雲端',
+                    onPressed: _isSyncing ? null : _syncToCloud,
+                  ),
+                  if (unsyncedCount > 0 && !_isSyncing)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        width: 16,
+                        height: 16,
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text(
+                            '$unsyncedCount',
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
       body: Column(
         children: [
           // Search Bar

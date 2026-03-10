@@ -7,7 +7,7 @@ import 'package:bsafe_app/models/report_model.dart';
 class DatabaseService {
   static Database? _database;
   static const String _dbName = 'bsafe.db';
-  static const int _dbVersion = 1;
+  static const int _dbVersion = 2;
 
   // Singleton pattern
   static final DatabaseService instance = DatabaseService._init();
@@ -25,7 +25,7 @@ class DatabaseService {
       sqfliteFfiInit();
       databaseFactory = databaseFactoryFfi;
     }
-    
+
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, _dbName);
 
@@ -52,10 +52,12 @@ class DatabaseService {
         status TEXT DEFAULT 'pending',
         image_path TEXT,
         image_base64 TEXT,
+        image_url TEXT,
         location TEXT,
         latitude REAL,
         longitude REAL,
         ai_analysis TEXT,
+        company_notes TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT,
         synced INTEGER DEFAULT 0
@@ -75,13 +77,19 @@ class DatabaseService {
 
     // Create indexes
     await db.execute('CREATE INDEX idx_reports_status ON reports(status)');
-    await db.execute('CREATE INDEX idx_reports_risk_level ON reports(risk_level)');
-    await db.execute('CREATE INDEX idx_reports_created_at ON reports(created_at)');
+    await db
+        .execute('CREATE INDEX idx_reports_risk_level ON reports(risk_level)');
+    await db
+        .execute('CREATE INDEX idx_reports_created_at ON reports(created_at)');
     await db.execute('CREATE INDEX idx_reports_synced ON reports(synced)');
   }
 
   Future<void> _upgradeDB(Database db, int oldVersion, int newVersion) async {
     // Handle database migrations here
+    if (oldVersion < 2) {
+      await db.execute('ALTER TABLE reports ADD COLUMN image_url TEXT');
+      await db.execute('ALTER TABLE reports ADD COLUMN company_notes TEXT');
+    }
   }
 
   // ==================== Report Operations ====================
@@ -90,12 +98,12 @@ class DatabaseService {
   Future<int> insertReport(ReportModel report) async {
     final db = await database;
     final id = await db.insert('reports', report.toMap());
-    
+
     // Add to sync queue if not synced
     if (!report.synced) {
       await _addToSyncQueue(id, 'create');
     }
-    
+
     return id;
   }
 
@@ -168,12 +176,12 @@ class DatabaseService {
       where: 'id = ?',
       whereArgs: [report.id],
     );
-    
+
     // Add to sync queue
     if (report.id != null) {
       await _addToSyncQueue(report.id!, 'update');
     }
-    
+
     return result;
   }
 
@@ -236,34 +244,46 @@ class DatabaseService {
 
   Future<Map<String, dynamic>> getStatistics() async {
     final db = await database;
-    
+
     final total = Sqflite.firstIntValue(
-      await db.rawQuery('SELECT COUNT(*) FROM reports'),
-    ) ?? 0;
-    
+          await db.rawQuery('SELECT COUNT(*) FROM reports'),
+        ) ??
+        0;
+
     final highRisk = Sqflite.firstIntValue(
-      await db.rawQuery("SELECT COUNT(*) FROM reports WHERE risk_level = 'high'"),
-    ) ?? 0;
-    
+          await db.rawQuery(
+              "SELECT COUNT(*) FROM reports WHERE risk_level = 'high'"),
+        ) ??
+        0;
+
     final mediumRisk = Sqflite.firstIntValue(
-      await db.rawQuery("SELECT COUNT(*) FROM reports WHERE risk_level = 'medium'"),
-    ) ?? 0;
-    
+          await db.rawQuery(
+              "SELECT COUNT(*) FROM reports WHERE risk_level = 'medium'"),
+        ) ??
+        0;
+
     final lowRisk = Sqflite.firstIntValue(
-      await db.rawQuery("SELECT COUNT(*) FROM reports WHERE risk_level = 'low'"),
-    ) ?? 0;
-    
+          await db.rawQuery(
+              "SELECT COUNT(*) FROM reports WHERE risk_level = 'low'"),
+        ) ??
+        0;
+
     final urgent = Sqflite.firstIntValue(
-      await db.rawQuery('SELECT COUNT(*) FROM reports WHERE is_urgent = 1'),
-    ) ?? 0;
-    
+          await db.rawQuery('SELECT COUNT(*) FROM reports WHERE is_urgent = 1'),
+        ) ??
+        0;
+
     final pending = Sqflite.firstIntValue(
-      await db.rawQuery("SELECT COUNT(*) FROM reports WHERE status = 'pending'"),
-    ) ?? 0;
-    
+          await db.rawQuery(
+              "SELECT COUNT(*) FROM reports WHERE status = 'pending'"),
+        ) ??
+        0;
+
     final resolved = Sqflite.firstIntValue(
-      await db.rawQuery("SELECT COUNT(*) FROM reports WHERE status = 'resolved'"),
-    ) ?? 0;
+          await db.rawQuery(
+              "SELECT COUNT(*) FROM reports WHERE status = 'resolved'"),
+        ) ??
+        0;
 
     return {
       'total': total,
@@ -280,35 +300,39 @@ class DatabaseService {
   Future<List<Map<String, dynamic>>> getTrendData() async {
     final db = await database;
     final List<Map<String, dynamic>> trendData = [];
-    
+
     for (int i = 6; i >= 0; i--) {
       final date = DateTime.now().subtract(Duration(days: i));
       final dateStr = date.toIso8601String().split('T')[0];
-      
+
       final total = Sqflite.firstIntValue(
-        await db.rawQuery(
-          "SELECT COUNT(*) FROM reports WHERE created_at LIKE '$dateStr%'",
-        ),
-      ) ?? 0;
-      
+            await db.rawQuery(
+              "SELECT COUNT(*) FROM reports WHERE created_at LIKE '$dateStr%'",
+            ),
+          ) ??
+          0;
+
       final high = Sqflite.firstIntValue(
-        await db.rawQuery(
-          "SELECT COUNT(*) FROM reports WHERE created_at LIKE '$dateStr%' AND risk_level = 'high'",
-        ),
-      ) ?? 0;
-      
+            await db.rawQuery(
+              "SELECT COUNT(*) FROM reports WHERE created_at LIKE '$dateStr%' AND risk_level = 'high'",
+            ),
+          ) ??
+          0;
+
       final medium = Sqflite.firstIntValue(
-        await db.rawQuery(
-          "SELECT COUNT(*) FROM reports WHERE created_at LIKE '$dateStr%' AND risk_level = 'medium'",
-        ),
-      ) ?? 0;
-      
+            await db.rawQuery(
+              "SELECT COUNT(*) FROM reports WHERE created_at LIKE '$dateStr%' AND risk_level = 'medium'",
+            ),
+          ) ??
+          0;
+
       final low = Sqflite.firstIntValue(
-        await db.rawQuery(
-          "SELECT COUNT(*) FROM reports WHERE created_at LIKE '$dateStr%' AND risk_level = 'low'",
-        ),
-      ) ?? 0;
-      
+            await db.rawQuery(
+              "SELECT COUNT(*) FROM reports WHERE created_at LIKE '$dateStr%' AND risk_level = 'low'",
+            ),
+          ) ??
+          0;
+
       trendData.add({
         'date': '${date.month}/${date.day}',
         'total': total,
@@ -317,7 +341,7 @@ class DatabaseService {
         'low': low,
       });
     }
-    
+
     return trendData;
   }
 

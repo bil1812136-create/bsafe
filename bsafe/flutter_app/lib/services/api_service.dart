@@ -161,46 +161,22 @@ class ApiService {
   Future<Map<String, dynamic>> analyzeImageWithAI(String imageBase64,
       {String? additionalContext}) async {
     try {
-      // Create a simplified prompt for AI analysis
-      String prompt = '''
-請分析建築物損壞情況並評估風險。
+      debugPrint('📸 Uploading image then sending to Poe B-SAFE bot...');
 
-根據用戶提供的資訊，請進行以下評估：
-1. 識別損壞類型（結構性損壞、外觀損壞、電氣問題、水管問題等）
-2. 評估損壞嚴重程度（輕微 mild/中度 moderate/嚴重 severe）
-3. 判斷風險等級（低 low/中 medium/高 high）
-4. 計算風險評分（0-100分）
-5. 是否需要緊急處理（true/false）
-6. 提供處理建議
+      // Step 1: Upload image to get a real public URL
+      final imageUrl = await _uploadImageToPublicHost(imageBase64);
 
-請以JSON格式返回，格式如下：
-{
-  "damage_detected": true,
-  "damage_types": ["裂縫", "剝落"],
-  "severity": "moderate",
-  "risk_level": "medium",
-  "risk_score": 65,
-  "is_urgent": false,
-  "analysis": "發現中度損壞，建議盡快處理",
-  "recommendations": ["安排專業檢查", "監控是否惡化"]
-}
-
-注意：只返回JSON，不要包含其他文字。
-''';
-
-      if (additionalContext != null && additionalContext.isNotEmpty) {
-        prompt += '\n用戶補充資訊：$additionalContext\n請根據以上補充資訊重新評估。';
-      }
-
-      // Send request to POE API
-      final response = await http.post(
-        Uri.parse('https://api.poe.com/bot/$poeBotName'),
-        headers: {
-          'Authorization': 'Bearer $poeApiKey',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'version': '1.0',
+      // Step 2: Query the Poe B-SAFE bot with the image URL
+      final client = http.Client();
+      try {
+        final request = http.Request(
+          'POST',
+          Uri.parse('https://api.poe.com/bot/$poeBotName'),
+        );
+        request.headers['Authorization'] = 'Bearer $poeApiKey';
+        request.headers['Content-Type'] = 'application/json';
+        request.body = jsonEncode({
+          'version': '1.2',
           'type': 'query',
           'query': [
             {

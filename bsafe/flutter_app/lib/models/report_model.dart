@@ -2,7 +2,8 @@ class ReportModel {
   final int? id;
   final String title;
   final String description;
-  final String category; // structural, exterior, public_area, electrical, plumbing, other
+  final String
+      category; // structural, exterior, public_area, electrical, plumbing, other
   final String severity; // mild, moderate, severe
   final String riskLevel; // low, medium, high
   final int riskScore; // 0-100
@@ -10,10 +11,12 @@ class ReportModel {
   final String status; // pending, in_progress, resolved
   final String? imagePath;
   final String? imageBase64;
+  final String? imageUrl; // Supabase Storage 雲端圖片 URL
   final String? location;
   final double? latitude;
   final double? longitude;
   final String? aiAnalysis;
+  final String? companyNotes; // 公司後台回饋 / 跟進任務
   final DateTime createdAt;
   final DateTime? updatedAt;
   final bool synced;
@@ -30,10 +33,12 @@ class ReportModel {
     this.status = 'pending',
     this.imagePath,
     this.imageBase64,
+    this.imageUrl,
     this.location,
     this.latitude,
     this.longitude,
     this.aiAnalysis,
+    this.companyNotes,
     DateTime? createdAt,
     this.updatedAt,
     this.synced = false,
@@ -53,10 +58,12 @@ class ReportModel {
       'status': status,
       'image_path': imagePath,
       'image_base64': imageBase64,
+      'image_url': imageUrl,
       'location': location,
       'latitude': latitude,
       'longitude': longitude,
       'ai_analysis': aiAnalysis,
+      'company_notes': companyNotes,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
       'synced': synced ? 1 : 0,
@@ -77,10 +84,12 @@ class ReportModel {
       status: map['status'] as String? ?? 'pending',
       imagePath: map['image_path'] as String?,
       imageBase64: map['image_base64'] as String?,
+      imageUrl: map['image_url'] as String?,
       location: map['location'] as String?,
       latitude: map['latitude'] as double?,
       longitude: map['longitude'] as double?,
       aiAnalysis: map['ai_analysis'] as String?,
+      companyNotes: map['company_notes'] as String?,
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: map['updated_at'] != null
           ? DateTime.parse(map['updated_at'] as String)
@@ -102,10 +111,12 @@ class ReportModel {
       'is_urgent': isUrgent,
       'status': status,
       'image_base64': imageBase64,
+      'image_url': imageUrl,
       'location': location,
       'latitude': latitude,
       'longitude': longitude,
       'ai_analysis': aiAnalysis,
+      'company_notes': companyNotes,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
     };
@@ -124,10 +135,12 @@ class ReportModel {
       isUrgent: json['is_urgent'] as bool? ?? false,
       status: json['status'] as String? ?? 'pending',
       imageBase64: json['image_base64'] as String?,
+      imageUrl: json['image_url'] as String?,
       location: json['location'] as String?,
       latitude: (json['latitude'] as num?)?.toDouble(),
       longitude: (json['longitude'] as num?)?.toDouble(),
       aiAnalysis: json['ai_analysis'] as String?,
+      companyNotes: json['company_notes'] as String?,
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'] as String)
           : DateTime.now(),
@@ -151,10 +164,12 @@ class ReportModel {
     String? status,
     String? imagePath,
     String? imageBase64,
+    String? imageUrl,
     String? location,
     double? latitude,
     double? longitude,
     String? aiAnalysis,
+    String? companyNotes,
     DateTime? createdAt,
     DateTime? updatedAt,
     bool? synced,
@@ -171,10 +186,12 @@ class ReportModel {
       status: status ?? this.status,
       imagePath: imagePath ?? this.imagePath,
       imageBase64: imageBase64 ?? this.imageBase64,
+      imageUrl: imageUrl ?? this.imageUrl,
       location: location ?? this.location,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       aiAnalysis: aiAnalysis ?? this.aiAnalysis,
+      companyNotes: companyNotes ?? this.companyNotes,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       synced: synced ?? this.synced,
@@ -217,18 +234,18 @@ class ReportModel {
 
   // All categories
   static List<Map<String, String>> get categories => [
-    {'value': 'structural', 'label': '結構性問題', 'icon': '🏗️'},
-    {'value': 'exterior', 'label': '外牆問題', 'icon': '🧱'},
-    {'value': 'public_area', 'label': '公共區域', 'icon': '🚪'},
-    {'value': 'electrical', 'label': '電氣問題', 'icon': '⚡'},
-    {'value': 'plumbing', 'label': '水管問題', 'icon': '🚰'},
-    {'value': 'other', 'label': '其他', 'icon': '📋'},
-  ];
+        {'value': 'structural', 'label': '結構性問題', 'icon': '🏗️'},
+        {'value': 'exterior', 'label': '外牆問題', 'icon': '🧱'},
+        {'value': 'public_area', 'label': '公共區域', 'icon': '🚪'},
+        {'value': 'electrical', 'label': '電氣問題', 'icon': '⚡'},
+        {'value': 'plumbing', 'label': '水管問題', 'icon': '🚰'},
+        {'value': 'other', 'label': '其他', 'icon': '📋'},
+      ];
 
   // All severities
   static List<Map<String, String>> get severities => [
-    {'value': 'mild', 'label': '輕微'},
-    {'value': 'moderate', 'label': '中度'},
-    {'value': 'severe', 'label': '嚴重'},
-  ];
+        {'value': 'mild', 'label': '輕微'},
+        {'value': 'moderate', 'label': '中度'},
+        {'value': 'severe', 'label': '嚴重'},
+      ];
 }
