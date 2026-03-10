@@ -6,11 +6,13 @@ import 'package:bsafe_app/models/report_model.dart';
 class ApiService {
   // Base URL for your PHP API
   static const String baseUrl = 'http://your-server.com/api';
-  
-  // POE API for AI image analysis
-  static const String poeApiKey = 'HTLbuegNjtBmxNX5rWeH7cyxFfNc1oANBPRtdY_aO4E';
-  static const String poeBotName = 'B-SAFE'; // Your POE bot name
-  static const String poeApiUrl = 'https://api.poe.com/bot/';
+
+  // POE API for AI image analysis (OpenAI-compatible endpoint)
+  static const String poeApiKey =
+      'HTLbuegNjtBmxNX5rWeH7cyxFfNc1oANBPRtdY_aO4E';
+  static const String poeBotName = 'B-SAFE';
+  static const String poeApiUrl =
+      'https://api.poe.com/v1/chat/completions';
 
   // Singleton pattern
   static final ApiService instance = ApiService._init();
@@ -18,9 +20,9 @@ class ApiService {
 
   // Headers for API requests
   Map<String, String> get _headers => {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-  };
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      };
 
   // ==================== Report API ====================
 
@@ -95,96 +97,243 @@ class ApiService {
 
   // ==================== POE AI Analysis API ====================
 
-  /// Analyze image using POE API for building damage assessment
+  /// 發送訊息給 POE Bot (OpenAI-compatible endpoint)
+  Future<String> _queryPoeBot({
+    required List<Map<String, dynamic>> messages,
+    int timeoutSeconds = 120,
+  }) async {
+    final body = jsonEncode({
+      'model': poeBotName,
+      'messages': messages,
+      'temperature': 0.3,
+    });
+
+    debugPrint('[POE] Sending to $poeApiUrl');
+    debugPrint('[POE] Messages count: ${messages.length}');
+    debugPrint('[POE] Body preview: ${body.substring(0, body.length.clamp(0, 300))}...');
+
+    final response = await http
+        .post(
+          Uri.parse(poeApiUrl),
+          headers: {
+            'Authorization': 'Bearer $poeApiKey',
+            'Content-Type': 'application/json',
+          },
+          body: body,
+        )
+        .timeout(Duration(seconds: timeoutSeconds));
+
+    debugPrint('[POE] Response status: ${response.statusCode}');
+    debugPrint('[POE] Response body preview: ${response.body.substring(0, response.body.length.clamp(0, 500))}');
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      // OpenAI-compatible response format: choices[0].message.content
+      if (data is Map && data['choices'] is List && (data['choices'] as List).isNotEmpty) {
+        final choice = data['choices'][0];
+        final content = choice['message']?['content'] ?? '';
+        debugPrint('[POE] AI response length: ${content.length}');
+        return content;
+      }
+      // Fallback: try direct text/data fields
+      if (data is Map) {
+        return data['text'] ?? data['data']?.toString() ?? response.body;
+      }
+      return response.body;
+    }
+
+    throw Exception('POE API 錯誤: ${response.statusCode} - ${response.body.substring(0, response.body.length.clamp(0, 300))}');
+  }
+
+  /// 從 AI 文字回應中提取 JSON
+  Map<String, dynamic>? _extractJson(String text) {
+    // 嘗試直接解析
+    try {
+      final decoded = jsonDecode(text.trim());
+      if (decoded is Map<String, dynamic>) return decoded;
+    } catch (_) {}
+
+    // 嘗試提取 JSON 代碼塊
+    final codeBlockMatch =
+        RegExp(r'```(?:json)?\s*\n?([\s\S]*?)\n?```').firstMatch(text);
+    if (codeBlockMatch != null) {
+      try {
+        final decoded = jsonDecode(codeBlockMatch.group(1)!.trim());
+        if (decoded is Map<String, dynamic>) return decoded;
+      } catch (_) {}
+    }
+
+    // 嘗試提取嵌入的 JSON 物件
+    final jsonMatch =
+        RegExp(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}').firstMatch(text);
+    if (jsonMatch != null) {
+      try {
+        final decoded = jsonDecode(jsonMatch.group(0)!);
+        if (decoded is Map<String, dynamic>) return decoded;
+      } catch (_) {}
+    }
+
+    return null;
+  }
+
+  /// 用 POE AI 分析建築物損壞圖片
   Future<Map<String, dynamic>> analyzeImageWithAI(String imageBase64,
       {String? additionalContext}) async {
     try {
-      // Create a simplified prompt for AI analysis
-      String prompt = '''
-請分析建築物損壞情況並評估風險。
-
-根據用戶提供的資訊，請進行以下評估：
-1. 識別損壞類型（結構性損壞、外觀損壞、電氣問題、水管問題等）
-2. 評估損壞嚴重程度（輕微 mild/中度 moderate/嚴重 severe）
-3. 判斷風險等級（低 low/中 medium/高 high）
-4. 計算風險評分（0-100分）
-5. 是否需要緊急處理（true/false）
-6. 提供處理建議
-
-請以JSON格式返回，格式如下：
-{
-  "damage_detected": true,
-  "damage_types": ["裂縫", "剝落"],
-  "severity": "moderate",
-  "risk_level": "medium",
-  "risk_score": 65,
-  "is_urgent": false,
-  "analysis": "發現中度損壞，建議盡快處理",
-  "recommendations": ["安排專業檢查", "監控是否惡化"]
-}
-
-注意：只返回JSON，不要包含其他文字。
-''';
+      final prompt = StringBuffer();
+      prompt.writeln('你是一位專業建築安全檢測 AI 助手（B-SAFE 系統）。');
+      prompt.writeln('請分析以下建築物損壞情況並評估風險。');
+      prompt.writeln();
+      prompt.writeln('請進行以下評估：');
+      prompt.writeln('1. 識別損壞類型（裂縫、剝落、鏽蝕、漏水、變形等）');
+      prompt.writeln('2. 評估損壞嚴重程度（mild 輕微 / moderate 中度 / severe 嚴重）');
+      prompt.writeln('3. 判斷風險等級（low 低 / medium 中 / high 高）');
+      prompt.writeln('4. 計算風險評分（0-100分）');
+      prompt.writeln('5. 是否需要緊急處理（true/false）');
+      prompt.writeln('6. 提供處理建議（至少2條）');
+      prompt.writeln();
+      prompt.writeln('請以 JSON 格式返回，格式如下：');
+      prompt.writeln('{');
+      prompt.writeln('  "damage_detected": true,');
+      prompt.writeln('  "damage_types": ["裂縫", "剝落"],');
+      prompt.writeln('  "severity": "moderate",');
+      prompt.writeln('  "risk_level": "medium",');
+      prompt.writeln('  "risk_score": 65,');
+      prompt.writeln('  "is_urgent": false,');
+      prompt.writeln('  "analysis": "發現中度損壞...",');
+      prompt.writeln('  "recommendations": ["安排專業檢查", "監控是否惡化"]');
+      prompt.writeln('}');
+      prompt.writeln();
+      prompt.writeln('⚠ 注意：只返回 JSON，不要包含其他文字或 markdown。');
 
       if (additionalContext != null && additionalContext.isNotEmpty) {
-        prompt += '\n用戶補充資訊：$additionalContext\n請根據以上補充資訊重新評估。';
+        prompt.writeln();
+        prompt.writeln('用戶補充資訊：$additionalContext');
+        prompt.writeln('請根據以上補充資訊重新評估。');
       }
 
-      // Send request to POE API
-      final response = await http.post(
-        Uri.parse('https://api.poe.com/bot/$poeBotName'),
-        headers: {
-          'Authorization': 'Bearer $poeApiKey',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'version': '1.0',
-          'type': 'query',
-          'query': [
+      // 構建訊息（OpenAI-compatible vision format）
+      debugPrint('[POE] Image base64 length: ${imageBase64.length} chars (~${(imageBase64.length * 3 / 4 / 1024).toStringAsFixed(0)} KB)');
+
+      final messages = <Map<String, dynamic>>[];
+
+      // 如果圖片太大 (> 1MB base64 ~ 750KB image)，就不附帶圖片
+      if (imageBase64.length < 1400000) {
+        messages.add({
+          'role': 'user',
+          'content': [
+            {'type': 'text', 'text': prompt.toString()},
             {
-              'role': 'user',
-              'content': prompt,
-            }
+              'type': 'image_url',
+              'image_url': {
+                'url': 'data:image/jpeg;base64,$imageBase64',
+              },
+            },
           ],
-        }),
-      );
-
-      debugPrint('POE API Response Status: ${response.statusCode}');
-      debugPrint('POE API Response Body: ${response.body}');
-
-      if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
-        
-        // Extract text from response
-        String text = '';
-        if (responseData is Map && responseData.containsKey('text')) {
-          text = responseData['text'];
-        } else if (responseData is Map && responseData.containsKey('data')) {
-          text = responseData['data'].toString();
-        } else {
-          text = response.body;
-        }
-        
-        // Try to extract JSON from the response
-        final jsonMatch = RegExp(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}').firstMatch(text);
-        if (jsonMatch != null) {
-          try {
-            return jsonDecode(jsonMatch.group(0)!);
-          } catch (e) {
-            debugPrint('Failed to parse JSON: $e');
-          }
-        }
-        
-        // If no valid JSON found, return a default response
-        debugPrint('No valid JSON found in response, using fallback');
-        throw Exception('Invalid AI response format');
+        });
       } else {
-        debugPrint('API Error: ${response.statusCode} - ${response.body}');
-        throw Exception('AI analysis failed: ${response.statusCode}');
+        debugPrint('[POE] Image too large, sending text-only analysis');
+        prompt.writeln('\n（注意：圖片過大無法附帶，請根據用戶描述進行分析）');
+        messages.add({
+          'role': 'user',
+          'content': prompt.toString(),
+        });
       }
+
+      // 查詢 POE Bot
+      final responseText = await _queryPoeBot(messages: messages);
+
+      debugPrint('[POE] Raw response: ${responseText.substring(0, responseText.length.clamp(0, 500))}');
+
+      // 解析回應
+      final json = _extractJson(responseText);
+      if (json != null) {
+        // 確保必要欄位存在
+        return {
+          'damage_detected': json['damage_detected'] ?? true,
+          'damage_types': json['damage_types'] ?? [],
+          'severity': json['severity'] ?? 'moderate',
+          'risk_level': json['risk_level'] ?? 'medium',
+          'risk_score': json['risk_score'] ?? 50,
+          'is_urgent': json['is_urgent'] ?? false,
+          'analysis': json['analysis'] ?? responseText,
+          'recommendations': json['recommendations'] ?? ['建議安排專業人員檢查'],
+        };
+      }
+
+      // 無法解析 JSON，將純文字作為分析結果
+      debugPrint('[POE] No JSON found, using raw text as analysis');
+      return {
+        'damage_detected': true,
+        'severity': 'moderate',
+        'risk_level': 'medium',
+        'risk_score': 50,
+        'is_urgent': false,
+        'analysis': responseText.isNotEmpty ? responseText : 'AI 分析完成',
+        'recommendations': ['建議安排專業人員檢查'],
+      };
     } catch (e) {
-      debugPrint('AI Analysis Error: $e');
-      throw Exception('AI analysis error: $e');
+      debugPrint('[POE] AI Analysis Error: $e');
+      rethrow;
+    }
+  }
+
+  /// 與 POE AI 聊天（用於缺陷追問、補充分析）
+  Future<String> chatWithAI({
+    required String userMessage,
+    String? imageBase64,
+    List<Map<String, String>>? chatHistory,
+  }) async {
+    try {
+      final messages = <Map<String, dynamic>>[];
+
+      // 系統提示
+      messages.add({
+        'role': 'system',
+        'content':
+            '你是 B-SAFE 建築安全檢測 AI 助手。請用繁體中文回答。'
+            '你的任務是協助用戶分析建築物損壞情況、評估風險、提供維修建議。'
+            '回答要簡潔專業。',
+      });
+
+      // 加入歷史對話
+      if (chatHistory != null) {
+        for (final msg in chatHistory) {
+          messages.add({
+            'role': msg['role'] ?? 'user',
+            'content': msg['content'] ?? '',
+          });
+        }
+      }
+
+      // 當前訊息
+      if (imageBase64 != null && imageBase64.isNotEmpty) {
+        messages.add({
+          'role': 'user',
+          'content': [
+            {'type': 'text', 'text': userMessage},
+            {
+              'type': 'image_url',
+              'image_url': {
+                'url': 'data:image/jpeg;base64,$imageBase64',
+              },
+            },
+          ],
+        });
+      } else {
+        messages.add({
+          'role': 'user',
+          'content': userMessage,
+        });
+      }
+
+      // 查詢 POE Bot
+      final responseText = await _queryPoeBot(messages: messages);
+
+      return responseText.isNotEmpty ? responseText : 'AI 暫時無法回應，請稍後再試。';
+    } catch (e) {
+      debugPrint('[POE Chat] Error: $e');
+      rethrow;
     }
   }
 

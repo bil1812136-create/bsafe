@@ -83,10 +83,25 @@ class UwbCanvasPainter extends CustomPainter {
     }
 
     // 计算坐标范围 - 支援負數座標
-    final double minX = anchors.map((a) => a.x).reduce(min) - 1;
-    final double maxX = anchors.map((a) => a.x).reduce(max) + 1;
-    final double minY = anchors.map((a) => a.y).reduce(min) - 1;
-    final double maxY = anchors.map((a) => a.y).reduce(max) + 1;
+    double minX = anchors.map((a) => a.x).reduce(min) - 1;
+    double maxX = anchors.map((a) => a.x).reduce(max) + 1;
+    double minY = anchors.map((a) => a.y).reduce(min) - 1;
+    double maxY = anchors.map((a) => a.y).reduce(max) + 1;
+
+    // 如果有平面圖，擴展視圖範圍以包含整個平面圖
+    if (config.showFloorPlan && floorPlanImage != null) {
+      final img = floorPlanImage!;
+      final realWidth = img.width.toDouble() / config.xScale;
+      final realHeight = img.height.toDouble() / config.yScale;
+      final imgLeft = config.xOffset;
+      final imgBottom = config.yOffset;
+      final imgRight = imgLeft + realWidth;
+      final imgTop = imgBottom + realHeight;
+      minX = min(minX, imgLeft - 0.5);
+      maxX = max(maxX, imgRight + 0.5);
+      minY = min(minY, imgBottom - 0.5);
+      maxY = max(maxY, imgTop + 0.5);
+    }
 
     // 計算座標範圍寬度
     final double rangeX = maxX - minX;

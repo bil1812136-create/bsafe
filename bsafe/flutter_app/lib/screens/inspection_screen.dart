@@ -179,7 +179,10 @@ class _InspectionScreenState extends State<InspectionScreen> {
           const SizedBox(width: 8),
 
           // UWB 連接狀態
-          _buildConnectionChip(uwbService),
+          Flexible(
+            fit: FlexFit.loose,
+            child: _buildConnectionChip(uwbService),
+          ),
 
           const Spacer(),
 
@@ -739,14 +742,17 @@ class _InspectionScreenState extends State<InspectionScreen> {
             ),
           ),
           const SizedBox(width: 6),
-          Text(
-            isConnected
-                ? (uwbService.isRealDevice ? 'UWB 已連接' : '模擬模式')
-                : 'UWB 未連接',
-            style: TextStyle(
-              color: isConnected ? Colors.green.shade700 : Colors.grey.shade600,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
+          Flexible(
+            child: Text(
+              isConnected
+                  ? (uwbService.isRealDevice ? 'UWB 已連接' : '模擬模式')
+                  : 'UWB 未連接',
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: isConnected ? Colors.green.shade700 : Colors.grey.shade600,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -1003,20 +1009,43 @@ class _InspectionScreenState extends State<InspectionScreen> {
     );
   }
 
+  /// 計算與畫布 painter 一致的座標範圍（包含平面圖擴展）
+  ({double minX, double maxX, double minY, double maxY}) _computeViewportBounds(UwbService uwbService) {
+    final anchors = uwbService.anchors;
+    double minX = anchors.map((a) => a.x).reduce(min) - 1;
+    double maxX = anchors.map((a) => a.x).reduce(max) + 1;
+    double minY = anchors.map((a) => a.y).reduce(min) - 1;
+    double maxY = anchors.map((a) => a.y).reduce(max) + 1;
+
+    final config = uwbService.config;
+    final floorPlanImage = uwbService.floorPlanImage;
+    if (config.showFloorPlan && floorPlanImage != null) {
+      final img = floorPlanImage;
+      final realWidth = img.width.toDouble() / config.xScale;
+      final realHeight = img.height.toDouble() / config.yScale;
+      final imgLeft = config.xOffset;
+      final imgBottom = config.yOffset;
+      final imgRight = imgLeft + realWidth;
+      final imgTop = imgBottom + realHeight;
+      minX = min(minX, imgLeft - 0.5);
+      maxX = max(maxX, imgRight + 0.5);
+      minY = min(minY, imgBottom - 0.5);
+      maxY = max(maxY, imgTop + 0.5);
+    }
+
+    return (minX: minX, maxX: maxX, minY: minY, maxY: maxY);
+  }
+
   /// 將畫布座標轉為 UWB 座標
   Offset? _canvasToUwb(
       Offset canvasPos, Size canvasSize, UwbService uwbService) {
     if (uwbService.anchors.isEmpty) return null;
 
-    final anchors = uwbService.anchors;
     const double padding = 40.0;
-    final double minX = anchors.map((a) => a.x).reduce(min) - 1;
-    final double maxX = anchors.map((a) => a.x).reduce(max) + 1;
-    final double minY = anchors.map((a) => a.y).reduce(min) - 1;
-    final double maxY = anchors.map((a) => a.y).reduce(max) + 1;
+    final bounds = _computeViewportBounds(uwbService);
 
-    final double rangeX = maxX - minX;
-    final double rangeY = maxY - minY;
+    final double rangeX = bounds.maxX - bounds.minX;
+    final double rangeY = bounds.maxY - bounds.minY;
 
     final double scaleX = (canvasSize.width - padding * 2) / rangeX;
     final double scaleY = (canvasSize.height - padding * 2) / rangeY;
@@ -1026,9 +1055,9 @@ class _InspectionScreenState extends State<InspectionScreen> {
     final double offsetY = (canvasSize.height - rangeY * scale) / 2;
 
     // 反向轉換 (canvas → uwb)
-    final double uwbX = (canvasPos.dx - offsetX) / scale + minX;
+    final double uwbX = (canvasPos.dx - offsetX) / scale + bounds.minX;
     final double uwbY =
-        (canvasSize.height - canvasPos.dy - offsetY) / scale + minY;
+        (canvasSize.height - canvasPos.dy - offsetY) / scale + bounds.minY;
 
     return Offset(uwbX, uwbY);
   }
@@ -1038,15 +1067,11 @@ class _InspectionScreenState extends State<InspectionScreen> {
       InspectionProvider inspection) {
     if (uwbService.anchors.isEmpty) return;
 
-    final anchors = uwbService.anchors;
     const double padding = 40.0;
-    final double minX = anchors.map((a) => a.x).reduce(min) - 1;
-    final double maxX = anchors.map((a) => a.x).reduce(max) + 1;
-    final double minY = anchors.map((a) => a.y).reduce(min) - 1;
-    final double maxY = anchors.map((a) => a.y).reduce(max) + 1;
+    final bounds = _computeViewportBounds(uwbService);
 
-    final double rangeX = maxX - minX;
-    final double rangeY = maxY - minY;
+    final double rangeX = bounds.maxX - bounds.minX;
+    final double rangeY = bounds.maxY - bounds.minY;
 
     final double scaleX = (canvasSize.width - padding * 2) / rangeX;
     final double scaleY = (canvasSize.height - padding * 2) / rangeY;
@@ -1056,9 +1081,9 @@ class _InspectionScreenState extends State<InspectionScreen> {
     final double offsetYCanvas = (canvasSize.height - rangeY * scale) / 2;
 
     for (final pin in inspection.currentPins) {
-      final pinCanvasX = offsetXCanvas + (pin.x - minX) * scale;
+      final pinCanvasX = offsetXCanvas + (pin.x - bounds.minX) * scale;
       final pinCanvasY =
-          canvasSize.height - offsetYCanvas - (pin.y - minY) * scale;
+          canvasSize.height - offsetYCanvas - (pin.y - bounds.minY) * scale;
       final dist = (tapPos - Offset(pinCanvasX, pinCanvasY)).distance;
       if (dist < 20) {
         // 如果點擊的是已選中的 pin，打開詳細對話框
@@ -3086,42 +3111,48 @@ class _PinDetailDialogState extends State<_PinDetailDialog> {
 
             // ===== 底部操作按鈕 =====
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
               decoration: BoxDecoration(
                 border: Border(top: BorderSide(color: Colors.grey.shade200)),
               ),
-              child: Row(
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                alignment: WrapAlignment.end,
                 children: [
                   // 刪除
                   TextButton.icon(
                     onPressed: () => _confirmDelete(),
                     icon: const Icon(Icons.delete_outline,
-                        size: 18, color: Colors.red),
+                        size: 16, color: Colors.red),
                     label: const Text('刪除',
-                        style: TextStyle(color: Colors.red)),
+                        style: TextStyle(color: Colors.red, fontSize: 13)),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
                   ),
-                  const Spacer(),
                   // AI 分析 (有照片但未分析時顯示)
                   if (hasPhoto && _status != 'analyzed' && !_isAnalyzing)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: ElevatedButton.icon(
-                        onPressed: _runAiAnalysis,
-                        icon: const Icon(Icons.auto_awesome, size: 18),
-                        label: const Text('AI 分析'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange,
-                          foregroundColor: Colors.white,
-                        ),
+                    ElevatedButton(
+                      onPressed: _runAiAnalysis,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
                       ),
+                      child: const Text('AI分析', style: TextStyle(fontSize: 13)),
                     ),
                   // 重新拍照
                   OutlinedButton.icon(
                     onPressed: _isAnalyzing ? null : widget.onRetakePhoto,
-                    icon: const Icon(Icons.camera_alt, size: 18),
-                    label: const Text('重新拍照'),
+                    icon: const Icon(Icons.camera_alt, size: 16),
+                    label: const Text('重新拍照', style: TextStyle(fontSize: 13)),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
                   ),
-                  const SizedBox(width: 8),
                   // 關閉
                   ElevatedButton(
                     onPressed: _isAnalyzing ? null : () {
@@ -3130,7 +3161,10 @@ class _PinDetailDialogState extends State<_PinDetailDialog> {
                       }
                       Navigator.pop(context);
                     },
-                    child: const Text('確定'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                    ),
+                    child: const Text('確定', style: TextStyle(fontSize: 13)),
                   ),
                 ],
               ),
@@ -3629,47 +3663,33 @@ class _PinDetailDialogState extends State<_PinDetailDialog> {
     _scrollDefectChat();
 
     try {
-      // Collect all user messages as context
-      final chatContext = updatedMessages
-          .where((m) => m.role == 'user')
-          .map((m) => m.content)
-          .join('\n');
+      // 構建歷史對話
+      final chatHistory = updatedMessages
+          .map((m) => {
+                'role': m.role == 'ai' ? 'assistant' : m.role,
+                'content': m.content,
+              })
+          .toList();
 
-      final result = await ApiService.instance.analyzeImageWithAI(
-        defect.imageBase64!,
-        additionalContext: chatContext,
+      // 使用 chatWithAI 進行追問
+      final responseText = await ApiService.instance.chatWithAI(
+        userMessage: text,
+        imageBase64: defect.imageBase64,
+        chatHistory: chatHistory.sublist(0, chatHistory.length - 1), // 排除剛加的用戶訊息（已在 userMessage）
       );
 
       if (!mounted) return;
 
-      final analysisText = result['analysis'] as String? ?? '分析完成';
-      final recs =
-          (result['recommendations'] as List<dynamic>?)?.join('\n• ') ?? '';
-      final riskScore = result['risk_score'] ?? 0;
-      final riskLevel = result['risk_level'] ?? 'low';
-      final fullMsg =
-          '【AI 重新分析】\n風險等級: $riskLevel ($riskScore)\n\n$analysisText'
-          '${recs.isNotEmpty ? '\n\n建議:\n• $recs' : ''}';
-
       final aiMsg = ChatMessage(
         id: const Uuid().v4(),
         role: 'ai',
-        content: fullMsg,
+        content: responseText,
         timestamp: DateTime.now(),
       );
 
       final finalMessages = [...updatedMessages, aiMsg];
       final finalDefect = defect.copyWith(
         chatMessages: finalMessages,
-        aiResult: result,
-        riskLevel: result['risk_level'] as String? ?? defect.riskLevel,
-        riskScore: result['risk_score'] as int? ?? defect.riskScore,
-        description: result['analysis'] as String? ?? defect.description,
-        recommendations: (result['recommendations'] as List<dynamic>?)
-                ?.map((e) => e.toString())
-                .toList() ??
-            defect.recommendations,
-        status: 'analyzed',
       );
       _updateDefectInPin(finalDefect, defectIndex);
 
@@ -4218,7 +4238,7 @@ class _PhotoAnalysisDialogState extends State<_PhotoAnalysisDialog> {
 
             // 底部按鈕
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 border: Border(top: BorderSide(color: Colors.grey.shade200)),
               ),
@@ -4226,22 +4246,32 @@ class _PhotoAnalysisDialogState extends State<_PhotoAnalysisDialog> {
                 children: [
                   TextButton(
                     onPressed: () => Navigator.pop(context),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
                     child: const Text('跳過'),
                   ),
                   const Spacer(),
                   if (_photoTaken && !_isAnalyzing)
-                    ElevatedButton.icon(
-                      onPressed: _analyzeImage,
-                      icon: const Icon(Icons.auto_awesome, size: 18),
-                      label: const Text('AI 分析'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange,
-                        foregroundColor: Colors.white,
+                    Flexible(
+                      child: ElevatedButton(
+                        onPressed: _analyzeImage,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                        ),
+                        child: const Text('AI分析', overflow: TextOverflow.ellipsis),
                       ),
                     ),
                   const SizedBox(width: 8),
                   ElevatedButton(
                     onPressed: _isAnalyzing ? null : _saveAndClose,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                    ),
                     child: const Text('保存'),
                   ),
                 ],
@@ -4380,35 +4410,29 @@ class _PhotoAnalysisDialogState extends State<_PhotoAnalysisDialog> {
     _scrollChatToBottom();
 
     try {
-      // 收集所有 user messages 作為 context
-      final chatContext = _chatMessages
-          .where((m) => m.role == 'user')
-          .map((m) => m.content)
-          .join('\n');
+      // 構建歷史對話
+      final chatHistory = _chatMessages
+          .map((m) => {
+                'role': m.role == 'ai' ? 'assistant' : m.role,
+                'content': m.content,
+              })
+          .toList();
 
-      final result = await ApiService.instance.analyzeImageWithAI(
-        _imageBase64!,
-        additionalContext: chatContext,
+      // 使用 chatWithAI 進行追問
+      final responseText = await ApiService.instance.chatWithAI(
+        userMessage: text,
+        imageBase64: _imageBase64,
+        chatHistory: chatHistory.sublist(0, chatHistory.length - 1),
       );
 
       if (!mounted) return;
 
       setState(() {
-        _analysisResult = result;
         _isAnalyzing = false;
-
-        final analysisText = result['analysis'] as String? ?? '分析完成';
-        final recs =
-            (result['recommendations'] as List<dynamic>?)?.join('\n• ') ?? '';
-        final riskScore = result['risk_score'] ?? 0;
-        final riskLevel = result['risk_level'] ?? 'low';
-        final fullMsg =
-            '【AI 重新分析】\n風險等級: $riskLevel ($riskScore)\n\n$analysisText'
-            '${recs.isNotEmpty ? '\n\n建議:\n• $recs' : ''}';
         _chatMessages.add(ChatMessage(
           id: const Uuid().v4(),
           role: 'ai',
-          content: fullMsg,
+          content: responseText,
           timestamp: DateTime.now(),
         ));
       });
@@ -5084,10 +5108,30 @@ class InspectionCanvasPainter extends CustomPainter {
     }
 
     // 計算座標範圍
-    final double minX = anchors.map((a) => a.x).reduce(min) - 1;
-    final double maxX = anchors.map((a) => a.x).reduce(max) + 1;
-    final double minY = anchors.map((a) => a.y).reduce(min) - 1;
-    final double maxY = anchors.map((a) => a.y).reduce(max) + 1;
+    double minX = anchors.map((a) => a.x).reduce(min) - 1;
+    double maxX = anchors.map((a) => a.x).reduce(max) + 1;
+    double minY = anchors.map((a) => a.y).reduce(min) - 1;
+    double maxY = anchors.map((a) => a.y).reduce(max) + 1;
+
+    // DEBUG: 輸出平面圖相關資訊
+    debugPrint('[InspectionCanvas] showFloorPlan=${config.showFloorPlan}, floorPlanImage=${floorPlanImage != null ? "${floorPlanImage!.width}x${floorPlanImage!.height}" : "null"}, xScale=${config.xScale}, yScale=${config.yScale}, xOffset=${config.xOffset}, yOffset=${config.yOffset}');
+
+    // 如果有平面圖，擴展視圖範圍以包含整個平面圖
+    if (config.showFloorPlan && floorPlanImage != null) {
+      final img = floorPlanImage!;
+      final realWidth = img.width.toDouble() / config.xScale;
+      final realHeight = img.height.toDouble() / config.yScale;
+      final imgLeft = config.xOffset;
+      final imgBottom = config.yOffset;
+      final imgRight = imgLeft + realWidth;
+      final imgTop = imgBottom + realHeight;
+      debugPrint('[InspectionCanvas] floorPlan bounds: left=$imgLeft, right=$imgRight, bottom=$imgBottom, top=$imgTop, realW=$realWidth, realH=$realHeight');
+      minX = min(minX, imgLeft - 0.5);
+      maxX = max(maxX, imgRight + 0.5);
+      minY = min(minY, imgBottom - 0.5);
+      maxY = max(maxY, imgTop + 0.5);
+    }
+    debugPrint('[InspectionCanvas] viewport: minX=$minX, maxX=$maxX, minY=$minY, maxY=$maxY');
 
     final double rangeX = maxX - minX;
     final double rangeY = maxY - minY;

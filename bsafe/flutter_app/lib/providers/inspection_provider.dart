@@ -252,8 +252,10 @@ class InspectionProvider extends ChangeNotifier {
 
       try {
         analysis = await _api.analyzeImageWithAI(imageBase64);
+        debugPrint('[InspectionProvider] POE AI 分析成功');
       } catch (e) {
         // 使用本地分析作為後備
+        debugPrint('[InspectionProvider] POE AI 分析失敗，使用本地後備: $e');
         analysis = ApiService.localAnalysis('moderate', 'structural');
       }
 

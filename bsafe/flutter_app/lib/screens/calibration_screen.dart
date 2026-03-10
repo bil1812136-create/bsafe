@@ -44,6 +44,11 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
   int? _selectedAnchorIndex;
   int? _secondAnchorIndex;
 
+  // 參考點（用於單基站模式量測比例尺）
+  final List<Offset> _referencePoints = [];
+  double _referenceRealDistance = 0;
+  bool _isPlacingRefPoints = false;
+
   // 校正結果
   double? _calculatedScale; // 米/像素
   bool _isCalibrated = false;
@@ -228,6 +233,7 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                           selectedIndex: _selectedAnchorIndex,
                           secondIndex: _secondAnchorIndex,
                           calculatedScale: _calculatedScale,
+                          referencePoints: _referencePoints,
                         ),
                         size: Size.infinite,
                       ),
@@ -273,6 +279,7 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                     selectedIndex: _selectedAnchorIndex,
                     secondIndex: _secondAnchorIndex,
                     calculatedScale: _calculatedScale,
+                    referencePoints: _referencePoints,
                   ),
                   size: Size.infinite,
                 ),
@@ -327,8 +334,8 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                         _buildDistanceSection(),
                         const Divider(height: 24),
 
-                        // 校正結果
-                        if (_isCalibrated) _buildCalibrationResult(),
+                        // 校正結果（不含應用按鈕）
+                        if (_isCalibrated) _buildCalibrationResultInfo(),
 
                         // 操作提示
                         _buildInstructions(),
@@ -337,6 +344,33 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                     ),
                   ),
                 ),
+                // 固定在底部的「應用到系統」按鈕
+                if (_isCalibrated)
+                  SafeArea(
+                    top: false,
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        border: Border(
+                          top: BorderSide(color: Colors.grey.shade200),
+                        ),
+                      ),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _applyCalibration,
+                          icon: const Icon(Icons.check),
+                          label: const Text('應用到系統'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -694,6 +728,218 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
 
   // ===== 距離設定區 =====
   Widget _buildDistanceSection() {
+    // 房間模式：已知尺寸，不需要距離設定
+    if (_mode == 'room_dimension' && _placedAnchors.length <= 1) {
+      return _buildRoomSingleAnchorInfo();
+    }
+    // 平面圖單基站模式：顯示參考距離 UI
+    if (_placedAnchors.length == 1 && _mode == 'floor_plan') {
+      return _buildReferenceDistanceSection();
+    }
+    return _buildMultiAnchorDistanceSection();
+  }
+
+  // 房間模式單基站提示
+  Widget _buildRoomSingleAnchorInfo() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('基站間距離',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.teal.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.teal.shade200),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.info_outline, color: Colors.teal.shade700, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _placedAnchors.isEmpty
+                      ? '請在房間示意圖上點擊放置基站'
+                      : '已用房間尺寸自動計算座標，可直接應用',
+                  style: TextStyle(fontSize: 12, color: Colors.teal.shade700),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // 單基站模式：用參考兩點確定比例尺
+  Widget _buildReferenceDistanceSection() {
+    final refPixelDist = _referencePoints.length == 2
+        ? sqrt(pow(_referencePoints[1].dx - _referencePoints[0].dx, 2) +
+            pow(_referencePoints[1].dy - _referencePoints[0].dy, 2))
+        : 0.0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Text('比例尺設定',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            const Spacer(),
+            if (_referencePoints.length < 2)
+              ElevatedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _referencePoints.clear();
+                    _isPlacingRefPoints = true;
+                  });
+                },
+                icon: const Icon(Icons.straighten, size: 16),
+                label: Text(
+                  _isPlacingRefPoints ? '點擊平面圖...' : '標記參考距離',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _isPlacingRefPoints ? Colors.orange : AppTheme.primaryColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                ),
+              ),
+            if (_referencePoints.length == 2)
+              TextButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _referencePoints.clear();
+                    _referenceRealDistance = 0;
+                    _isPlacingRefPoints = true;
+                    _isCalibrated = false;
+                    _calculatedScale = null;
+                  });
+                },
+                icon: const Icon(Icons.refresh, size: 16),
+                label: const Text('重新標記', style: TextStyle(fontSize: 12)),
+              ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '在平面圖上標記已知距離的兩點，輸入實際距離',
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+        ),
+        const SizedBox(height: 8),
+        if (_isPlacingRefPoints)
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.orange.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.touch_app, color: Colors.orange.shade700, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '請在平面圖上點擊第 ${_referencePoints.length + 1} 個參考點',
+                    style: TextStyle(fontSize: 12, color: Colors.orange.shade700),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (_referencePoints.length == 2)
+          Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 20, height: 20,
+                      decoration: BoxDecoration(
+                        color: Colors.purple.shade300,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Center(child: Text('A', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold))),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.swap_horiz, size: 16),
+                    const SizedBox(width: 4),
+                    Container(
+                      width: 20, height: 20,
+                      decoration: BoxDecoration(
+                        color: Colors.purple.shade300,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Center(child: Text('B', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold))),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: SizedBox(
+                        height: 32,
+                        child: TextFormField(
+                          initialValue: _referenceRealDistance > 0 ? _referenceRealDistance.toString() : '',
+                          decoration: const InputDecoration(
+                            border: OutlineInputBorder(),
+                            suffixText: '米',
+                            hintText: '距離',
+                            contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            isDense: true,
+                          ),
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          onChanged: (val) {
+                            final d = double.tryParse(val) ?? 0;
+                            setState(() {
+                              _referenceRealDistance = d;
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (refPixelDist > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      '像素距離: ${refPixelDist.toStringAsFixed(1)} px',
+                      style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        if (_referencePoints.length == 2 && _referenceRealDistance > 0)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _recalculate,
+                icon: const Icon(Icons.calculate, size: 18),
+                label: const Text('計算校正'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryColor,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  // 多基站模式
+  Widget _buildMultiAnchorDistanceSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -914,8 +1160,61 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
     );
   }
 
+  // ===== 校正結果（僅資訊，不含按鈕，用於手機版）=====
+  Widget _buildCalibrationResultInfo() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.green.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.green.shade300),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green, size: 20),
+                  SizedBox(width: 8),
+                  Text('校正完成',
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
+                          fontSize: 15)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text('比例尺: ${_calculatedScale!.toStringAsFixed(4)} 米/像素',
+                  style:
+                      const TextStyle(fontSize: 13, fontFamily: 'monospace')),
+              const SizedBox(height: 8),
+              const Text('基站座標:',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              ..._placedAnchors
+                  .where((a) => a.realX != null)
+                  .map((a) => Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          '  ${a.name}: (${a.realX!.toStringAsFixed(2)}, ${a.realY!.toStringAsFixed(2)}, ${_anchorHeight.toStringAsFixed(1)})',
+                          style: const TextStyle(
+                              fontSize: 12, fontFamily: 'monospace'),
+                        ),
+                      )),
+            ],
+          ),
+        ),
+        const Divider(height: 24),
+      ],
+    );
+  }
+
   // ===== 操作說明 =====
   Widget _buildInstructions() {
+    final isSingleAnchorFloorPlan = _placedAnchors.length == 1 && _mode == 'floor_plan';
+    final isRoomMode = _mode == 'room_dimension';
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -931,12 +1230,25 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                   fontSize: 13,
                   color: Colors.blue.shade800)),
           const SizedBox(height: 8),
-          _buildStep(1, '在畫布上點擊放置基站（至少 2 個）', _placedAnchors.length >= 2),
-          _buildStep(2, '點擊 📏 按鈕選擇基站對', _selectedAnchorIndex != null),
-          _buildStep(
-              3, '輸入基站間的實際距離（米）', _distancePairs.any((d) => d.distance > 0)),
-          _buildStep(4, '點擊「計算校正」', _isCalibrated),
-          _buildStep(5, '點擊「應用到系統」完成', false),
+          if (isRoomMode) ...[
+            _buildStep(1, '在房間示意圖上點擊放置基站（至少 1 個）', _placedAnchors.length >= 1),
+            _buildStep(2, '座標自動根據房間尺寸計算', _isCalibrated),
+            _buildStep(3, '點擊「應用到系統」完成', false),
+          ] else if (isSingleAnchorFloorPlan) ...[
+            _buildStep(1, '在畫布上點擊放置 1 個基站', _placedAnchors.length >= 1),
+            _buildStep(2, '點擊「標記參考距離」放置兩個參考點', _referencePoints.length == 2),
+            _buildStep(3, '輸入兩參考點的實際距離（米）', _referenceRealDistance > 0),
+            _buildStep(4, '點擊「計算校正」', _isCalibrated),
+            _buildStep(5, '點擊「應用到系統」完成', false),
+          ] else ...[
+            _buildStep(1, '在畫布上點擊放置基站（至少 1 個）', _placedAnchors.length >= 1),
+            if (_placedAnchors.length >= 2) ...[
+              _buildStep(2, '點擊 📏 按鈕選擇基站對', _selectedAnchorIndex != null),
+              _buildStep(3, '輸入基站間的實際距離（米）', _distancePairs.any((d) => d.distance > 0)),
+            ],
+            _buildStep(4, '點擊「計算校正」', _isCalibrated),
+            _buildStep(5, '點擊「應用到系統」完成', false),
+          ],
         ],
       ),
     );
@@ -1122,16 +1434,28 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
         });
       }
     } else if (_mode == 'floor_plan') {
-      // 平面圖模式：記錄像素座標
-      setState(() {
-        _placedAnchors.add(_CalibrationAnchor(
-          name: '基站${_placedAnchors.length}',
-          pixelX: localPosition.dx,
-          pixelY: localPosition.dy,
-        ));
-        _isCalibrated = false;
-        _updatePixelDistances();
-      });
+      if (_isPlacingRefPoints) {
+        // 放置參考點模式
+        if (_referencePoints.length < 2) {
+          setState(() {
+            _referencePoints.add(localPosition);
+            if (_referencePoints.length == 2) {
+              _isPlacingRefPoints = false;
+            }
+          });
+        }
+      } else {
+        // 放置基站模式
+        setState(() {
+          _placedAnchors.add(_CalibrationAnchor(
+            name: '基站${_placedAnchors.length}',
+            pixelX: localPosition.dx,
+            pixelY: localPosition.dy,
+          ));
+          _isCalibrated = false;
+          _updatePixelDistances();
+        });
+      }
     }
   }
 
@@ -1236,7 +1560,7 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
 
   void _autoCalibRoomMode() {
     // 房間模式已有真實座標，不需要距離校正
-    if (_mode == 'room_dimension' && _placedAnchors.length >= 2) {
+    if (_mode == 'room_dimension' && _placedAnchors.length >= 1) {
       setState(() {
         _calculatedScale = 1.0; // 房間模式比例尺已內含
         _isCalibrated = true;
@@ -1250,7 +1574,29 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
       return;
     }
 
-    // 平面圖模式：用距離對計算比例尺
+    // 單基站 + 參考點模式
+    if (_placedAnchors.length == 1 && _referencePoints.length == 2 && _referenceRealDistance > 0) {
+      final dx = _referencePoints[1].dx - _referencePoints[0].dx;
+      final dy = _referencePoints[1].dy - _referencePoints[0].dy;
+      final refPixelDist = sqrt(dx * dx + dy * dy);
+      if (refPixelDist > 0) {
+        final scale = _referenceRealDistance / refPixelDist;
+        setState(() {
+          _calculatedScale = scale;
+          _placedAnchors[0] = _CalibrationAnchor(
+            name: _placedAnchors[0].name,
+            pixelX: _placedAnchors[0].pixelX,
+            pixelY: _placedAnchors[0].pixelY,
+            realX: 0.0,
+            realY: 0.0,
+          );
+          _isCalibrated = true;
+        });
+      }
+      return;
+    }
+
+    // 多基站模式：用距離對計算比例尺
     final validPairs = _distancePairs.where((p) => p.distance > 0).toList();
     if (validPairs.isEmpty) return;
 
@@ -1261,13 +1607,12 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
     double totalScale = 0;
     int count = 0;
     for (final pair in validPairs) {
-      // 重新計算像素距離以確保準確
       final pixDist = (pair.anchorA < _placedAnchors.length &&
               pair.anchorB < _placedAnchors.length)
           ? _pixelDistance(pair.anchorA, pair.anchorB)
           : pair.pixelDistance;
       if (pixDist > 0) {
-        totalScale += pair.distance / pixDist; // 米/像素
+        totalScale += pair.distance / pixDist;
         count++;
       }
     }
@@ -1288,7 +1633,7 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
           pixelX: a.pixelX,
           pixelY: a.pixelY,
           realX: (a.pixelX - originX) * avgScale,
-          realY: -(a.pixelY - originY) * avgScale, // Y軸翻轉
+          realY: -(a.pixelY - originY) * avgScale,
         );
       }
       _isCalibrated = true;
@@ -1299,6 +1644,9 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
     setState(() {
       _placedAnchors.clear();
       _distancePairs.clear();
+      _referencePoints.clear();
+      _referenceRealDistance = 0;
+      _isPlacingRefPoints = false;
       _isCalibrated = false;
       _calculatedScale = null;
       _selectedAnchorIndex = null;
@@ -1309,7 +1657,7 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
     });
   }
 
-  void _applyCalibration() {
+  Future<void> _applyCalibration() async {
     if (!_isCalibrated || _placedAnchors.isEmpty) return;
 
     final uwb = widget.uwbService;
@@ -1373,6 +1721,12 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
         final offsetY =
             -(imgHeight - originImageY) * metersPerImagePixel;
 
+        debugPrint('[Calibration] displayScale=$displayScale, ox=$ox, oy=$oy');
+        debugPrint('[Calibration] originImageX=$originImageX, originImageY=$originImageY');
+        debugPrint('[Calibration] metersPerImagePixel=$metersPerImagePixel, pixelsPerMeter=$pixelsPerMeter');
+        debugPrint('[Calibration] offsetX=$offsetX, offsetY=$offsetY');
+        debugPrint('[Calibration] imgWidth=$imgWidth, imgHeight=$imgHeight');
+
         uwb.updateConfig(uwb.config.copyWith(
           xScale: pixelsPerMeter,
           yScale: pixelsPerMeter,
@@ -1380,11 +1734,13 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
           yOffset: offsetY,
           flipX: false,
           flipY: false,
+          showFloorPlan: true,
         ));
+        debugPrint('[Calibration] config after update: showFloorPlan=${uwb.config.showFloorPlan}, xScale=${uwb.config.xScale}, yScale=${uwb.config.yScale}, xOffset=${uwb.config.xOffset}, yOffset=${uwb.config.yOffset}');
       }
 
-      // 載入平面圖
-      uwb.loadFloorPlanImage(_floorPlanPath!);
+      // 載入平面圖 (await 確保圖片載入完成後再返回)
+      await uwb.loadFloorPlanImage(_floorPlanPath!);
     } else if (_mode == 'room_dimension') {
       // 房間模式，不需要平面圖
       uwb.updateConfig(uwb.config.copyWith(
@@ -1454,6 +1810,7 @@ class _CalibrationPainter extends CustomPainter {
   final int? selectedIndex;
   final int? secondIndex;
   final double? calculatedScale;
+  final List<Offset> referencePoints;
 
   _CalibrationPainter({
     required this.mode,
@@ -1465,6 +1822,7 @@ class _CalibrationPainter extends CustomPainter {
     this.selectedIndex,
     this.secondIndex,
     this.calculatedScale,
+    this.referencePoints = const [],
   });
 
   static const _anchorColors = [
@@ -1486,6 +1844,9 @@ class _CalibrationPainter extends CustomPainter {
 
     // 繪製距離線
     _drawDistanceLines(canvas, size);
+
+    // 繪製參考點
+    _drawReferencePoints(canvas, size);
 
     // 繪製基站
     for (int i = 0; i < anchors.length; i++) {
@@ -1643,6 +2004,51 @@ class _CalibrationPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2,
     );
+  }
+
+  void _drawReferencePoints(Canvas canvas, Size size) {
+    if (referencePoints.isEmpty) return;
+
+    final paint = Paint()
+      ..color = Colors.purple.shade400
+      ..strokeWidth = 2;
+
+    // Draw reference points
+    for (int i = 0; i < referencePoints.length; i++) {
+      final pos = referencePoints[i];
+      // Diamond shape marker
+      canvas.drawCircle(pos, 8, Paint()..color = Colors.purple.shade300);
+      canvas.drawCircle(
+        pos,
+        8,
+        Paint()
+          ..color = Colors.white
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2,
+      );
+      // Label
+      final label = i == 0 ? 'A' : 'B';
+      final tp = TextPainter(
+        text: TextSpan(
+          text: label,
+          style: const TextStyle(
+              color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+        ),
+        textDirection: TextDirection.ltr,
+      );
+      tp.layout();
+      tp.paint(canvas, Offset(pos.dx - tp.width / 2, pos.dy - tp.height / 2));
+    }
+
+    // Draw line between reference points
+    if (referencePoints.length == 2) {
+      final dashPaint = Paint()
+        ..color = Colors.purple.shade300
+        ..strokeWidth = 2
+        ..style = PaintingStyle.stroke;
+
+      canvas.drawLine(referencePoints[0], referencePoints[1], dashPaint);
+    }
   }
 
   void _drawDistanceLines(Canvas canvas, Size size) {
