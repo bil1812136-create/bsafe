@@ -53,12 +53,26 @@ class UwbService extends ChangeNotifier {
   final Map<int, String> _floorPlanPaths = {}; // 每層的平面圖路徑
   Map<int, String> get floorPlanPaths => _floorPlanPaths;
   final Map<int, ui.Image?> _floorPlanImages = {}; // 每層的平面圖圖片快取
+  String? _projectId; // 當前專案 ID，用於區分不同專案的樓層設定
+
+  /// 設置當前專案 ID，並清除舊的樓層圖快取
+  void setProjectId(String? projectId) {
+    if (_projectId == projectId) return;
+    _projectId = projectId;
+    // 清除舊專案的樓層圖資料
+    _floorPlanPaths.clear();
+    _floorPlanImages.clear();
+    _floorPlanImage = null;
+    _totalFloors = 1;
+    _currentFloor = 1;
+  }
 
   void setTotalFloors(int total) {
     _totalFloors = total.clamp(1, 99);
     if (_currentFloor > _totalFloors) {
       _currentFloor = _totalFloors;
     }
+    _saveFloorSettings();
     notifyListeners();
   }
 
@@ -69,11 +83,13 @@ class UwbService extends ChangeNotifier {
     if (_floorPlanImages.containsKey(floor) &&
         _floorPlanImages[floor] != null) {
       _floorPlanImage = _floorPlanImages[floor];
+      _config = _config.copyWith(showFloorPlan: true);
     } else if (_floorPlanPaths.containsKey(floor)) {
       // 需要載入
       loadFloorPlanForFloor(floor, _floorPlanPaths[floor]!);
     } else {
       _floorPlanImage = null;
+      _config = _config.copyWith(showFloorPlan: false);
     }
     notifyListeners();
   }
@@ -83,7 +99,84 @@ class UwbService extends ChangeNotifier {
     _floorPlanPaths[floor] = filePath;
     await loadFloorPlanImage(filePath);
     _floorPlanImages[floor] = _floorPlanImage;
+    _saveFloorSettings();
     notifyListeners();
+  }
+
+  /// 清除指定樓層的平面圖
+  void clearFloorPlanForFloor(int floor) {
+    _floorPlanPaths.remove(floor);
+    _floorPlanImages.remove(floor);
+    if (_currentFloor == floor) {
+      _floorPlanImage = null;
+    }
+    _saveFloorSettings();
+    notifyListeners();
+  }
+
+  /// 將樓層設定和樓層圖路徑儲存到 SharedPreferences（按專案區分）
+  Future<void> _saveFloorSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final suffix = _projectId != null ? '_$_projectId' : '';
+      await prefs.setInt('uwb_total_floors$suffix', _totalFloors);
+      // 儲存每層的平面圖路徑
+      final pathsJson =
+          jsonEncode(_floorPlanPaths.map((k, v) => MapEntry(k.toString(), v)));
+      await prefs.setString('uwb_floor_plan_paths$suffix', pathsJson);
+      debugPrint(
+          '✅ 樓層設定已儲存 (project=$_projectId): $_totalFloors 層, ${_floorPlanPaths.length} 張平面圖');
+    } catch (e) {
+      debugPrint('❌ 儲存樓層設定失敗: $e');
+    }
+  }
+
+  /// 從 SharedPreferences 恢復樓層設定和樓層圖路徑（按專案區分）
+  Future<void> restoreFloorSettings({String? projectId}) async {
+    // 若有傳入 projectId，先設定
+    if (projectId != null && _projectId != projectId) {
+      setProjectId(projectId);
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final suffix = _projectId != null ? '_$_projectId' : '';
+      final savedFloors = prefs.getInt('uwb_total_floors$suffix');
+      if (savedFloors != null && savedFloors > 0) {
+        _totalFloors = savedFloors.clamp(1, 99);
+      }
+
+      final pathsStr = prefs.getString('uwb_floor_plan_paths$suffix');
+      if (pathsStr != null && pathsStr.isNotEmpty) {
+        try {
+          final Map<String, dynamic> decoded = jsonDecode(pathsStr);
+          _floorPlanPaths.clear();
+          for (final entry in decoded.entries) {
+            final floor = int.tryParse(entry.key);
+            if (floor != null && entry.value is String) {
+              // 檢查檔案是否仍存在
+              final file = File(entry.value as String);
+              if (await file.exists()) {
+                _floorPlanPaths[floor] = entry.value as String;
+              }
+            }
+          }
+          debugPrint(
+              '✅ 已恢復樓層設定 (project=$_projectId): $_totalFloors 層, ${_floorPlanPaths.length} 張平面圖');
+
+          // 自動載入當前樓層的平面圖
+          if (_floorPlanPaths.containsKey(_currentFloor)) {
+            await loadFloorPlanImage(_floorPlanPaths[_currentFloor]!);
+            _floorPlanImages[_currentFloor] = _floorPlanImage;
+            _config = _config.copyWith(showFloorPlan: true);
+          }
+        } catch (e) {
+          debugPrint('❌ 解析樓層圖路徑失敗: $e');
+        }
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint('❌ 恢復樓層設定失敗: $e');
+    }
   }
 
   // 串口服务（桌面平台）

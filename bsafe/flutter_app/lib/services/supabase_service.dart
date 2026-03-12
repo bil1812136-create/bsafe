@@ -201,7 +201,7 @@ class SupabaseService {
     }
   }
 
-  /// 提交工人回覆（文字 + 圖片）並將狀態改為「處理中」
+  /// 提交工人回覆（文字 + 圖片）並將狀態改為「處理中」— 添加到 conversation
   Future<bool> submitWorkerResponse(
       int reportId, String responseText, String? imageBase64) async {
     if (!isConfigured) return false;
@@ -222,9 +222,34 @@ class SupabaseService {
         }
       }
 
+      // 取得現有 conversation
+      final existing = await client
+          .from('reports')
+          .select('conversation')
+          .eq('id', reportId)
+          .single();
+
+      List<dynamic> conv = [];
+      if (existing['conversation'] != null &&
+          (existing['conversation'] as String).isNotEmpty) {
+        try {
+          conv = jsonDecode(existing['conversation'] as String);
+        } catch (_) {}
+      }
+
+      // 添加新訊息
+      conv.add({
+        'sender': 'worker',
+        'text': responseText,
+        'image': responseImageUrl ?? fallbackBase64,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+
       await client.from('reports').update({
-        'worker_response': responseText,
-        'worker_response_image': responseImageUrl ?? fallbackBase64,
+        'worker_response': responseText, // 向後兼容
+        'worker_response_image': responseImageUrl ?? fallbackBase64, // 向後兼容
+        'conversation': jsonEncode(conv),
+        'has_unread_company': false,
         'status': 'in_progress',
         'updated_at': DateTime.now().toIso8601String(),
       }).eq('id', reportId);
@@ -234,6 +259,60 @@ class SupabaseService {
     } catch (e) {
       debugPrint('❌ submitWorkerResponse 失敗: $e');
       return false;
+    }
+  }
+
+  /// 公司端添加對話訊息（跟進任務）
+  Future<bool> addCompanyMessage(int reportId, String messageText) async {
+    if (!isConfigured) return false;
+    try {
+      // 取得現有 conversation
+      final existing = await client
+          .from('reports')
+          .select('conversation')
+          .eq('id', reportId)
+          .single();
+
+      List<dynamic> conv = [];
+      if (existing['conversation'] != null &&
+          (existing['conversation'] as String).isNotEmpty) {
+        try {
+          conv = jsonDecode(existing['conversation'] as String);
+        } catch (_) {}
+      }
+
+      // 添加新訊息
+      conv.add({
+        'sender': 'company',
+        'text': messageText,
+        'image': null,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+
+      await client.from('reports').update({
+        'company_notes': messageText, // 向後兼容（最後一條公司訊息）
+        'conversation': jsonEncode(conv),
+        'has_unread_company': true,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('id', reportId);
+
+      debugPrint('✅ 公司訊息已添加');
+      return true;
+    } catch (e) {
+      debugPrint('❌ addCompanyMessage 失敗: $e');
+      return false;
+    }
+  }
+
+  /// 清除未讀標記（工人端查看後調用）
+  Future<void> clearUnreadCompany(int reportId) async {
+    if (!isConfigured) return;
+    try {
+      await client.from('reports').update({
+        'has_unread_company': false,
+      }).eq('id', reportId);
+    } catch (e) {
+      debugPrint('❌ clearUnreadCompany 失敗: $e');
     }
   }
 
@@ -258,6 +337,9 @@ class SupabaseService {
       companyNotes: data['company_notes'] as String?,
       workerResponse: data['worker_response'] as String?,
       workerResponseImage: data['worker_response_image'] as String?,
+      conversation:
+          ReportModel.conversationFromJson(data['conversation'] as String?),
+      hasUnreadCompany: data['has_unread_company'] == true,
       createdAt: data['created_at'] != null
           ? DateTime.tryParse(data['created_at'] as String) ?? DateTime.now()
           : DateTime.now(),

@@ -25,9 +25,11 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
   void initState() {
     super.initState();
     _report = widget.report;
-    // 從雲端刷新最新資料（包含 company_notes）
+    // 從雲端刷新最新資料（包含 conversation）
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ReportProvider>().refreshFromCloud();
+      // 清除未讀標記
+      context.read<ReportProvider>().clearUnreadCompany(_report);
     });
   }
 
@@ -48,19 +50,62 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     );
   }
 
+  /// 全屏檢視圖片
+  void _openImageViewer(Widget imageWidget) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (_) => Dialog.fullscreen(
+        backgroundColor: Colors.black,
+        child: Stack(
+          children: [
+            Center(
+              child: InteractiveViewer(
+                minScale: 0.5,
+                maxScale: 5.0,
+                child: imageWidget,
+              ),
+            ),
+            Positioned(
+              top: 40,
+              right: 16,
+              child: SafeArea(
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: const BoxDecoration(
+                      color: Colors.black54,
+                      shape: BoxShape.circle,
+                    ),
+                    child:
+                        const Icon(Icons.close, color: Colors.white, size: 24),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   /// 構建圖片區域 — 支援本地檔案、網路 URL、Base64
   Widget _buildImageSection() {
     // 手機本地檔案（Web 不支援 Image.file）
     if (!kIsWeb && _report.imagePath != null && _report.imagePath!.isNotEmpty) {
       final file = File(_report.imagePath!);
-      return Container(
-        width: double.infinity,
-        height: 250,
-        decoration: BoxDecoration(color: Colors.grey.shade200),
-        child: Image.file(
-          file,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _buildImageFromUrl(),
+      return GestureDetector(
+        onTap: () => _openImageViewer(Image.file(file, fit: BoxFit.contain)),
+        child: Container(
+          width: double.infinity,
+          height: 250,
+          decoration: BoxDecoration(color: Colors.grey.shade200),
+          child: Image.file(
+            file,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _buildImageFromUrl(),
+          ),
         ),
       );
     }
@@ -69,25 +114,29 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
 
   Widget _buildImageFromUrl() {
     if (_report.imageUrl != null && _report.imageUrl!.isNotEmpty) {
-      return Container(
-        width: double.infinity,
-        height: 250,
-        decoration: BoxDecoration(color: Colors.grey.shade200),
-        child: Image.network(
-          _report.imageUrl!,
-          fit: BoxFit.cover,
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return Center(
-              child: CircularProgressIndicator(
-                value: loadingProgress.expectedTotalBytes != null
-                    ? loadingProgress.cumulativeBytesLoaded /
-                        loadingProgress.expectedTotalBytes!
-                    : null,
-              ),
-            );
-          },
-          errorBuilder: (_, __, ___) => _buildImageFromBase64(),
+      return GestureDetector(
+        onTap: () => _openImageViewer(
+            Image.network(_report.imageUrl!, fit: BoxFit.contain)),
+        child: Container(
+          width: double.infinity,
+          height: 250,
+          decoration: BoxDecoration(color: Colors.grey.shade200),
+          child: Image.network(
+            _report.imageUrl!,
+            fit: BoxFit.cover,
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              return Center(
+                child: CircularProgressIndicator(
+                  value: loadingProgress.expectedTotalBytes != null
+                      ? loadingProgress.cumulativeBytesLoaded /
+                          loadingProgress.expectedTotalBytes!
+                      : null,
+                ),
+              );
+            },
+            errorBuilder: (_, __, ___) => _buildImageFromBase64(),
+          ),
         ),
       );
     }
@@ -98,11 +147,15 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     if (_report.imageBase64 != null && _report.imageBase64!.isNotEmpty) {
       try {
         final bytes = base64Decode(_report.imageBase64!);
-        return Container(
-          width: double.infinity,
-          height: 250,
-          decoration: BoxDecoration(color: Colors.grey.shade200),
-          child: Image.memory(bytes, fit: BoxFit.cover),
+        return GestureDetector(
+          onTap: () =>
+              _openImageViewer(Image.memory(bytes, fit: BoxFit.contain)),
+          child: Container(
+            width: double.infinity,
+            height: 250,
+            decoration: BoxDecoration(color: Colors.grey.shade200),
+            child: Image.memory(bytes, fit: BoxFit.cover),
+          ),
         );
       } catch (_) {}
     }
@@ -332,20 +385,8 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                       content: _report.aiAnalysis!,
                     ),
 
-                  // 公司回饋 / 跟進任務
-                  if (_report.companyNotes != null &&
-                      _report.companyNotes!.isNotEmpty)
-                    _CompanyFeedbackSection(notes: _report.companyNotes!),
-
-                  const SizedBox(height: 20),
-
-                  // 工人回覆區塊
-                  if (_report.workerResponse != null &&
-                      _report.workerResponse!.isNotEmpty)
-                    _WorkerResponseSection(
-                      response: _report.workerResponse!,
-                      responseImage: _report.workerResponseImage,
-                    ),
+                  // 對話 / 跟進記錄（多輪對話）
+                  _ConversationSection(report: _report),
 
                   // Status Section
                   const Text(
@@ -480,13 +521,55 @@ class _DetailSection extends StatelessWidget {
   }
 }
 
-/// 公司回饋 / 跟進任務區塊
-class _CompanyFeedbackSection extends StatelessWidget {
-  final String notes;
-  const _CompanyFeedbackSection({required this.notes});
+/// 多輪對話區塊（合併公司回饋 + 工人回覆）
+class _ConversationSection extends StatelessWidget {
+  final ReportModel report;
+  const _ConversationSection({required this.report});
+
+  void _openImageViewer(BuildContext context, Widget imageWidget) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (_) => Dialog.fullscreen(
+        backgroundColor: Colors.black,
+        child: Stack(
+          children: [
+            Center(
+              child: InteractiveViewer(
+                minScale: 0.5,
+                maxScale: 5.0,
+                child: imageWidget,
+              ),
+            ),
+            Positioned(
+              top: 40,
+              right: 16,
+              child: SafeArea(
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: const BoxDecoration(
+                      color: Colors.black54,
+                      shape: BoxShape.circle,
+                    ),
+                    child:
+                        const Icon(Icons.close, color: Colors.white, size: 24),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final messages = report.mergedConversation;
+    if (messages.isEmpty) return const SizedBox.shrink();
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Column(
@@ -494,10 +577,10 @@ class _CompanyFeedbackSection extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.feedback, size: 18, color: Colors.blue.shade700),
+              Icon(Icons.forum, size: 18, color: Colors.blue.shade700),
               const SizedBox(width: 6),
               Text(
-                '公司回饋 / 跟進任務',
+                '跟進對話（${messages.length}）',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -506,21 +589,125 @@ class _CompanyFeedbackSection extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
+            constraints: const BoxConstraints(maxHeight: 300),
             decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.blue.shade200),
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade200),
             ),
-            child: Text(
-              notes,
-              style: TextStyle(fontSize: 15, color: Colors.blue.shade900),
+            child: ListView.builder(
+              shrinkWrap: true,
+              padding: const EdgeInsets.all(10),
+              itemCount: messages.length,
+              itemBuilder: (context, index) {
+                final msg = messages[index];
+                final isCompany = msg.sender == 'company';
+                return _buildMobileBubble(context, msg, isCompany);
+              },
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildMobileBubble(
+      BuildContext context, ConversationMessage msg, bool isCompany) {
+    final time = DateFormat('MM/dd HH:mm').format(msg.timestamp.toLocal());
+    return Align(
+      alignment: isCompany ? Alignment.centerLeft : Alignment.centerRight,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        constraints: const BoxConstraints(maxWidth: 280),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: isCompany ? Colors.blue.shade50 : Colors.teal.shade50,
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(12),
+            topRight: const Radius.circular(12),
+            bottomLeft: Radius.circular(isCompany ? 2 : 12),
+            bottomRight: Radius.circular(isCompany ? 12 : 2),
+          ),
+          border: Border.all(
+            color: isCompany ? Colors.blue.shade200 : Colors.teal.shade200,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  isCompany ? Icons.business : Icons.engineering,
+                  size: 14,
+                  color:
+                      isCompany ? Colors.blue.shade700 : Colors.teal.shade700,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  isCompany ? '公司' : '工人',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 11,
+                    color:
+                        isCompany ? Colors.blue.shade700 : Colors.teal.shade700,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(time,
+                    style:
+                        TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+              ],
+            ),
+            const SizedBox(height: 4),
+            // 圖片
+            if (msg.image != null && msg.image!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: GestureDetector(
+                  onTap: () => _openImageViewer(
+                    context,
+                    msg.image!.startsWith('http')
+                        ? Image.network(msg.image!, fit: BoxFit.contain)
+                        : Image.memory(
+                            base64Decode(msg.image!),
+                            fit: BoxFit.contain,
+                          ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: msg.image!.startsWith('http')
+                        ? Image.network(
+                            msg.image!,
+                            height: 100,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) =>
+                                const SizedBox.shrink(),
+                          )
+                        : Image.memory(
+                            base64Decode(msg.image!),
+                            height: 100,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) =>
+                                const SizedBox.shrink(),
+                          ),
+                  ),
+                ),
+              ),
+            Text(
+              msg.text,
+              style: TextStyle(
+                fontSize: 13,
+                color: isCompany ? Colors.blue.shade900 : Colors.teal.shade900,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -601,94 +788,7 @@ class _StatusStepper extends StatelessWidget {
   }
 }
 
-/// 已提交的工人回覆顯示區塊
-class _WorkerResponseSection extends StatelessWidget {
-  final String response;
-  final String? responseImage;
-  const _WorkerResponseSection(
-      {required this.response, this.responseImage});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.engineering, size: 18, color: Colors.teal.shade700),
-              const SizedBox(width: 6),
-              Text(
-                '工人回覆',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.teal.shade700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.teal.shade50,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.teal.shade200),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 回覆圖片
-                if (responseImage != null && responseImage!.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: _buildResponseImage(),
-                    ),
-                  ),
-                Text(
-                  response,
-                  style: TextStyle(fontSize: 15, color: Colors.teal.shade900),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildResponseImage() {
-    // 如果是 URL
-    if (responseImage!.startsWith('http')) {
-      return Image.network(
-        responseImage!,
-        width: double.infinity,
-        height: 150,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-      );
-    }
-    // 否則當作 base64
-    try {
-      final bytes = base64Decode(responseImage!);
-      return Image.memory(
-        bytes,
-        width: double.infinity,
-        height: 150,
-        fit: BoxFit.cover,
-      );
-    } catch (_) {
-      return const SizedBox.shrink();
-    }
-  }
-}
-
-/// 更新資料表單（底部抽屜） — 上傳圖片＋輸入文字＋發送
+/// 更新資料表單（底部抽屜） — 上傳圖片＋輸入文字＋發送（添加到多輪對話）
 class _WorkerResponseForm extends StatefulWidget {
   final ReportModel report;
   final ValueChanged<ReportModel> onSubmitted;
@@ -759,10 +859,21 @@ class _WorkerResponseFormState extends State<_WorkerResponseForm> {
     setState(() => _isSending = false);
 
     if (success) {
+      // 構建帶有更新對話的報告
+      final updatedConv =
+          List<ConversationMessage>.from(widget.report.mergedConversation);
+      updatedConv.add(ConversationMessage(
+        sender: 'worker',
+        text: text,
+        image: _imageBase64,
+        timestamp: DateTime.now(),
+      ));
       final updated = widget.report.copyWith(
         status: 'in_progress',
         workerResponse: text,
         workerResponseImage: _imageBase64,
+        conversation: updatedConv,
+        hasUnreadCompany: false,
         updatedAt: DateTime.now(),
       );
       widget.onSubmitted(updated);
@@ -822,34 +933,54 @@ class _WorkerResponseFormState extends State<_WorkerResponseForm> {
           const Divider(),
           const SizedBox(height: 8),
 
-          // 公司任務提示
-          if (widget.report.companyNotes != null &&
-              widget.report.companyNotes!.isNotEmpty)
-            Container(
-              width: double.infinity,
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.blue.shade200),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.task_alt, size: 18, color: Colors.blue.shade700),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      widget.report.companyNotes!,
-                      style: TextStyle(
-                          fontSize: 13, color: Colors.blue.shade900),
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
+          // 最近公司訊息提示
+          if (widget.report.mergedConversation.isNotEmpty)
+            Builder(builder: (_) {
+              final companyMsgs = widget.report.mergedConversation
+                  .where((m) => m.sender == 'company')
+                  .toList();
+              if (companyMsgs.isEmpty) return const SizedBox.shrink();
+              final last = companyMsgs.last;
+              return Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.task_alt, size: 18, color: Colors.blue.shade700),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '最新公司跟進：',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue.shade700,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            last.text,
+                            style: TextStyle(
+                                fontSize: 13, color: Colors.blue.shade900),
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ),
+                  ],
+                ),
+              );
+            }),
 
           // 上傳圖片區域
           const Text('📷 上傳圖片', style: TextStyle(fontWeight: FontWeight.w600)),

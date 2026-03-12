@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:bsafe_app/models/report_model.dart';
 import 'package:bsafe_app/theme/app_theme.dart';
 import 'package:intl/intl.dart';
 
@@ -22,12 +23,13 @@ class WebReportDetailScreen extends StatefulWidget {
 class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
   late TextEditingController _analysisController;
   late TextEditingController _titleController;
-  late TextEditingController _descriptionController;
-  late TextEditingController _notesController;
+  late TextEditingController _convoInputController;
   late String _status;
   late String _severity;
   bool _isSaving = false;
   bool _hasChanges = false;
+  bool _isSendingMessage = false;
+  late List<ConversationMessage> _conversation;
 
   SupabaseClient get _supabase => Supabase.instance.client;
 
@@ -36,17 +38,41 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
     super.initState();
     final r = widget.report;
     _titleController = TextEditingController(text: r['title'] ?? '');
-    _descriptionController =
-        TextEditingController(text: r['description'] ?? '');
     _analysisController = TextEditingController(text: r['ai_analysis'] ?? '');
-    _notesController = TextEditingController(text: r['company_notes'] ?? '');
+    _convoInputController = TextEditingController();
     _status = r['status'] ?? 'pending';
     _severity = r['severity'] ?? 'moderate';
 
+    // 解析 conversation
+    _conversation =
+        ReportModel.conversationFromJson(r['conversation'] as String?);
+    // 向後兼容：若 conversation 為空，從舊欄位遷移
+    if (_conversation.isEmpty) {
+      if (r['company_notes'] != null &&
+          (r['company_notes'] as String).isNotEmpty) {
+        _conversation.add(ConversationMessage(
+          sender: 'company',
+          text: r['company_notes'] as String,
+          timestamp: r['updated_at'] != null
+              ? DateTime.tryParse(r['updated_at'] as String) ?? DateTime.now()
+              : DateTime.now(),
+        ));
+      }
+      if (r['worker_response'] != null &&
+          (r['worker_response'] as String).isNotEmpty) {
+        _conversation.add(ConversationMessage(
+          sender: 'worker',
+          text: r['worker_response'] as String,
+          image: r['worker_response_image'] as String?,
+          timestamp: r['updated_at'] != null
+              ? DateTime.tryParse(r['updated_at'] as String) ?? DateTime.now()
+              : DateTime.now(),
+        ));
+      }
+    }
+
     _titleController.addListener(_markChanged);
-    _descriptionController.addListener(_markChanged);
     _analysisController.addListener(_markChanged);
-    _notesController.addListener(_markChanged);
   }
 
   void _markChanged() {
@@ -56,9 +82,8 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
   @override
   void dispose() {
     _titleController.dispose();
-    _descriptionController.dispose();
     _analysisController.dispose();
-    _notesController.dispose();
+    _convoInputController.dispose();
     super.dispose();
   }
 
@@ -67,9 +92,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
     try {
       await _supabase.from('reports').update({
         'title': _titleController.text,
-        'description': _descriptionController.text,
         'ai_analysis': _analysisController.text,
-        'company_notes': _notesController.text,
         'status': _status,
         'severity': _severity,
         'updated_at': DateTime.now().toIso8601String(),
@@ -101,6 +124,77 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
             content: Text('儲存失敗: $e'),
             backgroundColor: Colors.red,
           ),
+        );
+      }
+    }
+  }
+
+  /// 公司端發送跟進訊息
+  Future<void> _sendCompanyMessage() async {
+    final text = _convoInputController.text.trim();
+    if (text.isEmpty) return;
+
+    setState(() => _isSendingMessage = true);
+    try {
+      // 取得現有 conversation
+      final existing = await _supabase
+          .from('reports')
+          .select('conversation')
+          .eq('id', widget.report['id'])
+          .single();
+
+      List<dynamic> conv = [];
+      if (existing['conversation'] != null &&
+          (existing['conversation'] as String).isNotEmpty) {
+        try {
+          conv = jsonDecode(existing['conversation'] as String);
+        } catch (_) {}
+      }
+
+      final newMsg = {
+        'sender': 'company',
+        'text': text,
+        'image': null,
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+      conv.add(newMsg);
+
+      await _supabase.from('reports').update({
+        'company_notes': text,
+        'conversation': jsonEncode(conv),
+        'has_unread_company': true,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('id', widget.report['id']);
+
+      if (mounted) {
+        setState(() {
+          _conversation.add(ConversationMessage(
+            sender: 'company',
+            text: text,
+            timestamp: DateTime.now(),
+          ));
+          _convoInputController.clear();
+          _isSendingMessage = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 8),
+                Text('訊息已發送'),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSendingMessage = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('發送失敗: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -168,7 +262,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
             ),
             const SizedBox(width: 32),
 
-            // ── 右: AI 分析 + 編輯區 ──
+            // ── 右: AI 分析 + 對話區 ──
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -181,13 +275,6 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
                   ),
                   const SizedBox(height: 24),
                   _buildEditableSection(
-                    title: '報告描述',
-                    icon: Icons.description,
-                    controller: _descriptionController,
-                    maxLines: 3,
-                  ),
-                  const SizedBox(height: 24),
-                  _buildEditableSection(
                     title: 'AI 分析結果（可修改）',
                     icon: Icons.smart_toy,
                     controller: _analysisController,
@@ -195,15 +282,8 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
                     highlight: true,
                   ),
                   const SizedBox(height: 24),
-                  _buildEditableSection(
-                    title: '公司回饋 / 跟進任務',
-                    icon: Icons.feedback,
-                    controller: _notesController,
-                    maxLines: 5,
-                    highlight: true,
-                    highlightColor: Colors.blue,
-                    hintText: '輸入需要手機端用戶跟進的任務或回饋...',
-                  ),
+                  // 對話 / 跟進記錄
+                  _buildConversationSection(),
                   const SizedBox(height: 24),
                   // 儲存按鈕
                   if (_hasChanges)
@@ -236,9 +316,311 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
     );
   }
 
+  // ═══════════ Conversation section ═══════════
+
+  Widget _buildConversationSection() {
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.forum, color: Colors.blue.shade700, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                '跟進對話',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: Colors.blue.shade700,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '${_conversation.length} 條訊息',
+                  style: TextStyle(
+                    color: Colors.blue.shade700,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // 對話列表
+          Container(
+            constraints: const BoxConstraints(maxHeight: 350),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: _conversation.isEmpty
+                ? const Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Center(
+                      child: Text(
+                        '尚無對話記錄\n在下方輸入跟進任務開始對話',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.grey, fontSize: 14),
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.all(12),
+                    itemCount: _conversation.length,
+                    itemBuilder: (context, index) {
+                      final msg = _conversation[index];
+                      final isCompany = msg.sender == 'company';
+                      return _buildMessageBubble(msg, isCompany);
+                    },
+                  ),
+          ),
+          const SizedBox(height: 12),
+          // 訊息輸入區
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _convoInputController,
+                  maxLines: 2,
+                  decoration: InputDecoration(
+                    hintText: '輸入跟進任務或回覆...',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.blue.shade200),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.blue.shade200),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide:
+                          BorderSide(color: Colors.blue.shade600, width: 2),
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                    contentPadding: const EdgeInsets.all(12),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                height: 52,
+                child: ElevatedButton.icon(
+                  onPressed: _isSendingMessage ? null : _sendCompanyMessage,
+                  icon: _isSendingMessage
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.send, size: 18),
+                  label: Text(_isSendingMessage ? '...' : '發送'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue.shade600,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessageBubble(ConversationMessage msg, bool isCompany) {
+    final time = DateFormat('MM/dd HH:mm').format(msg.timestamp.toLocal());
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment:
+            isCompany ? MainAxisAlignment.end : MainAxisAlignment.start,
+        children: [
+          if (!isCompany) ...[
+            CircleAvatar(
+              radius: 16,
+              backgroundColor: Colors.teal.shade100,
+              child: Icon(Icons.engineering,
+                  size: 18, color: Colors.teal.shade700),
+            ),
+            const SizedBox(width: 8),
+          ],
+          Flexible(
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isCompany ? Colors.blue.shade50 : Colors.teal.shade50,
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(12),
+                  topRight: const Radius.circular(12),
+                  bottomLeft: Radius.circular(isCompany ? 12 : 2),
+                  bottomRight: Radius.circular(isCompany ? 2 : 12),
+                ),
+                border: Border.all(
+                  color:
+                      isCompany ? Colors.blue.shade200 : Colors.teal.shade200,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        isCompany ? '公司' : '工人',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          color: isCompany
+                              ? Colors.blue.shade700
+                              : Colors.teal.shade700,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        time,
+                        style: TextStyle(
+                            fontSize: 11, color: Colors.grey.shade500),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  // 圖片
+                  if (msg.image != null && msg.image!.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: GestureDetector(
+                        onTap: () => _openImageViewer(
+                          msg.image!.startsWith('http')
+                              ? Image.network(msg.image!, fit: BoxFit.contain)
+                              : Image.memory(
+                                  base64Decode(msg.image!),
+                                  fit: BoxFit.contain,
+                                ),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: msg.image!.startsWith('http')
+                              ? Image.network(
+                                  msg.image!,
+                                  height: 120,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) =>
+                                      const SizedBox.shrink(),
+                                )
+                              : Image.memory(
+                                  base64Decode(msg.image!),
+                                  height: 120,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) =>
+                                      const SizedBox.shrink(),
+                                ),
+                        ),
+                      ),
+                    ),
+                  Text(
+                    msg.text,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isCompany
+                          ? Colors.blue.shade900
+                          : Colors.teal.shade900,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (isCompany) ...[
+            const SizedBox(width: 8),
+            CircleAvatar(
+              radius: 16,
+              backgroundColor: Colors.blue.shade100,
+              child:
+                  Icon(Icons.business, size: 18, color: Colors.blue.shade700),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   // ═══════════ Widget builders ═══════════
 
+  void _openImageViewer(Widget imageWidget) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (_) => Dialog.fullscreen(
+        backgroundColor: Colors.black,
+        child: Stack(
+          children: [
+            Center(
+              child: InteractiveViewer(
+                minScale: 0.5,
+                maxScale: 5.0,
+                child: imageWidget,
+              ),
+            ),
+            Positioned(
+              top: 40,
+              right: 16,
+              child: SafeArea(
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: const BoxDecoration(
+                      color: Colors.black54,
+                      shape: BoxShape.circle,
+                    ),
+                    child:
+                        const Icon(Icons.close, color: Colors.white, size: 24),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildImageCard(String? imageUrl, String? imageBase64) {
+    final Widget imageWidget = imageUrl != null && imageUrl.isNotEmpty
+        ? Image.network(
+            imageUrl,
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+          )
+        : imageBase64 != null && imageBase64.isNotEmpty
+            ? Image.memory(
+                Uri.parse('data:image/jpeg;base64,$imageBase64').data != null
+                    ? Uri.parse('data:image/jpeg;base64,$imageBase64')
+                        .data!
+                        .contentAsBytes()
+                    : base64Decode(imageBase64),
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+              )
+            : const SizedBox.shrink();
+
     return _card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -252,30 +634,37 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: imageUrl != null && imageUrl.isNotEmpty
-                ? Image.network(
-                    imageUrl,
-                    height: 260,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _noImagePlaceholder(),
-                  )
-                : imageBase64 != null && imageBase64.isNotEmpty
-                    ? Image.memory(
-                        Uri.parse('data:image/jpeg;base64,$imageBase64').data !=
-                                null
-                            ? Uri.parse('data:image/jpeg;base64,$imageBase64')
-                                .data!
-                                .contentAsBytes()
-                            : base64Decode(imageBase64),
-                        height: 260,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _noImagePlaceholder(),
-                      )
-                    : _noImagePlaceholder(),
+          GestureDetector(
+            onTap: (imageUrl != null && imageUrl.isNotEmpty) ||
+                    (imageBase64 != null && imageBase64.isNotEmpty)
+                ? () => _openImageViewer(imageWidget)
+                : null,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: imageUrl != null && imageUrl.isNotEmpty
+                  ? Image.network(
+                      imageUrl,
+                      height: 260,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _noImagePlaceholder(),
+                    )
+                  : imageBase64 != null && imageBase64.isNotEmpty
+                      ? Image.memory(
+                          Uri.parse('data:image/jpeg;base64,$imageBase64')
+                                      .data !=
+                                  null
+                              ? Uri.parse('data:image/jpeg;base64,$imageBase64')
+                                  .data!
+                                  .contentAsBytes()
+                              : base64Decode(imageBase64),
+                          height: 260,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _noImagePlaceholder(),
+                        )
+                      : _noImagePlaceholder(),
+            ),
           ),
         ],
       ),

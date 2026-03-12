@@ -1,3 +1,38 @@
+import 'dart:convert';
+
+/// 對話訊息模型
+class ConversationMessage {
+  final String sender; // 'worker' | 'company'
+  final String text;
+  final String? image; // base64 or URL
+  final DateTime timestamp;
+
+  ConversationMessage({
+    required this.sender,
+    required this.text,
+    this.image,
+    DateTime? timestamp,
+  }) : timestamp = timestamp ?? DateTime.now();
+
+  Map<String, dynamic> toJson() => {
+        'sender': sender,
+        'text': text,
+        'image': image,
+        'timestamp': timestamp.toIso8601String(),
+      };
+
+  factory ConversationMessage.fromJson(Map<String, dynamic> json) {
+    return ConversationMessage(
+      sender: json['sender'] as String? ?? 'worker',
+      text: json['text'] as String? ?? '',
+      image: json['image'] as String?,
+      timestamp: json['timestamp'] != null
+          ? DateTime.tryParse(json['timestamp'] as String) ?? DateTime.now()
+          : DateTime.now(),
+    );
+  }
+}
+
 class ReportModel {
   final int? id;
   final String title;
@@ -16,9 +51,11 @@ class ReportModel {
   final double? latitude;
   final double? longitude;
   final String? aiAnalysis;
-  final String? companyNotes; // 公司後台回饋 / 跟進任務
-  final String? workerResponse; // 工人回覆文字
-  final String? workerResponseImage; // 工人回覆圖片 (base64 / URL)
+  final String? companyNotes; // 公司後台回饋 / 跟進任務（向後兼容）
+  final String? workerResponse; // 工人回覆文字（向後兼容）
+  final String? workerResponseImage; // 工人回覆圖片（向後兼容）
+  final List<ConversationMessage> conversation; // 多輪對話
+  final bool hasUnreadCompany; // 當公司發送新訊息時設為 true，工人查看後設為 false
   final DateTime createdAt;
   final DateTime? updatedAt;
   final bool synced;
@@ -43,10 +80,60 @@ class ReportModel {
     this.companyNotes,
     this.workerResponse,
     this.workerResponseImage,
+    this.conversation = const [],
+    this.hasUnreadCompany = false,
     DateTime? createdAt,
     this.updatedAt,
     this.synced = false,
   }) : createdAt = createdAt ?? DateTime.now();
+
+  /// 取得合併後的完整對話（包含舊的 companyNotes / workerResponse + 新的 conversation）
+  List<ConversationMessage> get mergedConversation {
+    final List<ConversationMessage> merged = [];
+    // 向後兼容：如果只有舊欄位而 conversation 為空，遷移到對話格式
+    if (conversation.isEmpty) {
+      if (companyNotes != null && companyNotes!.isNotEmpty) {
+        merged.add(ConversationMessage(
+          sender: 'company',
+          text: companyNotes!,
+          timestamp: updatedAt ?? createdAt,
+        ));
+      }
+      if (workerResponse != null && workerResponse!.isNotEmpty) {
+        merged.add(ConversationMessage(
+          sender: 'worker',
+          text: workerResponse!,
+          image: workerResponseImage,
+          timestamp: updatedAt ?? createdAt,
+        ));
+      }
+    } else {
+      merged.addAll(conversation);
+    }
+    // 按時間排序
+    merged.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    return merged;
+  }
+
+  /// 將 conversation 列表序列化為 JSON 字串
+  static String? conversationToJson(List<ConversationMessage> list) {
+    if (list.isEmpty) return null;
+    return jsonEncode(list.map((m) => m.toJson()).toList());
+  }
+
+  /// 從 JSON 字串反序列化 conversation
+  static List<ConversationMessage> conversationFromJson(String? json) {
+    if (json == null || json.isEmpty) return [];
+    try {
+      final List<dynamic> list = jsonDecode(json);
+      return list
+          .map(
+              (e) => ConversationMessage.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
 
   // Convert to Map for database storage
   Map<String, dynamic> toMap() {
@@ -68,6 +155,8 @@ class ReportModel {
       'longitude': longitude,
       'ai_analysis': aiAnalysis,
       'company_notes': companyNotes,
+      'conversation': conversationToJson(conversation),
+      'has_unread_company': hasUnreadCompany ? 1 : 0,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
       'synced': synced ? 1 : 0,
@@ -96,6 +185,8 @@ class ReportModel {
       companyNotes: map['company_notes'] as String?,
       workerResponse: map['worker_response'] as String?,
       workerResponseImage: map['worker_response_image'] as String?,
+      conversation: conversationFromJson(map['conversation'] as String?),
+      hasUnreadCompany: (map['has_unread_company'] as int?) == 1,
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: map['updated_at'] != null
           ? DateTime.parse(map['updated_at'] as String)
@@ -125,6 +216,8 @@ class ReportModel {
       'company_notes': companyNotes,
       'worker_response': workerResponse,
       'worker_response_image': workerResponseImage,
+      'conversation': conversationToJson(conversation),
+      'has_unread_company': hasUnreadCompany,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
     };
@@ -151,6 +244,8 @@ class ReportModel {
       companyNotes: json['company_notes'] as String?,
       workerResponse: json['worker_response'] as String?,
       workerResponseImage: json['worker_response_image'] as String?,
+      conversation: conversationFromJson(json['conversation'] as String?),
+      hasUnreadCompany: json['has_unread_company'] == true,
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'] as String)
           : DateTime.now(),
@@ -182,6 +277,8 @@ class ReportModel {
     String? companyNotes,
     String? workerResponse,
     String? workerResponseImage,
+    List<ConversationMessage>? conversation,
+    bool? hasUnreadCompany,
     DateTime? createdAt,
     DateTime? updatedAt,
     bool? synced,
@@ -206,6 +303,8 @@ class ReportModel {
       companyNotes: companyNotes ?? this.companyNotes,
       workerResponse: workerResponse ?? this.workerResponse,
       workerResponseImage: workerResponseImage ?? this.workerResponseImage,
+      conversation: conversation ?? this.conversation,
+      hasUnreadCompany: hasUnreadCompany ?? this.hasUnreadCompany,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       synced: synced ?? this.synced,

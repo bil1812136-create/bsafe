@@ -25,126 +25,152 @@ class RecentReportCard extends StatelessWidget {
           ),
         ],
       ),
-      child: InkWell(
-        onTap: () {
-          // Navigate to detail
-        },
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              // Thumbnail
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade200,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: _buildThumbnail(report),
-              ),
-              const SizedBox(width: 12),
-
-              // Content
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      report.title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 15,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+      child: Stack(
+        children: [
+          InkWell(
+            onTap: () {
+              // Navigate to detail
+            },
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  // Thumbnail
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade200,
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    const SizedBox(height: 4),
-                    Row(
+                    child: _buildThumbnail(report),
+                  ),
+                  const SizedBox(width: 12),
+
+                  // Content
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _CategoryTag(category: report.category),
-                        const SizedBox(width: 8),
                         Text(
-                          DateFormat('MM/dd HH:mm').format(report.createdAt),
-                          style: TextStyle(
-                            color: Colors.grey.shade500,
-                            fontSize: 12,
+                          report.title,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 15,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            _CategoryTag(category: report.category),
+                            const SizedBox(width: 8),
+                            Text(
+                              DateFormat('MM/dd HH:mm')
+                                  .format(report.createdAt),
+                              style: TextStyle(
+                                color: Colors.grey.shade500,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                  ],
-                ),
-              ),
-
-              // Risk Badge
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppTheme.getRiskColor(report.riskLevel),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      AppTheme.getRiskLabel(report.riskLevel),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
                   ),
-                  const SizedBox(height: 4),
-                  if (report.isUrgent)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.warning_amber,
-                          size: 14,
-                          color: Colors.red.shade600,
+
+                  // Risk Badge
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
                         ),
-                        const SizedBox(width: 2),
-                        Text(
-                          '緊急',
-                          style: TextStyle(
-                            color: Colors.red.shade600,
+                        decoration: BoxDecoration(
+                          color: AppTheme.getRiskColor(report.riskLevel),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          AppTheme.getRiskLabel(report.riskLevel),
+                          style: const TextStyle(
+                            color: Colors.white,
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                      ],
-                    ),
-                  if (!report.synced)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.cloud_off,
-                          size: 14,
-                          color: Colors.orange.shade600,
+                      ),
+                      const SizedBox(height: 4),
+                      if (report.isUrgent)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.warning_amber,
+                              size: 14,
+                              color: Colors.red.shade600,
+                            ),
+                            const SizedBox(width: 2),
+                            Text(
+                              '緊急',
+                              style: TextStyle(
+                                color: Colors.red.shade600,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 2),
-                        Text(
-                          '待同步',
-                          style: TextStyle(
-                            color: Colors.orange.shade600,
-                            fontSize: 11,
-                          ),
+                      if (!report.synced)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.cloud_off,
+                              size: 14,
+                              color: Colors.orange.shade600,
+                            ),
+                            const SizedBox(width: 2),
+                            Text(
+                              '待同步',
+                              style: TextStyle(
+                                color: Colors.orange.shade600,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                    ],
+                  ),
                 ],
               ),
-            ],
+            ),
           ),
-        ),
+          // 紅色未讀標記
+          if (report.hasUnreadCompany)
+            Positioned(
+              top: 6,
+              right: 6,
+              child: Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: Colors.red,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.red.withValues(alpha: 0.4),
+                      blurRadius: 4,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

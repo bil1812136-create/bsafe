@@ -46,6 +46,8 @@ class _InspectionScreenState extends State<InspectionScreen> {
     super.initState();
     _uwbService = UwbService();
     _uwbService.loadAnchorsFromStorage();
+    // 恢復該專案的樓層設定 (總樓層數 + 樓層圖路徑)
+    _uwbService.restoreFloorSettings(projectId: widget.project?.id);
     if (widget.project != null) {
       _currentFloor = widget.project!.currentFloor;
     }
@@ -508,6 +510,18 @@ class _InspectionScreenState extends State<InspectionScreen> {
                                 label: const Text('載入樓層圖'),
                               ),
                             ),
+                            if (uwbService.floorPlanImage != null) ...[
+                              const SizedBox(width: 4),
+                              IconButton(
+                                icon: const Icon(Icons.hide_image,
+                                    color: Colors.red, size: 20),
+                                onPressed: () => _clearFloorPlan(uwbService),
+                                tooltip: '刪除樓層圖',
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(
+                                    minWidth: 36, minHeight: 36),
+                              ),
+                            ],
                           ],
                         ),
                         const SizedBox(height: 16),
@@ -922,8 +936,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
                   ),
 
                 // 載入樓層平面圖按鈕 (當沒有 floor plan 時)
-                if (uwbService.floorPlanImage == null &&
-                    !uwbService.config.showFloorPlan)
+                if (uwbService.floorPlanImage == null)
                   Positioned(
                     bottom: 16,
                     left: 16,
@@ -934,6 +947,23 @@ class _InspectionScreenState extends State<InspectionScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
                         foregroundColor: AppTheme.primaryColor,
+                        elevation: 4,
+                      ),
+                    ),
+                  ),
+
+                // 刪除樓層圖按鈕 (當有 floor plan 時)
+                if (uwbService.floorPlanImage != null)
+                  Positioned(
+                    bottom: 16,
+                    left: 16,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _clearFloorPlan(uwbService),
+                      icon: const Icon(Icons.hide_image, size: 18),
+                      label: const Text('刪除樓層圖'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.red,
                         elevation: 4,
                       ),
                     ),
@@ -1202,6 +1232,12 @@ class _InspectionScreenState extends State<InspectionScreen> {
                       uwbService, context.read<InspectionProvider>()),
                   tooltip: '載入樓層圖',
                 ),
+                if (uwbService.floorPlanImage != null)
+                  IconButton(
+                    icon: const Icon(Icons.hide_image, color: Colors.red),
+                    onPressed: () => _clearFloorPlan(uwbService),
+                    tooltip: '刪除樓層圖',
+                  ),
               ],
             ),
     );
@@ -1641,6 +1677,11 @@ class _InspectionScreenState extends State<InspectionScreen> {
   }
 
   // ===== 載入樓層圖 =====
+  void _clearFloorPlan(UwbService uwbService) {
+    uwbService.clearFloorPlanForFloor(uwbService.currentFloor);
+    uwbService.updateConfig(uwbService.config.copyWith(showFloorPlan: false));
+  }
+
   Future<void> _loadFloorPlan(
       UwbService uwbService, InspectionProvider inspection) async {
     final result = await FilePicker.platform.pickFiles(
@@ -1654,6 +1695,87 @@ class _InspectionScreenState extends State<InspectionScreen> {
       uwbService.updateConfig(uwbService.config.copyWith(showFloorPlan: true));
       inspection.updateFloorPlan(path);
     }
+  }
+
+  /// 為指定樓層載入平面圖（不強制切換當前樓層）
+  Future<void> _loadFloorPlanForSpecificFloor(
+      UwbService uwbService, InspectionProvider inspection, int floor) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['png', 'jpg', 'jpeg', 'svg', 'pdf'],
+      dialogTitle: '選擇 ${floor}F 樓層平面圖',
+    );
+    if (result != null && result.files.single.path != null) {
+      final path = result.files.single.path!;
+      await uwbService.loadFloorPlanForFloor(floor, path);
+      if (uwbService.currentFloor == floor) {
+        uwbService
+            .updateConfig(uwbService.config.copyWith(showFloorPlan: true));
+      }
+      inspection.updateFloorPlan(path);
+    }
+  }
+
+  /// 門成每層樓層圖管理選單
+  void _showFloorPlanMenu(BuildContext context, UwbService uwbService,
+      InspectionProvider inspection, int floor) {
+    final hasFloorPlan = uwbService.floorPlanPaths.containsKey(floor);
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 4),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                '${floor}F 樓層圖管理',
+                style:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+            ListTile(
+              leading: Icon(
+                hasFloorPlan ? Icons.refresh : Icons.map,
+                color: AppTheme.primaryColor,
+              ),
+              title: Text(
+                  hasFloorPlan ? '重新載入 ${floor}F 樓層圖' : '載入 ${floor}F 樓層圖'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _loadFloorPlanForSpecificFloor(uwbService, inspection, floor);
+              },
+            ),
+            if (hasFloorPlan)
+              ListTile(
+                leading: const Icon(Icons.hide_image, color: Colors.red),
+                title: Text('刪除 ${floor}F 樓層圖'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  uwbService.clearFloorPlanForFloor(floor);
+                  if (uwbService.currentFloor == floor) {
+                    uwbService.updateConfig(
+                        uwbService.config.copyWith(showFloorPlan: false));
+                  }
+                },
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
   }
 
   // ===== 樓層選擇器 =====
@@ -1716,6 +1838,8 @@ class _InspectionScreenState extends State<InspectionScreen> {
                                     inspection, widget.project!, floor);
                               }
                             },
+                            onLongPress: () => _showFloorPlanMenu(
+                                context, uwbService, inspection, floor),
                             child: Container(
                               constraints: const BoxConstraints(minWidth: 36),
                               padding:
@@ -3122,7 +3246,11 @@ class _InspectionScreenState extends State<InspectionScreen> {
               onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
           ElevatedButton(
             onPressed: () {
-              inspection.createSession(controller.text);
+              inspection.createSession(
+                controller.text,
+                projectId: widget.project?.id,
+                floor: _currentFloor,
+              );
               Navigator.pop(ctx);
             },
             child: const Text('建立'),
@@ -3133,6 +3261,10 @@ class _InspectionScreenState extends State<InspectionScreen> {
   }
 
   void _showLoadSessionDialog(InspectionProvider inspection) {
+    final projectId = widget.project?.id;
+    final projectSessions = projectId != null
+        ? inspection.sessions.where((s) => s.projectId == projectId).toList()
+        : inspection.sessions;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -3140,12 +3272,12 @@ class _InspectionScreenState extends State<InspectionScreen> {
         content: SizedBox(
           width: 400,
           height: 300,
-          child: inspection.sessions.isEmpty
+          child: projectSessions.isEmpty
               ? const Center(child: Text('沒有保存的巡檢會話'))
               : ListView.builder(
-                  itemCount: inspection.sessions.length,
+                  itemCount: projectSessions.length,
                   itemBuilder: (context, index) {
-                    final session = inspection.sessions[index];
+                    final session = projectSessions[index];
                     return ListTile(
                       title: Text(session.name),
                       subtitle: Text(
@@ -3164,6 +3296,11 @@ class _InspectionScreenState extends State<InspectionScreen> {
                           : null,
                       onTap: () {
                         inspection.switchSession(session.id);
+                        // 同步樓層狀態到 UI 和 UwbService
+                        if (session.floor != _currentFloor) {
+                          setState(() => _currentFloor = session.floor);
+                          _uwbService.setCurrentFloor(session.floor);
+                        }
                         Navigator.pop(ctx);
                       },
                     );

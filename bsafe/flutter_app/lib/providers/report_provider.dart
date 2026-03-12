@@ -200,7 +200,7 @@ class ReportProvider extends ChangeNotifier {
     }
   }
 
-  /// 提交工人回覆並更新狀態為「處理中」
+  /// 提交工人回覆並更新狀態為「處理中」— 添加到對話
   Future<bool> submitWorkerResponse(
       ReportModel report, String responseText, String? imageBase64) async {
     try {
@@ -213,10 +213,20 @@ class ReportProvider extends ChangeNotifier {
       // 更新本地列表
       final index = _reports.indexWhere((r) => r.id == report.id);
       if (index >= 0) {
+        final updatedConv =
+            List<ConversationMessage>.from(_reports[index].mergedConversation);
+        updatedConv.add(ConversationMessage(
+          sender: 'worker',
+          text: responseText,
+          image: imageBase64,
+          timestamp: DateTime.now(),
+        ));
         _reports[index] = report.copyWith(
           status: 'in_progress',
           workerResponse: responseText,
           workerResponseImage: imageBase64,
+          conversation: updatedConv,
+          hasUnreadCompany: false,
           updatedAt: DateTime.now(),
         );
         _statistics = _computeStatistics(_reports);
@@ -227,6 +237,52 @@ class ReportProvider extends ChangeNotifier {
       _error = '提交回覆失敗: $e';
       notifyListeners();
       return false;
+    }
+  }
+
+  /// 公司端添加對話訊息
+  Future<bool> addCompanyMessage(ReportModel report, String messageText) async {
+    try {
+      if (!SupabaseService.isConfigured || report.id == null) return false;
+
+      final success = await SupabaseService.instance
+          .addCompanyMessage(report.id!, messageText);
+      if (!success) return false;
+
+      // 更新本地列表
+      final index = _reports.indexWhere((r) => r.id == report.id);
+      if (index >= 0) {
+        final updatedConv =
+            List<ConversationMessage>.from(_reports[index].mergedConversation);
+        updatedConv.add(ConversationMessage(
+          sender: 'company',
+          text: messageText,
+          timestamp: DateTime.now(),
+        ));
+        _reports[index] = _reports[index].copyWith(
+          companyNotes: messageText,
+          conversation: updatedConv,
+          hasUnreadCompany: true,
+          updatedAt: DateTime.now(),
+        );
+        notifyListeners();
+      }
+      return true;
+    } catch (e) {
+      _error = '發送訊息失敗: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// 清除未讀標記（工人端查看報告詳情時調用）
+  Future<void> clearUnreadCompany(ReportModel report) async {
+    if (report.id == null || !report.hasUnreadCompany) return;
+    await SupabaseService.instance.clearUnreadCompany(report.id!);
+    final index = _reports.indexWhere((r) => r.id == report.id);
+    if (index >= 0) {
+      _reports[index] = _reports[index].copyWith(hasUnreadCompany: false);
+      notifyListeners();
     }
   }
 
