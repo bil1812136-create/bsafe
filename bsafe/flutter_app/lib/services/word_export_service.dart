@@ -123,7 +123,7 @@ class WordExportService {
           if (defect.recommendations.isNotEmpty) {
             body.writeln(_paragraph('Recommendations:'));
             for (final rec in defect.recommendations) {
-              body.writeln(_bulletPoint('$rec'));
+              body.writeln(_bulletPoint(rec));
             }
           }
 

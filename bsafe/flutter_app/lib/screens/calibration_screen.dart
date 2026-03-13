@@ -87,9 +87,9 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
     final scale = zoom / _currentZoom;
     // 以中心點為基準縮放
     final newMatrix = oldMatrix
-      ..translate(center.dx, center.dy)
-      ..scale(scale)
-      ..translate(-center.dx, -center.dy);
+      ..translateByDouble(center.dx, center.dy, 0, 1)
+      ..scaleByDouble(scale, scale, 1, 1)
+      ..translateByDouble(-center.dx, -center.dy, 0, 1);
     _transformController.value = newMatrix;
     setState(() => _currentZoom = zoom);
   }
@@ -487,7 +487,7 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
           const SizedBox(width: 6),
           Expanded(
             child: Text(
-              _mode == 'floor_plan' ? 'Floor Plan Calibration' : '${_roomWidth}×${_roomHeight}m',
+              _mode == 'floor_plan' ? 'Floor Plan Calibration' : '$_roomWidth×${_roomHeight}m',
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
               overflow: TextOverflow.ellipsis,
             ),
@@ -1321,18 +1321,18 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                   color: Colors.blue.shade800)),
           const SizedBox(height: 8),
           if (isRoomMode) ...[
-            _buildStep(1, 'Click room diagram to place anchors (at least 1)', _placedAnchors.length >= 1),
+            _buildStep(1, 'Click room diagram to place anchors (at least 1)', _placedAnchors.isNotEmpty),
             _buildStep(2, 'Coordinates auto-calculated from room size', _isCalibrated),
             _buildStep(3, 'Click "Apply to System" to finish', false),
           ] else if (isSingleAnchorFloorPlan) ...[
-            _buildStep(1, 'Click canvas to place 1 anchor', _placedAnchors.length >= 1),
-            _buildStep(2, 'Click "Mark Reference Distance" to place 2 reference points', _referencePoints.length == 2),
+            _buildStep(1, 'Click canvas to place 1 anchor', _placedAnchors.isNotEmpty),
+            _buildStep(2, 'Click "Mark Reference Distance" to place 2 reference points', _referencePoints.length > 1),
             _buildStep(3, 'Enter the real distance between the 2 reference points (meters)', _referenceRealDistance > 0),
             _buildStep(4, 'Click "Calculate Calibration"', _isCalibrated),
             _buildStep(5, 'Click "Apply to System" to finish', false),
           ] else ...[
-            _buildStep(1, 'Click canvas to place anchors (at least 1)', _placedAnchors.length >= 1),
-            if (_placedAnchors.length >= 2) ...[
+            _buildStep(1, 'Click canvas to place anchors (at least 1)', _placedAnchors.isNotEmpty),
+            if (_placedAnchors.length > 1) ...[
               _buildStep(2, 'Click 📏 to select anchor pairs', _selectedAnchorIndex != null),
               _buildStep(3, 'Enter real distance between anchors (meters)', _distancePairs.any((d) => d.distance > 0)),
             ],
@@ -1689,7 +1689,7 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
 
   void _autoCalibRoomMode() {
     // 房間模式已有真實座標，不需要距離校正
-    if (_mode == 'room_dimension' && _placedAnchors.length >= 1) {
+    if (_mode == 'room_dimension' && _placedAnchors.isNotEmpty) {
       setState(() {
         _calculatedScale = 1.0; // 房間模式比例尺已內含
         _isCalibrated = true;
@@ -2182,8 +2182,9 @@ class _CalibrationPainter extends CustomPainter {
 
   void _drawDistanceLines(Canvas canvas, Size size) {
     for (final pair in distancePairs) {
-      if (pair.anchorA >= anchors.length || pair.anchorB >= anchors.length)
+      if (pair.anchorA >= anchors.length || pair.anchorB >= anchors.length) {
         continue;
+      }
 
       final a = anchors[pair.anchorA];
       final b = anchors[pair.anchorB];

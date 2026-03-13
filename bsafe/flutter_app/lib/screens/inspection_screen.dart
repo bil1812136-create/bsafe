@@ -120,7 +120,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
       UwbService uwbService, InspectionProvider inspection) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(bottom: BorderSide(color: AppTheme.borderColor, width: 1)),
       ),
@@ -130,7 +130,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
+              gradient: const LinearGradient(
                 colors: [
                   AppTheme.primaryColor,
                   AppTheme.primaryLight,
@@ -216,7 +216,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
   Widget _buildMobileBottomBar(
       UwbService uwbService, InspectionProvider inspection) {
     return Container(
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(top: BorderSide(color: AppTheme.borderColor, width: 1)),
       ),
@@ -3638,7 +3638,7 @@ class _PinDetailDialogState extends State<_PinDetailDialog> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
         side: isSelected
-            ? BorderSide(color: AppTheme.primaryColor, width: 2)
+            ? const BorderSide(color: AppTheme.primaryColor, width: 2)
             : BorderSide.none,
       ),
       clipBehavior: Clip.antiAlias,
@@ -4589,7 +4589,7 @@ class _PhotoAnalysisDialogState extends State<_PhotoAnalysisDialog> {
   String _buildSurroundingContext() {
     final buf = StringBuffer();
     final pin = widget.pin;
-    final radius = 5.0;
+    const radius = 5.0;
 
     // Same-floor nearby defects
     final nearbyDefects = <String>[];

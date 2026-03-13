@@ -62,11 +62,11 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
+        title: const Row(
           children: [
             Icon(Icons.add_business, color: AppTheme.primaryColor),
-            const SizedBox(width: 8),
-            const Text('New Project'),
+            SizedBox(width: 8),
+            Text('New Project'),
           ],
         ),
         content: Column(
@@ -217,7 +217,7 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
+                gradient: const LinearGradient(
                   colors: [
                     AppTheme.primaryColor,
                     AppTheme.primaryLight,
@@ -351,7 +351,7 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
                         ),
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      child: Icon(Icons.business_rounded,
+                      child: const Icon(Icons.business_rounded,
                           color: AppTheme.primaryColor, size: 26),
                     ),
                     const SizedBox(width: 14),
@@ -375,7 +375,7 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
                       onSelected: (value) {
                         if (value == 'delete') _deleteProject(project);
                       },
-                      icon: Icon(Icons.more_horiz_rounded, color: AppTheme.textHint),
+                      icon: const Icon(Icons.more_horiz_rounded, color: AppTheme.textHint),
                       itemBuilder: (ctx) => [
                         const PopupMenuItem(
                             value: 'delete',
@@ -425,7 +425,7 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
         Icon(icon, size: 14, color: color.withValues(alpha: 0.7)),
         const SizedBox(width: 4),
         Text(label,
-            style: TextStyle(
+            style: const TextStyle(
                 fontSize: 12, color: AppTheme.textSecondary, fontWeight: FontWeight.w500)),
       ],
     );

@@ -155,7 +155,7 @@ class HomeScreen extends StatelessWidget {
                     width: double.infinity,
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
+                      gradient: const LinearGradient(
                         colors: [
                           AppTheme.primaryColor,
                           AppTheme.primaryLight,

@@ -52,6 +52,7 @@ dependencies:
   pdfrx: ^2.2.24
   pdf: ^3.11.1
   share_plus: ^10.1.4
+  archive: ^4.0.9
 
   # YOLO Object Detection (Android/iOS)
   ultralytics_yolo: ^0.2.0
