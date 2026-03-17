@@ -364,12 +364,6 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                     content: ReportModel.getSeverityLabel(_report.severity),
                   ),
 
-                  _DetailSection(
-                    title: '詳細描述',
-                    icon: Icons.description,
-                    content: _report.description,
-                  ),
-
                   if (_report.location != null && _report.location!.isNotEmpty)
                     _DetailSection(
                       title: '位置資訊',

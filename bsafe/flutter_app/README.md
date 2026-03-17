@@ -287,3 +287,7 @@ flutter run -d android
 
 flutter run -d R5CR30PFFTN
 
+fake phone
+cd "C:\Users\student\Downloads\bsafe\bsafe\flutter_app"
+flutter emulators --launch Medium_Phone_API_36.1
+flutter run -d emulator-5554

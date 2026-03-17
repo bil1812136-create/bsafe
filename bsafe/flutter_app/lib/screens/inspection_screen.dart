@@ -10,11 +10,14 @@ import 'package:file_picker/file_picker.dart';
 import 'package:bsafe_app/models/uwb_model.dart';
 import 'package:bsafe_app/models/inspection_model.dart';
 import 'package:bsafe_app/models/project_model.dart';
+import 'package:bsafe_app/models/report_model.dart';
 import 'package:bsafe_app/services/uwb_service.dart';
 import 'package:bsafe_app/services/desktop_serial_service.dart';
 import 'package:bsafe_app/services/mobile_serial_service.dart';
 import 'package:bsafe_app/services/yolo_service.dart';
 import 'package:bsafe_app/providers/inspection_provider.dart';
+import 'package:bsafe_app/providers/report_provider.dart';
+import 'package:bsafe_app/services/supabase_service.dart';
 import 'package:bsafe_app/theme/app_theme.dart';
 import 'package:bsafe_app/screens/calibration_screen.dart';
 import 'package:bsafe_app/services/api_service.dart';
@@ -5075,7 +5078,7 @@ class _PhotoAnalysisDialogState extends State<_PhotoAnalysisDialog> {
     );
   }
 
-  void _saveAndClose() {
+  Future<void> _saveAndClose() async {
     var updatedPin = widget.pin;
 
     // 建立一個新的 Defect 物件（若有拍照）
@@ -5120,6 +5123,52 @@ class _PhotoAnalysisDialogState extends State<_PhotoAnalysisDialog> {
                   [],
           status: 'analyzed',
         );
+      }
+
+      // ✨ 新增：保存時同步到 Supabase reports 表（HistoryScreen 可看到）
+      try {
+        final defectTitle = _analysisResult?['category'] as String? ?? '未分類缺陷';
+        final defectDescription =
+            _analysisResult?['analysis'] as String? ?? '已拍照記錄';
+        final riskLevel = _analysisResult?['risk_level'] as String? ?? 'medium';
+        final riskScore = _analysisResult?['risk_score'] as int? ?? 50;
+
+        // 建立報告記錄
+        final report = ReportModel(
+          title: '巡檢記錄 - $defectTitle',
+          description: defectDescription,
+          category: 'inspection', // 標記為巡檢記錄
+          severity: riskLevel,
+          riskLevel: riskLevel,
+          riskScore: riskScore,
+          isUrgent: riskScore >= 70,
+          status: 'pending', // 初始狀態
+          imageUrl: null, // createReport 會自動上傳
+          imageBase64: _imageBase64,
+          aiAnalysis: _analysisResult != null
+              ? _analysisResult!['analysis'].toString()
+              : '',
+          location:
+              'UWB 座標: (${widget.pin.x.toStringAsFixed(2)}, ${widget.pin.y.toStringAsFixed(2)})',
+          latitude: widget.pin.x,
+          longitude: widget.pin.y,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+
+        // 上傳到雲端（包含圖片）
+        final created = await SupabaseService.instance
+            .createReport(report, imageBase64: _imageBase64);
+        if (created != null) {
+          // 同步報告清單（讓 HistoryScreen 立即看到）
+          context.read<ReportProvider>().refreshFromCloud();
+          debugPrint('✅ 巡檢缺陷已同步到歷史記錄 (ID: ${created.id})');
+        } else {
+          debugPrint('⚠️ 同步到歷史記錄失敗，但本地巡檢已保存');
+        }
+      } catch (e) {
+        debugPrint('⚠️ 同步到歷史記錄失敗: $e，但本地巡檢已保存');
+        // 同步失敗不阻止保存，繼續流程
       }
     }
 
