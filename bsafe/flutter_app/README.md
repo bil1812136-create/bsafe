@@ -86,6 +86,31 @@ flutter pub get
 > ALTER TABLE reports ADD COLUMN IF NOT EXISTS company_notes TEXT;
 > ```
 
+⚠️ **巡檢資料同步（Inspection）需新增資料表（請整段直接貼到 SQL Editor）：**
+```sql
+CREATE TABLE IF NOT EXISTS inspection_sessions (
+  session_id      TEXT PRIMARY KEY,
+  name            TEXT NOT NULL,
+  project_id      TEXT,
+  floor           INTEGER DEFAULT 1,
+  floor_plan_path TEXT,
+  status          TEXT DEFAULT 'active',
+  payload         JSONB NOT NULL,
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE inspection_sessions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS inspection_sessions_allow_all ON inspection_sessions;
+
+CREATE POLICY inspection_sessions_allow_all
+ON inspection_sessions
+FOR ALL
+USING (true)
+WITH CHECK (true);
+```
+
 ---
 
 ## 功能清單
@@ -287,10 +312,12 @@ flutter run -d chrome --target lib/main_web.dart --dart-define=GEMINI_API_KEY=$e
 
 手機:
 cd "C:\Users\student\Downloads\bsafe\bsafe\flutter_app"
-$env:GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
-flutter run -d android --dart-define=GEMINI_API_KEY=$env:GEMINI_API_KEY
+$env:GEMINI_API_KEY="AIzaSyA38fHvnRxu1uxhR0LsDeoXCRE0dd1q8YQ"
 
 flutter run -d R5CR30PFFTN --dart-define=GEMINI_API_KEY=$env:GEMINI_API_KEY
+
+flutter run -d android --dart-define=GEMINI_API_KEY=$env:GEMINI_API_KEY
+
 
 fake phone
 cd "C:\Users\student\Downloads\bsafe\bsafe\flutter_app"

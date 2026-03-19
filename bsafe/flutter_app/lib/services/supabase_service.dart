@@ -364,6 +364,78 @@ class SupabaseService {
   }
 
   // ══════════════════════════════════════════════════════════
+  // INSPECTION SESSIONS — 巡檢會話雲端同步
+  // ══════════════════════════════════════════════════════════
+
+  /// 上傳或更新巡檢會話（以 session_id 為唯一鍵）
+  Future<bool> upsertInspectionSession(Map<String, dynamic> sessionJson) async {
+    if (!isConfigured) return false;
+    try {
+      final payload = Map<String, dynamic>.from(sessionJson);
+      final sessionId = payload['id']?.toString();
+      if (sessionId == null || sessionId.isEmpty) {
+        debugPrint('❌ upsertInspectionSession: 缺少 session id');
+        return false;
+      }
+
+      final createdAt = payload['createdAt']?.toString();
+      final updatedAt = payload['updatedAt']?.toString();
+
+      await client.from('inspection_sessions').upsert({
+        'session_id': sessionId,
+        'name': payload['name'],
+        'project_id': payload['projectId'],
+        'floor': payload['floor'],
+        'floor_plan_path': payload['floorPlanPath'],
+        'status': payload['status'],
+        'payload': payload,
+        'created_at': createdAt ?? DateTime.now().toIso8601String(),
+        'updated_at': updatedAt ?? DateTime.now().toIso8601String(),
+      }, onConflict: 'session_id');
+
+      return true;
+    } catch (e) {
+      debugPrint('❌ upsertInspectionSession 失敗: $e');
+      return false;
+    }
+  }
+
+  /// 讀取所有巡檢會話（依 updated_at 由新到舊）
+  Future<List<Map<String, dynamic>>> fetchInspectionSessions() async {
+    if (!isConfigured) return [];
+    try {
+      final rows = await client
+          .from('inspection_sessions')
+          .select('payload')
+          .order('updated_at', ascending: false);
+
+      return List<Map<String, dynamic>>.from(rows)
+          .map((row) => Map<String, dynamic>.from(
+              row['payload'] as Map<String, dynamic>? ?? {}))
+          .where((payload) => payload.isNotEmpty)
+          .toList();
+    } catch (e) {
+      debugPrint('❌ fetchInspectionSessions 失敗: $e');
+      return [];
+    }
+  }
+
+  /// 刪除單一巡檢會話
+  Future<bool> deleteInspectionSession(String sessionId) async {
+    if (!isConfigured) return false;
+    try {
+      await client
+          .from('inspection_sessions')
+          .delete()
+          .eq('session_id', sessionId);
+      return true;
+    } catch (e) {
+      debugPrint('❌ deleteInspectionSession 失敗: $e');
+      return false;
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════
   // FLOOR PLANS — 樓層圖雲端儲存
   // ══════════════════════════════════════════════════════════
 

@@ -49,22 +49,67 @@ class _InspectionScreenState extends State<InspectionScreen> {
     super.initState();
     _uwbService = UwbService();
     _uwbService.loadAnchorsFromStorage();
-    // 恢復該專案的樓層設定 (總樓層數 + 樓層圖路徑)
-    _uwbService.restoreFloorSettings(projectId: widget.project?.id);
+    // 先恢復預設命名空間，後續會依當前巡檢 session 切換到獨立命名空間
+    _uwbService.restoreFloorSettings(
+      projectId: _floorPlanNamespaceForSession(null),
+    );
     if (widget.project != null) {
       _currentFloor = widget.project!.currentFloor;
     }
     // 恢復上次選擇的樓層
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (widget.project != null && mounted) {
+        final inspection = context.read<InspectionProvider>();
+        await inspection.ensureLoaded();
+        await _applySessionFloorPlanNamespace(
+          session: inspection.currentSession,
+          preferredFloor: _currentFloor,
+        );
         final prefs = await SharedPreferences.getInstance();
         final savedFloor = prefs.getInt('project_floor_${widget.project!.id}');
         if (savedFloor != null && savedFloor != _currentFloor && mounted) {
-          final inspection = context.read<InspectionProvider>();
-          _switchFloor(inspection, widget.project!, savedFloor);
+          await _switchFloor(inspection, widget.project!, savedFloor);
         }
+      } else if (mounted) {
+        final inspection = context.read<InspectionProvider>();
+        await inspection.ensureLoaded();
+        await _applySessionFloorPlanNamespace(
+          session: inspection.currentSession,
+          preferredFloor: _currentFloor,
+        );
       }
     });
+  }
+
+  String _floorPlanNamespaceForSession(InspectionSession? session) {
+    if (session != null && session.id.isNotEmpty) {
+      return 'session_${session.id}';
+    }
+    if (widget.project?.id != null) {
+      return 'project_${widget.project!.id}_default';
+    }
+    return 'inspection_default';
+  }
+
+  Future<void> _applySessionFloorPlanNamespace({
+    required InspectionSession? session,
+    int? preferredFloor,
+  }) async {
+    final namespace = _floorPlanNamespaceForSession(session);
+    await _uwbService.restoreFloorSettings(projectId: namespace);
+
+    final maxFloor = widget.project?.floorCount ?? _uwbService.totalFloors;
+    if (_uwbService.totalFloors < maxFloor) {
+      _uwbService.setTotalFloors(maxFloor);
+    }
+
+    final floorToUse = preferredFloor ?? session?.floor ?? _currentFloor;
+    final safeFloor = floorToUse.clamp(1, _uwbService.totalFloors);
+    _uwbService.setCurrentFloor(safeFloor);
+
+    if (mounted && _currentFloor != safeFloor) {
+      setState(() => _currentFloor = safeFloor);
+    }
   }
 
   @override
@@ -3209,7 +3254,9 @@ class _InspectionScreenState extends State<InspectionScreen> {
     );
   }
 
-  void _switchFloor(InspectionProvider inspection, Project project, int floor) {
+  Future<void> _switchFloor(
+      InspectionProvider inspection, Project project, int floor) async {
+    await inspection.ensureLoaded();
     setState(() => _currentFloor = floor);
     // 自動儲存最後選擇的樓層
     SharedPreferences.getInstance()
@@ -3220,12 +3267,15 @@ class _InspectionScreenState extends State<InspectionScreen> {
     );
     if (existing.isNotEmpty) {
       inspection.switchSession(existing.first.id);
+      await _applySessionFloorPlanNamespace(session: existing.first);
     } else {
-      inspection.createSession(
+      final created = await inspection.createSession(
         '${project.buildingName} - ${floor}F',
         projectId: project.id,
         floor: floor,
       );
+      await _applySessionFloorPlanNamespace(
+          session: created, preferredFloor: floor);
     }
   }
 
@@ -3248,12 +3298,18 @@ class _InspectionScreenState extends State<InspectionScreen> {
           TextButton(
               onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
           ElevatedButton(
-            onPressed: () {
-              inspection.createSession(
+            onPressed: () async {
+              await inspection.ensureLoaded();
+              final created = await inspection.createSession(
                 controller.text,
                 projectId: widget.project?.id,
                 floor: _currentFloor,
               );
+              await _applySessionFloorPlanNamespace(
+                session: created,
+                preferredFloor: _currentFloor,
+              );
+              if (!mounted) return;
               Navigator.pop(ctx);
             },
             child: const Text('建立'),
@@ -3263,7 +3319,8 @@ class _InspectionScreenState extends State<InspectionScreen> {
     );
   }
 
-  void _showLoadSessionDialog(InspectionProvider inspection) {
+  Future<void> _showLoadSessionDialog(InspectionProvider inspection) async {
+    await inspection.ensureLoaded();
     final projectId = widget.project?.id;
     final projectSessions = projectId != null
         ? inspection.sessions.where((s) => s.projectId == projectId).toList()
@@ -3297,13 +3354,13 @@ class _InspectionScreenState extends State<InspectionScreen> {
                       trailing: session.id == inspection.currentSession?.id
                           ? const Icon(Icons.check_circle, color: Colors.green)
                           : null,
-                      onTap: () {
+                      onTap: () async {
                         inspection.switchSession(session.id);
-                        // 同步樓層狀態到 UI 和 UwbService
-                        if (session.floor != _currentFloor) {
-                          setState(() => _currentFloor = session.floor);
-                          _uwbService.setCurrentFloor(session.floor);
-                        }
+                        await _applySessionFloorPlanNamespace(
+                          session: session,
+                          preferredFloor: session.floor,
+                        );
+                        if (!mounted) return;
                         Navigator.pop(ctx);
                       },
                     );
@@ -3471,6 +3528,50 @@ class _PinDetailDialogState extends State<_PinDetailDialog> {
         return '低風險';
       default:
         return '未評估';
+    }
+  }
+
+  String _formatDefectCategoryLabel(String? category) {
+    final value = (category ?? '').trim();
+    if (value.isEmpty) return '未分類';
+    switch (value.toLowerCase()) {
+      case 'structural':
+        return '結構性問題';
+      case 'exterior':
+        return '外牆問題';
+      case 'public_area':
+        return '公共區域';
+      case 'electrical':
+        return '電氣問題';
+      case 'plumbing':
+        return '水管問題';
+      case 'other':
+        return '其他';
+      default:
+        return value;
+    }
+  }
+
+  String _formatDefectSeverityLabel(String? severity, String riskLevel) {
+    final value = (severity ?? '').trim().toLowerCase();
+    switch (value) {
+      case 'mild':
+        return '輕微';
+      case 'moderate':
+        return '中度';
+      case 'severe':
+        return '嚴重';
+    }
+
+    switch (riskLevel.toLowerCase()) {
+      case 'high':
+        return '嚴重';
+      case 'medium':
+        return '中度';
+      case 'low':
+        return '輕微';
+      default:
+        return '未標註';
     }
   }
 
@@ -4033,6 +4134,13 @@ class _PinDetailDialogState extends State<_PinDetailDialog> {
     }
 
     final isSelected = _expandedDefectIndex == index;
+    final categoryRaw =
+        defect.category ?? defect.aiResult?['category']?.toString();
+    final severityRaw =
+        defect.severity ?? defect.aiResult?['severity']?.toString();
+    final categoryLabel = _formatDefectCategoryLabel(categoryRaw);
+    final severityLabel =
+        _formatDefectSeverityLabel(severityRaw, defect.riskLevel);
 
     return Card(
       margin: const EdgeInsets.only(top: 8),
@@ -4084,6 +4192,19 @@ class _PinDetailDialogState extends State<_PinDetailDialog> {
                         Text('缺陷 #${index + 1}',
                             style: const TextStyle(
                                 fontWeight: FontWeight.bold, fontSize: 13)),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            categoryLabel,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade700,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
                         const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(
@@ -4098,6 +4219,45 @@ class _PinDetailDialogState extends State<_PinDetailDialog> {
                                 color: riskColor,
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '問題類別: $categoryLabel',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.blue,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.purple.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '嚴重程度: $severityLabel',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.purple,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ],
@@ -4554,83 +4714,6 @@ class _PhotoAnalysisDialogState extends State<_PhotoAnalysisDialog> {
                     ),
 
                     const SizedBox(height: 12),
-
-                    // YOLO 偵測按鈕 (僅在支援平台上顯示)
-                    if (YoloService.isSupported && _photoTaken) ...[
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: (_isYoloDetecting || _isAnalyzing)
-                                  ? null
-                                  : _runYoloDetection,
-                              icon: const Icon(Icons.smart_toy, size: 18),
-                              label: Text(_yoloDetections.isNotEmpty
-                                  ? 'YOLO 重新偵測'
-                                  : 'YOLO 物件偵測'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.deepPurple,
-                                foregroundColor: Colors.white,
-                              ),
-                            ),
-                          ),
-                          if (_yoloDetections.isNotEmpty) ...[
-                            const SizedBox(width: 8),
-                            IconButton(
-                              onPressed: () {
-                                setState(() {
-                                  _showBoundingBoxes = !_showBoundingBoxes;
-                                });
-                              },
-                              icon: Icon(
-                                _showBoundingBoxes
-                                    ? Icons.visibility
-                                    : Icons.visibility_off,
-                                color: Colors.deepPurple,
-                              ),
-                              tooltip: _showBoundingBoxes ? '隱藏偵測框' : '顯示偵測框',
-                            ),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      if (!_yoloModelLoaded && !_isYoloDetecting)
-                        Text(
-                          'YOLO 模型載入中...',
-                          style: TextStyle(
-                              color: Colors.grey.shade500, fontSize: 11),
-                        ),
-                    ],
-
-                    // YOLO 偵測進行中
-                    if (_isYoloDetecting) ...[
-                      const SizedBox(height: 12),
-                      const Center(
-                        child: Column(
-                          children: [
-                            SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.deepPurple,
-                              ),
-                            ),
-                            SizedBox(height: 8),
-                            Text('YOLO 正在偵測物件...',
-                                style: TextStyle(
-                                    color: Colors.deepPurple, fontSize: 13)),
-                          ],
-                        ),
-                      ),
-                    ],
-
-                    // YOLO 偵測結果摘要
-                    if (_yoloDetections.isNotEmpty && !_isYoloDetecting) ...[
-                      const SizedBox(height: 8),
-                      _buildYoloResultSummary(),
-                    ],
-
                     const SizedBox(height: 12),
 
                     // AI Chat 區域
@@ -4971,6 +5054,55 @@ class _PhotoAnalysisDialogState extends State<_PhotoAnalysisDialog> {
     });
   }
 
+  String _normalizeReportCategory(String? rawCategory) {
+    final value = (rawCategory ?? '').trim().toLowerCase();
+    if (value.isEmpty) return 'other';
+
+    if (value.contains('structural') ||
+        value.contains('結構') ||
+        value.contains('spalling') ||
+        value.contains('crack') ||
+        value.contains('裂')) {
+      return 'structural';
+    }
+    if (value.contains('exterior') ||
+        value.contains('外牆') ||
+        value.contains('facade') ||
+        value.contains('tile') ||
+        value.contains('window')) {
+      return 'exterior';
+    }
+    if (value.contains('public') || value.contains('公共')) {
+      return 'public_area';
+    }
+    if (value.contains('electrical') || value.contains('電')) {
+      return 'electrical';
+    }
+    if (value.contains('plumb') ||
+        value.contains('leak') ||
+        value.contains('water') ||
+        value.contains('水')) {
+      return 'plumbing';
+    }
+    return 'other';
+  }
+
+  String _normalizeReportSeverity(String? rawSeverity, String riskLevel) {
+    final value = (rawSeverity ?? '').trim().toLowerCase();
+    if (value == 'mild' || value == 'moderate' || value == 'severe') {
+      return value;
+    }
+    switch (riskLevel.toLowerCase()) {
+      case 'high':
+        return 'severe';
+      case 'medium':
+        return 'moderate';
+      case 'low':
+      default:
+        return 'mild';
+    }
+  }
+
   /// YOLO 物件偵測
   Future<void> _runYoloDetection() async {
     if (_imageBase64 == null) return;
@@ -5127,18 +5259,31 @@ class _PhotoAnalysisDialogState extends State<_PhotoAnalysisDialog> {
 
       // ✨ 新增：保存時同步到 Supabase reports 表（HistoryScreen 可看到）
       try {
-        final defectTitle = _analysisResult?['category'] as String? ?? '未分類缺陷';
+        final damageDetected = _analysisResult?['damage_detected'] == true;
+        final rawCategory = _analysisResult?['category'] as String?;
+        final rawSeverity = _analysisResult?['severity'] as String?;
+        final rawTitle = _analysisResult?['title'] as String?;
+
+        final defectTitle =
+            rawCategory ?? (damageDetected ? '建築安全問題' : '影像證據不足 / 未檢測到缺陷');
         final defectDescription =
             _analysisResult?['analysis'] as String? ?? '已拍照記錄';
         final riskLevel = _analysisResult?['risk_level'] as String? ?? 'medium';
         final riskScore = _analysisResult?['risk_score'] as int? ?? 50;
+        final normalizedCategory = rawCategory != null
+            ? _normalizeReportCategory(rawCategory)
+            : (damageDetected ? 'structural' : 'other');
+        final normalizedSeverity =
+            _normalizeReportSeverity(rawSeverity, riskLevel);
+        final normalizedTitle =
+            rawTitle ?? (damageDetected ? '建築安全問題' : '影像證據不足 / 未檢測到缺陷');
 
         // 建立報告記錄
         final report = ReportModel(
-          title: '巡檢記錄 - $defectTitle',
+          title: normalizedTitle,
           description: defectDescription,
-          category: 'inspection', // 標記為巡檢記錄
-          severity: riskLevel,
+          category: normalizedCategory,
+          severity: normalizedSeverity,
           riskLevel: riskLevel,
           riskScore: riskScore,
           isUrgent: riskScore >= 70,
