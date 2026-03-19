@@ -29,11 +29,14 @@
 # 切換到 Flutter project
 cd "C:\Users\student\Downloads\bsafe\bsafe\flutter_app"
 
+# 設定 Gemini API Key（PowerShell）
+$env:GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
+
 # 手機 App
-flutter run -d R5CR30PFFTN
+flutter run -d R5CR30PFFTN --dart-define=GEMINI_API_KEY=$env:GEMINI_API_KEY
 
 # Web 管理後台（Chrome）
-flutter run -d chrome --target lib/main_web.dart
+flutter run -d chrome --target lib/main_web.dart --dart-define=GEMINI_API_KEY=$env:GEMINI_API_KEY
 
 # 安裝依賴
 flutter pub get
@@ -108,7 +111,7 @@ flutter pub get
 - 數據統計 Dashboard
 
 ### AI / 分析功能
-- Poe API 整合（SSE streaming 解析）
+- Gemini API 整合（Vision 圖像分析）
 - YOLO 物件偵測（TFLite，`yolo11n.tflite`）
 - 離線時使用本地規則評估
 - 損壞趨勢分析圖表
@@ -279,15 +282,17 @@ e3a8048  Billy Version - fix Poe AI analysis (SSE parsing, image URL, setState d
 -----
 電腦:
 cd "C:\Users\student\Downloads\bsafe\bsafe\flutter_app"
-flutter run -d chrome --target lib/main_web.dart
+$env:GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
+flutter run -d chrome --target lib/main_web.dart --dart-define=GEMINI_API_KEY=$env:GEMINI_API_KEY
 
 手機:
 cd "C:\Users\student\Downloads\bsafe\bsafe\flutter_app"
-flutter run -d android
+$env:GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
+flutter run -d android --dart-define=GEMINI_API_KEY=$env:GEMINI_API_KEY
 
-flutter run -d R5CR30PFFTN
+flutter run -d R5CR30PFFTN --dart-define=GEMINI_API_KEY=$env:GEMINI_API_KEY
 
 fake phone
 cd "C:\Users\student\Downloads\bsafe\bsafe\flutter_app"
 flutter emulators --launch Medium_Phone_API_36.1
-flutter run -d emulator-5554
+flutter run -d emulator-5554 --dart-define=GEMINI_API_KEY=$env:GEMINI_API_KEY

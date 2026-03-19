@@ -62,11 +62,11 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
+        title: const Row(
           children: [
             Icon(Icons.add_business, color: AppTheme.primaryColor),
-            const SizedBox(width: 8),
-            const Text('新建專案'),
+            SizedBox(width: 8),
+            Text('新建專案'),
           ],
         ),
         content: Column(
@@ -339,7 +339,7 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
                       color: AppTheme.primaryColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Icon(Icons.business,
+                    child: const Icon(Icons.business,
                         color: AppTheme.primaryColor, size: 28),
                   ),
                   const SizedBox(width: 12),

@@ -112,18 +112,27 @@ class _ReportScreenState extends State<ReportScreen> {
 
       if (!mounted) return;
 
-      if (result != null && result['damage_detected'] == true) {
+      if (result != null) {
+        final damageDetected = result['damage_detected'] == true;
         setState(() {
           _aiResult = result;
-          _aiCategory = result['category'] ?? 'structural';
-          _aiSeverity = result['severity'] ?? 'moderate';
-          _aiTitle = result['title'] ?? '建築安全問題';
-          _aiDescription = result['analysis'] ?? 'AI 自動檢測到建築損壞';
+          _aiCategory = result['category'] ??
+              (damageDetected ? 'structural' : 'inspection');
+          _aiSeverity =
+              result['severity'] ?? (damageDetected ? 'moderate' : 'mild');
+          _aiTitle = result['title'] ??
+              (damageDetected ? '建築安全問題' : '影像證據不足 / 未檢測到缺陷');
+          _aiDescription = result['analysis'] ??
+              (damageDetected ? 'AI 自動檢測到建築損壞' : 'AI 未檢測到明顯缺陷，或影像證據不足');
         });
 
-        _showSuccess('✅ AI 分析完成');
+        if (damageDetected) {
+          _showSuccess('✅ AI 分析完成（已檢測到問題）');
+        } else {
+          _showSuccess('ℹ️ AI 分析完成（未檢測到明顯缺陷）');
+        }
       } else {
-        _showError('未檢測到明顯損壞，請重新拍照');
+        _showError('AI 未返回有效結果，請重試');
       }
     } catch (e) {
       if (!mounted) return;
@@ -145,6 +154,11 @@ class _ReportScreenState extends State<ReportScreen> {
 
     if (_aiResult == null) {
       _showError('請等待 AI 分析完成');
+      return;
+    }
+
+    if (_aiResult!['damage_detected'] != true) {
+      _showError('目前結果為「未檢測到明顯缺陷 / 證據不足」，不建議提交問題單');
       return;
     }
 

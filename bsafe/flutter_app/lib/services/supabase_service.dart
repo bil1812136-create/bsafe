@@ -436,6 +436,29 @@ class SupabaseService {
   // PRIVATE HELPERS
   // ══════════════════════════════════════════════════════════
 
+  /// 上傳圖片供 AI 分析用，返回 Supabase 公開 URL（不依附報告 ID）
+  Future<String?> uploadImageForAnalysis(String imageBase64) async {
+    try {
+      final bytes = base64Decode(imageBase64);
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final path = 'analysis/ai_temp_$timestamp.jpg';
+      await client.storage.from('report-images').uploadBinary(
+            path,
+            bytes,
+            fileOptions: const FileOptions(
+              upsert: true,
+              contentType: 'image/jpeg',
+            ),
+          );
+      final url = client.storage.from('report-images').getPublicUrl(path);
+      debugPrint('✅ Supabase AI 分析圖片 URL: $url');
+      return url;
+    } catch (e) {
+      debugPrint('⚠️ Supabase uploadImageForAnalysis 失敗: $e');
+      return null;
+    }
+  }
+
   Future<String?> _uploadReportImage(String base64, String reportId) async {
     try {
       final bytes = base64Decode(base64);

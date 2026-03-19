@@ -1,17 +1,18 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:http_parser/http_parser.dart';
 import 'package:bsafe_app/models/report_model.dart';
 
 class ApiService {
   // Base URL for your PHP API
   static const String baseUrl = 'http://your-server.com/api';
 
-  // POE API for AI image analysis
-  static const String poeApiKey = 'HTLbuegNjtBmxNX5rWeH7cyxFfNc1oANBPRtdY_aO4E';
-  static const String poeBotName = 'B-SAFE'; // Your POE bot name
-  static const String poeApiUrl = 'https://api.poe.com/bot/';
+  // Gemini API for AI image analysis
+  static const String geminiApiKey =
+      String.fromEnvironment('GEMINI_API_KEY', defaultValue: '');
+  static const String geminiModel = 'gemini-2.5-flash';
+  static const String geminiApiUrl =
+      'https://generativelanguage.googleapis.com/v1beta/models';
 
   // Singleton pattern
   static final ApiService instance = ApiService._init();
@@ -94,197 +95,190 @@ class ApiService {
     }
   }
 
-  // ==================== POE AI Analysis API ====================
+  // ==================== GEMINI AI Analysis API ====================
 
-  /// Step 1: Upload image to get a public URL (tries catbox.moe first, then 0x0.st)
-  Future<String> _uploadImageToPublicHost(String imageBase64) async {
-    debugPrint('⬆️ Uploading image to get public URL...');
-    final bytes = base64Decode(imageBase64);
-
-    // Try catbox.moe first (more reliable)
-    try {
-      debugPrint('🔄 Trying catbox.moe...');
-      final request = http.MultipartRequest(
-        'POST',
-        Uri.parse('https://catbox.moe/user/api.php'),
-      );
-      request.fields['reqtype'] = 'fileupload';
-      request.files.add(http.MultipartFile.fromBytes(
-        'fileToUpload',
-        bytes,
-        filename: 'building_photo.jpg',
-        contentType: MediaType('image', 'jpeg'),
-      ));
-
-      final streamed =
-          await request.send().timeout(const Duration(seconds: 30));
-      final responseText = await streamed.stream.bytesToString();
-
-      if (streamed.statusCode == 200 && responseText.startsWith('https://')) {
-        final url = responseText.trim();
-        debugPrint('✅ Image uploaded (catbox.moe): $url');
-        return url;
-      }
-      debugPrint(
-          '⚠️ catbox.moe failed: ${streamed.statusCode} - $responseText');
-    } catch (e) {
-      debugPrint('⚠️ catbox.moe error: $e');
-    }
-
-    // Fallback: try 0x0.st
-    debugPrint('🔄 Trying 0x0.st as fallback...');
-    final request2 = http.MultipartRequest(
-      'POST',
-      Uri.parse('https://0x0.st/'),
-    );
-    request2.files.add(http.MultipartFile.fromBytes(
-      'file',
-      bytes,
-      filename: 'building_photo.jpg',
-      contentType: MediaType('image', 'jpeg'),
-    ));
-
-    final streamed2 =
-        await request2.send().timeout(const Duration(seconds: 30));
-    final responseText2 = await streamed2.stream.bytesToString();
-
-    if (streamed2.statusCode == 200) {
-      final url = responseText2.trim();
-      debugPrint('✅ Image uploaded (0x0.st): $url');
-      return url;
-    }
-    throw Exception(
-        'All upload services failed. Last: ${streamed2.statusCode} - $responseText2');
-  }
-
-  /// Analyze image using POE API for building damage assessment
+  /// Analyze image using Gemini API for building damage assessment
   Future<Map<String, dynamic>> analyzeImageWithAI(String imageBase64,
       {String? additionalContext}) async {
     try {
-      debugPrint('📸 Uploading image then sending to Poe B-SAFE bot...');
-
-      // Step 1: Upload image to get a real public URL
-      final imageUrl = await _uploadImageToPublicHost(imageBase64);
-
-      // Step 2: Query the Poe B-SAFE bot with the image URL
-      final client = http.Client();
-      try {
-        final request = http.Request(
-          'POST',
-          Uri.parse('https://api.poe.com/bot/$poeBotName'),
-        );
-        request.headers['Authorization'] = 'Bearer $poeApiKey';
-        request.headers['Content-Type'] = 'application/json';
-        request.body = jsonEncode({
-          'version': '1.2',
-          'type': 'query',
-          'query': [
-            {
-              'role': 'user',
-              'content': imageUrl,
-              'content_type': 'text/markdown',
-              'timestamp': 0,
-              'message_id': '',
-              'feedback': [],
-              'attachments': [],
-              'parameters': {},
-              'sender': null,
-              'sender_id': null,
-              'metadata': null,
-              'message_type': null,
-              'referenced_message': null,
-              'reactions': [],
-            }
-          ],
-          'user_id': '',
-          'conversation_id': '',
-          'message_id': '',
-          'metadata': '',
-          'api_key': '<missing>',
-          'access_key': '<missing>',
-          'temperature': null,
-          'skip_system_prompt': false,
-          'logit_bias': {},
-          'stop_sequences': [],
-          'language_code': 'zh-Hant',
-          'adopt_current_bot_name': null,
-          'bot_query_id': '',
-          'users': [],
-          'tools': null,
-          'tool_calls': null,
-          'tool_results': null,
-          'query_creation_time': null,
-          'extra_params': null,
-        });
-
-        final streamedResponse =
-            await client.send(request).timeout(const Duration(seconds: 180));
-        final responseBody = await streamedResponse.stream.bytesToString();
-
-        debugPrint('Poe response status: ${streamedResponse.statusCode}');
-        debugPrint(
-            'Poe response (first 800): ${responseBody.length > 800 ? responseBody.substring(0, 800) : responseBody}');
-
-        if (streamedResponse.statusCode == 200) {
-          return _parsePoeSSE(responseBody);
-        }
+      if (geminiApiKey.isEmpty) {
         throw Exception(
-            'Poe API ${streamedResponse.statusCode}: $responseBody');
-      } finally {
-        client.close();
+            'GEMINI_API_KEY is empty. Run with --dart-define=GEMINI_API_KEY=YOUR_KEY');
       }
+
+      debugPrint('📸 Sending image to Gemini $geminiModel...');
+      return await _queryGemini(imageBase64,
+          additionalContext: additionalContext);
     } catch (e) {
       debugPrint('❌ AI Analysis Error: $e');
       return _localImageAnalysisFallback();
     }
   }
 
-  /// Parse Poe SSE response and accumulate full AI text
-  Map<String, dynamic> _parsePoeSSE(String responseBody) {
-    String accumulatedText = '';
-    String lastReplace = '';
-    String currentEvent = '';
+  Future<Map<String, dynamic>> _queryGemini(
+    String imageBase64, {
+    String? additionalContext,
+  }) async {
+    final uri = Uri.parse(
+        '$geminiApiUrl/$geminiModel:generateContent?key=$geminiApiKey');
 
-    for (final rawLine in responseBody.split('\n')) {
-      final line = rawLine.trim();
-      if (line.startsWith('event:')) {
-        currentEvent = line.substring(6).trim();
-      } else if (line.startsWith('data:')) {
-        final dataStr = line.substring(5).trim();
-        if (dataStr.isEmpty || dataStr == '{}') continue;
-
-        // Handle error events from Poe
-        if (currentEvent == 'error') {
-          try {
-            final data = jsonDecode(dataStr);
-            throw Exception('Poe error: ${data['text']}');
-          } catch (e) {
-            if (e.toString().contains('Poe error')) rethrow;
-            throw Exception('Poe error: $dataStr');
-          }
-        }
-
-        try {
-          final data = jsonDecode(dataStr);
-          if (data is Map && data.containsKey('text')) {
-            final t = data['text'].toString();
-            // Skip "Thinking..." status messages
-            if (t.startsWith('Thinking...')) continue;
-            if (currentEvent == 'replace_response') {
-              lastReplace = t;
-            } else if (currentEvent == 'text') {
-              accumulatedText += t;
+    final response = await http
+        .post(
+          uri,
+          headers: const {
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({
+            'contents': [
+              {
+                'role': 'user',
+                'parts': [
+                  {
+                    'text': _buildPromptText(additionalContext),
+                  },
+                  {
+                    'inline_data': {
+                      'mime_type': 'image/jpeg',
+                      'data': imageBase64,
+                    }
+                  }
+                ],
+              }
+            ],
+            'generationConfig': {
+              'temperature': 0.1,
+              'maxOutputTokens': 2048,
+              'thinkingConfig': {
+                'thinkingBudget': 0,
+              }
             }
-          }
-        } catch (_) {}
+          }),
+        )
+        .timeout(const Duration(seconds: 120));
+
+    debugPrint('Gemini response status: ${response.statusCode}');
+    debugPrint(
+        'Gemini response (first 800): ${response.body.length > 800 ? response.body.substring(0, 800) : response.body}');
+
+    if (response.statusCode != 200) {
+      if (response.body
+          .contains('User location is not supported for the API use')) {
+        throw Exception(
+            'Gemini API region is not supported for this location. Please use Vertex AI or another provider.');
+      }
+      throw Exception('Gemini API ${response.statusCode}: ${response.body}');
+    }
+
+    return _parseGeminiResponse(response.body);
+  }
+
+  String _buildPromptText(String? additionalContext) {
+    final base = '''
+First check image visibility before defect diagnosis.
+If image is mostly black, overexposed, blurry, blocked, or unclear, output exactly:
+Defect Category: Insufficient Evidence
+Risk Level: Low, image evidence is not reliable
+Access Control: Re-take photo with good lighting and focus
+Image Defect Analysis:
+1. Visual evidence is insufficient for reliable defect identification.
+2. Please provide clearer close-up and overview photos.
+Further Investigation:
+1. Repeat site photo capture under adequate lighting.
+2. Add multiple angles and scale reference.
+Remedial Measures:
+1. No structural conclusion until valid visual evidence is obtained.
+2. Conduct on-site inspection if urgent signs are suspected.
+
+If and only if image evidence is clear, follow the instruction below.
+
+You are a professional building inspector tasked with conducting an inspection summary for an old building. Please conduct an internet search to gather additional relevant information (for example, from the Hong Kong Buildings Department and Urban Renewal Authority).
+
+Analyze the provided images and categorize them based on major defects, such as concrete spalling, tile debonding, water leakage, and unauthorized building works. If any significant defects are identified, suggest ways to address the possible causes of these defects, recommend appropriate testing methods, and propose remedial measures in the report.
+
+All output in English, brief point form, about 10 words each, remove all formatting like bullets and bold, use only basic periods and commas, no colons.
+
+Format:
+
+Defect Category: [Concrete Spalling/Tile Debonding/Water Leakage/Unauthorized Building Works]
+
+Risk Level: [Risk Level, Short Reason]
+
+Access Control: [Suggesd Action]
+
+
+Image Defect Analysis:
+1. XXX
+2. XXX
+
+Further Investigation:
+1. XXX
+2. XXX
+
+Remedial Measures:
+1. XXX
+2. XXX
+
+
+
+Example:
+
+Defect Category: Water Leakage
+
+Risk Level: Hazard level high, hygiene and falling plaster risks
+
+Access Control: Cordon off corridor until repairs and drying completed.
+
+Image Defect Analysis:
+1. Soil stack heavily corroded, brown streaks on adjacent wall.
+2. Joint leakage evident, continuous dampness along vertical pipe run.
+3. Plaster delamination and paint blistering caused by seepage.
+4. Hangers corroded, insufficient support causing misalignment and stress.
+5. Hazard level high, hygiene risks and falling plaster possible.
+6. Cordon off required, install barrier tape and drip trays.
+
+Further Investigation:
+1. Conduct pressure test and CCTV survey of stacks.
+2. Use dye test from upper floors to trace leaks.
+3. Scan damp areas with infrared and moisture meters.
+4. Check for unauthorized alterations and missing supports.
+
+Remedial Measures:
+1. Replace corroded sections with uPVC or HDPE piping.
+2. Renew joints with solvent-weld or flexible couplers.
+3. Install proper clamps, venting, and correct gradients.
+4. Repair wall, waterproof prime, apply anti-mold coating.
+5. Disinfect area and improve ventilation after works.
+
+Make all major heading words before colons use title case.
+''';
+    if (additionalContext == null || additionalContext.trim().isEmpty) {
+      return base;
+    }
+    return '$base\n\nAdditional context:\n$additionalContext';
+  }
+
+  /// Parse Gemini JSON response and extract final text
+  Map<String, dynamic> _parseGeminiResponse(String responseBody) {
+    final data = jsonDecode(responseBody);
+
+    String fullText = '';
+    if (data is Map && data['candidates'] is List) {
+      final candidates = data['candidates'] as List;
+      if (candidates.isNotEmpty) {
+        final content = (candidates.first as Map)['content'];
+        if (content is Map && content['parts'] is List) {
+          final parts = content['parts'] as List;
+          fullText = parts
+              .whereType<Map>()
+              .map((p) => p['text']?.toString() ?? '')
+              .where((t) => t.trim().isNotEmpty)
+              .join('\n');
+        }
       }
     }
 
-    // Prefer accumulated text events; fall back to last replace_response
-    final fullText = accumulatedText.isNotEmpty ? accumulatedText : lastReplace;
-
-    if (fullText.isEmpty) {
-      throw Exception('No text found in Poe SSE response');
+    if (fullText.trim().isEmpty) {
+      throw Exception('No text found in Gemini response');
     }
 
     debugPrint(
@@ -300,12 +294,29 @@ class ApiService {
     // Simple keyword-based risk detection from AI response
     final lower = text.toLowerCase();
 
+    final hasNoDefect = lower.contains('no defect') ||
+        lower.contains('no visible structural') ||
+        lower.contains('無明顯缺陷') ||
+        lower.contains('未見缺陷');
+    final insufficientEvidence = lower.contains('insufficient') ||
+        lower.contains('unable to analyze') ||
+        lower.contains('not clear') ||
+        lower.contains('不清晰') ||
+        lower.contains('不足以分析');
+
     String severity = 'moderate';
     String riskLevel = 'medium';
     int riskScore = 55;
     bool isUrgent = false;
+    bool damageDetected = true;
 
-    if (lower.contains('severe') ||
+    if (hasNoDefect || insufficientEvidence) {
+      severity = 'mild';
+      riskLevel = 'low';
+      riskScore = 10;
+      isUrgent = false;
+      damageDetected = false;
+    } else if (lower.contains('severe') ||
         lower.contains('嚴重') ||
         lower.contains('危險') ||
         lower.contains('高風險') ||
@@ -324,7 +335,7 @@ class ApiService {
     }
 
     return {
-      'damage_detected': true,
+      'damage_detected': damageDetected,
       'severity': severity,
       'risk_level': riskLevel,
       'risk_score': riskScore,
@@ -333,7 +344,7 @@ class ApiService {
     };
   }
 
-  /// Local fallback when Poe API is unavailable
+  /// Local fallback when Gemini API is unavailable
   Map<String, dynamic> _localImageAnalysisFallback() {
     return {
       'damage_detected': true,
@@ -343,9 +354,10 @@ class ApiService {
       'risk_score': 50,
       'is_urgent': false,
       'title': '建築安全問題',
-      'analysis': 'AI 分析服務暫時不可用（請確認網絡連線）。照片已保存，請稍後重新分析。',
+      'analysis': 'AI 分析服務暫時不可用（可能是網絡或地區限制）。照片已保存，請稍後重新分析或改用支援地區的 AI 服務。',
       'recommendations': [
         '請確認網絡連線後重試',
+        '若持續出現地區限制，請改用 Vertex AI 或其他可用服務',
         '建議安排專業人員現場檢查',
       ],
     };

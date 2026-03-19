@@ -363,7 +363,7 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
           const SizedBox(width: 6),
           Expanded(
             child: Text(
-              _mode == 'floor_plan' ? '平面圖校正' : '${_roomWidth}×${_roomHeight}m',
+              _mode == 'floor_plan' ? '平面圖校正' : '$_roomWidth×${_roomHeight}m',
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
               overflow: TextOverflow.ellipsis,
             ),
@@ -1647,8 +1647,9 @@ class _CalibrationPainter extends CustomPainter {
 
   void _drawDistanceLines(Canvas canvas, Size size) {
     for (final pair in distancePairs) {
-      if (pair.anchorA >= anchors.length || pair.anchorB >= anchors.length)
+      if (pair.anchorA >= anchors.length || pair.anchorB >= anchors.length) {
         continue;
+      }
 
       final a = anchors[pair.anchorA];
       final b = anchors[pair.anchorB];
