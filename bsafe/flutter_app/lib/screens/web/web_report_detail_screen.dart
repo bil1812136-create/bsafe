@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -26,10 +27,29 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
   late TextEditingController _convoInputController;
   late String _status;
   late String _severity;
+  late String _riskLevel;
+  late int _riskScore;
   bool _isSaving = false;
   bool _hasChanges = false;
   bool _isSendingMessage = false;
+  bool _isLoadingFloorPlan = true;
+  bool _showLinkedPhoto = true;
   late List<ConversationMessage> _conversation;
+  StreamSubscription<List<Map<String, dynamic>>>? _reportSubscription;
+  String? _floorPlanDisplayUrl;
+  String? _floorPlanBase64;
+  int? _floorNumber;
+  List<Map<String, dynamic>> _floorPins = [];
+  Map<String, dynamic>? _selectedFloorPin;
+  final Map<String, TextEditingController> _analysisFieldControllers = {};
+  late TextEditingController _imageDefectController;
+  List<String> _analysisFieldOrder = [];
+  final List<String> _baseAnalysisFieldLabels = [
+    'Defect Category',
+    'Risk Level',
+    'Severity',
+    'Recommended Action',
+  ];
 
   SupabaseClient get _supabase => Supabase.instance.client;
 
@@ -42,6 +62,10 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
     _convoInputController = TextEditingController();
     _status = r['status'] ?? 'pending';
     _severity = r['severity'] ?? 'moderate';
+    _riskLevel = r['risk_level'] ?? 'medium';
+    _riskScore = r['risk_score'] ?? 50;
+
+    _initAnalysisFields(r['ai_analysis'] as String? ?? '');
 
     // 解析 conversation
     _conversation =
@@ -73,10 +97,408 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
 
     _titleController.addListener(_markChanged);
     _analysisController.addListener(_markChanged);
+
+    // 實時監聽這份報告的變化
+    _setupRealtimeListener();
+
+    // 載入樓層圖與 pin 關聯
+    _loadFloorPlanContext();
+  }
+
+  Future<void> _loadFloorPlanContext() async {
+    setState(() => _isLoadingFloorPlan = true);
+
+    try {
+      // Query full row data: session_id, floor, floor_plan_path, payload
+      final rows = await _supabase
+          .from('inspection_sessions')
+          .select('session_id, floor, floor_plan_path, payload');
+
+      final sessions = List<Map<String, dynamic>>.from(rows);
+
+      final reportX = (widget.report['latitude'] as num?)?.toDouble();
+      final reportY = (widget.report['longitude'] as num?)?.toDouble();
+
+      Map<String, dynamic>? bestSession;
+      Map<String, dynamic>? bestSessionRow;
+      Map<String, dynamic>? matchedPin;
+      double bestDistance = double.infinity;
+
+      for (final row in sessions) {
+        final session = Map<String, dynamic>.from(
+            row['payload'] as Map<String, dynamic>? ?? {});
+        if (session.isEmpty) continue;
+
+        final pinsRaw = (session['pins'] as List<dynamic>? ?? [])
+            .map((p) => Map<String, dynamic>.from(p as Map))
+            .toList();
+        if (pinsRaw.isEmpty) continue;
+
+        for (final pin in pinsRaw) {
+          final px = (pin['x'] as num?)?.toDouble();
+          final py = (pin['y'] as num?)?.toDouble();
+          if (reportX == null || reportY == null || px == null || py == null) {
+            continue;
+          }
+          final dx = px - reportX;
+          final dy = py - reportY;
+          final distance = (dx * dx + dy * dy);
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            bestSession = session;
+            bestSessionRow = row;
+            matchedPin = pin;
+          }
+        }
+      }
+
+      // Fallback to first session if no pin match found
+      if (bestSession == null && sessions.isNotEmpty) {
+        bestSessionRow = sessions.first;
+        final session = Map<String, dynamic>.from(
+            sessions.first['payload'] as Map<String, dynamic>? ?? {});
+        if (session.isNotEmpty) {
+          bestSession = session;
+          final pinsRaw = (session['pins'] as List<dynamic>? ?? [])
+              .map((p) => Map<String, dynamic>.from(p as Map))
+              .toList();
+          if (pinsRaw.isNotEmpty) {
+            matchedPin = pinsRaw.first;
+          }
+        }
+      }
+
+      if (bestSession != null && bestSessionRow != null) {
+        // Priority: payload floor_plan_url > payload floor_plan_base64 > row floor_plan_path
+        String? resolvedUrl;
+        String? base64Data;
+
+        // Check payload first
+        final payloadUrl =
+            (bestSession['floor_plan_url'] ?? bestSession['floorPlanUrl'])
+                ?.toString();
+        final payloadBase64 =
+            (bestSession['floor_plan_base64'] ?? bestSession['floorPlanBase64'])
+                ?.toString();
+
+        if (payloadUrl != null && payloadUrl.isNotEmpty) {
+          if (payloadUrl.startsWith('http://') ||
+              payloadUrl.startsWith('https://')) {
+            resolvedUrl = payloadUrl;
+          } else if (payloadUrl.contains('buildings/')) {
+            final idx = payloadUrl.indexOf('buildings/');
+            final storagePath = payloadUrl.substring(idx);
+            resolvedUrl =
+                _supabase.storage.from('floor-plans').getPublicUrl(storagePath);
+          }
+        } else if (payloadBase64 != null && payloadBase64.isNotEmpty) {
+          base64Data = payloadBase64;
+        } else {
+          // Fallback to row floor_plan_path
+          final floorPlanPath = bestSessionRow['floor_plan_path'] as String?;
+          if (floorPlanPath != null && floorPlanPath.isNotEmpty) {
+            if (floorPlanPath.startsWith('http://') ||
+                floorPlanPath.startsWith('https://')) {
+              resolvedUrl = floorPlanPath;
+            } else if (floorPlanPath.contains('buildings/')) {
+              final idx = floorPlanPath.indexOf('buildings/');
+              final storagePath = floorPlanPath.substring(idx);
+              resolvedUrl = _supabase.storage
+                  .from('floor-plans')
+                  .getPublicUrl(storagePath);
+            }
+          }
+        }
+
+        final pins = (bestSession['pins'] as List<dynamic>? ?? [])
+            .map((p) => Map<String, dynamic>.from(p as Map))
+            .toList();
+
+        setState(() {
+          _floorPlanDisplayUrl = resolvedUrl;
+          _floorPlanBase64 = base64Data;
+          _floorNumber = (bestSessionRow!['floor'] as num?)?.toInt();
+          _floorPins = pins;
+          _selectedFloorPin =
+              matchedPin ?? (pins.isNotEmpty ? pins.first : null);
+          _isLoadingFloorPlan = false;
+        });
+        return;
+      }
+
+      if (mounted) {
+        setState(() {
+          _isLoadingFloorPlan = false;
+          _floorPlanDisplayUrl = null;
+          _floorPlanBase64 = null;
+          _floorPins = [];
+          _selectedFloorPin = null;
+        });
+      }
+    } catch (e) {
+      debugPrint('Floor plan load error: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingFloorPlan = false;
+          _floorPlanDisplayUrl = null;
+          _floorPlanBase64 = null;
+          _floorPins = [];
+          _selectedFloorPin = null;
+        });
+      }
+    }
+  }
+
+  String? _pinImageUrl(Map<String, dynamic>? pin) {
+    if (pin == null) return null;
+    final defects = pin['defects'] as List<dynamic>? ?? [];
+    if (defects.isNotEmpty) {
+      final firstDefect = Map<String, dynamic>.from(defects.first as Map);
+      final imgPath = firstDefect['imagePath'] as String?;
+      if (imgPath != null &&
+          (imgPath.startsWith('http://') || imgPath.startsWith('https://'))) {
+        return imgPath;
+      }
+    }
+    return null;
+  }
+
+  String? _pinImageBase64(Map<String, dynamic>? pin) {
+    if (pin == null) return null;
+    final defects = pin['defects'] as List<dynamic>? ?? [];
+    if (defects.isNotEmpty) {
+      final firstDefect = Map<String, dynamic>.from(defects.first as Map);
+      final base64 = firstDefect['imageBase64'] as String?;
+      if (base64 != null && base64.isNotEmpty) return base64;
+    }
+    return pin['imageBase64'] as String?;
+  }
+
+  /// 計算風險等級和分數從嚴重程度
+  void _updateRiskFromSeverity(String severity) {
+    final category = widget.report['category'] ?? 'structural';
+
+    switch (severity) {
+      case 'severe':
+        _riskScore = 80 + (category == 'structural' ? 15 : 5);
+        _riskLevel = 'high';
+        break;
+      case 'moderate':
+        _riskScore = 50 + (category == 'structural' ? 20 : 10);
+        _riskLevel = _riskScore >= 70 ? 'high' : 'medium';
+        break;
+      case 'mild':
+      default:
+        _riskScore = 20 + (category == 'structural' ? 15 : 5);
+        _riskLevel = 'low';
+    }
+
+    _riskScore = _riskScore.clamp(0, 100);
+  }
+
+  /// 實時監聽報告變化（工人回覆等）
+  void _setupRealtimeListener() {
+    _reportSubscription = _supabase
+        .from('reports')
+        .stream(primaryKey: ['id'])
+        .eq('id', widget.report['id'])
+        .listen((rows) {
+          if (!mounted || rows.isEmpty) return;
+
+          final data = rows.first;
+          final newStatus = data['status'] as String? ?? _status;
+          final newSeverity = data['severity'] as String? ?? _severity;
+          final newRiskLevel = data['risk_level'] as String? ?? _riskLevel;
+          final newRiskScore =
+              (data['risk_score'] as num?)?.toInt() ?? _riskScore;
+
+          final newConvStr = data['conversation'] as String?;
+          final newConv = ReportModel.conversationFromJson(newConvStr);
+          final hasNewMsg = newConv.length > _conversation.length;
+
+          setState(() {
+            _status = newStatus;
+            _severity = newSeverity;
+            _riskLevel = newRiskLevel;
+            _riskScore = newRiskScore;
+            if (newConv.isNotEmpty) {
+              _conversation = newConv;
+            }
+          });
+
+          if (hasNewMsg) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Row(
+                  children: [
+                    Icon(Icons.message, color: Colors.white),
+                    SizedBox(width: 8),
+                    Text('收到新消息'),
+                  ],
+                ),
+                backgroundColor: Colors.blue,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        });
   }
 
   void _markChanged() {
     if (!_hasChanges) setState(() => _hasChanges = true);
+  }
+
+  void _initAnalysisFields(String aiAnalysisText) {
+    for (final controller in _analysisFieldControllers.values) {
+      controller.dispose();
+    }
+    _analysisFieldControllers.clear();
+
+    final parsed = _parseAnalysisText(aiAnalysisText);
+    final fields = Map<String, String>.from(
+      parsed['fields'] as Map<String, String>? ?? <String, String>{},
+    );
+    final imageItems = List<String>.from(
+      parsed['imageItems'] as List<String>? ?? <String>[],
+    );
+
+    final order = <String>[];
+    for (final label in _baseAnalysisFieldLabels) {
+      order.add(label);
+    }
+    for (final key in fields.keys) {
+      if (!order.contains(key)) {
+        order.add(key);
+      }
+    }
+    _analysisFieldOrder = order;
+
+    for (final label in _analysisFieldOrder) {
+      final controller = TextEditingController(text: fields[label] ?? '');
+      controller.addListener(_syncAnalysisControllerFromFields);
+      _analysisFieldControllers[label] = controller;
+    }
+
+    _imageDefectController = TextEditingController(
+      text: imageItems.join('\n').trim(),
+    );
+    _imageDefectController.addListener(_syncAnalysisControllerFromFields);
+
+    _analysisController.text = _composeAnalysisText();
+  }
+
+  void _syncAnalysisControllerFromFields() {
+    _analysisController.text = _composeAnalysisText();
+    _markChanged();
+  }
+
+  Map<String, dynamic> _parseAnalysisText(String text) {
+    final fields = <String, String>{};
+    final imageItems = <String>[];
+    final lines = text.split('\n');
+    final fieldRegExp =
+        RegExp(r'^([A-Za-z][A-Za-z0-9 /&()_\-]{1,80})\s*:\s*(.*)$');
+    final imageHeaderRegExp =
+        RegExp(r'^Image\s*Defect\s*Analysis\s*:', caseSensitive: false);
+    final imageItemRegExp = RegExp(r'^\d+\s*[\.|\)]\s*(.*)$');
+
+    String? currentLabel;
+    final currentValue = StringBuffer();
+    bool inImageSection = false;
+
+    void flushCurrent() {
+      if (currentLabel == null) return;
+      final value = currentValue.toString().trim();
+      fields[currentLabel!] = value;
+      currentLabel = null;
+      currentValue.clear();
+    }
+
+    for (final line in lines) {
+      final trimmed = line.trim();
+
+      if (trimmed.isEmpty) {
+        if (currentLabel != null && currentValue.isNotEmpty) {
+          currentValue.write('\n');
+        }
+        continue;
+      }
+
+      if (imageHeaderRegExp.hasMatch(trimmed)) {
+        flushCurrent();
+        inImageSection = true;
+        continue;
+      }
+
+      if (inImageSection) {
+        final itemMatch = imageItemRegExp.firstMatch(trimmed);
+        if (itemMatch != null) {
+          imageItems.add((itemMatch.group(1) ?? '').trim());
+          continue;
+        }
+
+        final possibleField = fieldRegExp.firstMatch(trimmed);
+        if (possibleField != null) {
+          inImageSection = false;
+          flushCurrent();
+          currentLabel = (possibleField.group(1) ?? '').trim();
+          currentValue.write((possibleField.group(2) ?? '').trim());
+          continue;
+        }
+
+        if (imageItems.isEmpty) {
+          imageItems.add(trimmed);
+        } else {
+          final lastIndex = imageItems.length - 1;
+          imageItems[lastIndex] = '${imageItems[lastIndex]} $trimmed'.trim();
+        }
+        continue;
+      }
+
+      final fieldMatch = fieldRegExp.firstMatch(trimmed);
+      if (fieldMatch != null) {
+        flushCurrent();
+        currentLabel = (fieldMatch.group(1) ?? '').trim();
+        currentValue.write((fieldMatch.group(2) ?? '').trim());
+      } else if (currentLabel != null) {
+        if (currentValue.isNotEmpty &&
+            !currentValue.toString().endsWith('\n')) {
+          currentValue.write('\n');
+        }
+        currentValue.write(trimmed);
+      } else {
+        fields['Defect Category'] =
+            '${fields['Defect Category'] ?? ''} $trimmed'.trim();
+      }
+    }
+
+    flushCurrent();
+
+    if (fields.isEmpty && text.trim().isNotEmpty) {
+      fields['Defect Category'] = text.trim();
+    }
+
+    return {
+      'fields': fields,
+      'imageItems': imageItems,
+    };
+  }
+
+  String _composeAnalysisText() {
+    final lines = <String>[];
+    for (final label in _analysisFieldOrder) {
+      final value = _analysisFieldControllers[label]?.text.trim() ?? '';
+      lines.add('$label: $value');
+    }
+
+    lines.add('');
+    lines.add('Image Defect Analysis:');
+    final imageText = _imageDefectController.text.trim();
+    if (imageText.isNotEmpty) {
+      lines.addAll(imageText.split('\n'));
+    }
+
+    return lines.join('\n').trimRight();
   }
 
   @override
@@ -84,6 +506,11 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
     _titleController.dispose();
     _analysisController.dispose();
     _convoInputController.dispose();
+    for (final controller in _analysisFieldControllers.values) {
+      controller.dispose();
+    }
+    _imageDefectController.dispose();
+    _reportSubscription?.cancel();
     super.dispose();
   }
 
@@ -95,6 +522,8 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
         'ai_analysis': _analysisController.text,
         'status': _status,
         'severity': _severity,
+        'risk_level': _riskLevel,
+        'risk_score': _riskScore,
         'updated_at': DateTime.now().toIso8601String(),
       }).eq('id', widget.report['id']);
 
@@ -203,8 +632,8 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final r = widget.report;
-    final riskLevel = r['risk_level'] ?? 'low';
-    final riskScore = r['risk_score'] ?? 0;
+    final riskLevel = _riskLevel;
+    final riskScore = _riskScore;
     final riskColor = AppTheme.getRiskColor(riskLevel);
     final createdAt = r['created_at'] != null
         ? DateFormat('yyyy/MM/dd HH:mm')
@@ -252,6 +681,9 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
                   // 圖片
                   _buildImageCard(imageUrl, imageBase64),
                   const SizedBox(height: 24),
+                  // 樓層圖（與現場照片分開顯示）
+                  _buildFloorPlanCard(),
+                  const SizedBox(height: 24),
                   // 基本資訊
                   _buildInfoCard(riskLevel, riskScore, riskColor, createdAt),
                   const SizedBox(height: 24),
@@ -278,8 +710,9 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
                     title: 'AI 分析結果（可修改）',
                     icon: Icons.smart_toy,
                     controller: _analysisController,
-                    maxLines: 12,
+                    maxLines: 1,
                     highlight: true,
+                    child: _buildStructuredAiAnalysisSection(),
                   ),
                   const SizedBox(height: 24),
                   // 對話 / 跟進記錄
@@ -772,6 +1205,229 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
     );
   }
 
+  Widget _buildFloorPlanCard() {
+    final selectedPinImageUrl = _pinImageUrl(_selectedFloorPin);
+    final selectedPinImageBase64 = _pinImageBase64(_selectedFloorPin);
+
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.map, color: AppTheme.primaryColor, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                _floorNumber != null ? '樓層圖（${_floorNumber}F）' : '樓層圖',
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 240,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: _isLoadingFloorPlan
+                  ? const Center(child: CircularProgressIndicator())
+                  : _buildInteractiveFloorPlan(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const Icon(Icons.photo_library_outlined,
+                  color: AppTheme.primaryColor, size: 18),
+              const SizedBox(width: 8),
+              const Text('Pin 對應現場照片',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+              const Spacer(),
+              IconButton(
+                tooltip: _showLinkedPhoto ? '縮小照片' : '展開照片',
+                onPressed: () {
+                  setState(() {
+                    _showLinkedPhoto = !_showLinkedPhoto;
+                  });
+                },
+                icon: Icon(_showLinkedPhoto ? Icons.remove : Icons.add),
+              ),
+            ],
+          ),
+          if (_showLinkedPhoto)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: selectedPinImageUrl != null &&
+                      selectedPinImageUrl.isNotEmpty
+                  ? Image.network(
+                      selectedPinImageUrl,
+                      height: 180,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _noImagePlaceholder(),
+                    )
+                  : selectedPinImageBase64 != null &&
+                          selectedPinImageBase64.isNotEmpty
+                      ? Image.memory(
+                          base64Decode(selectedPinImageBase64),
+                          height: 180,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _noImagePlaceholder(),
+                        )
+                      : _noImagePlaceholder(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInteractiveFloorPlan() {
+    // Check if we have URL or base64 image
+    final hasUrl =
+        _floorPlanDisplayUrl != null && _floorPlanDisplayUrl!.isNotEmpty;
+    final hasBase64 = _floorPlanBase64 != null && _floorPlanBase64!.isNotEmpty;
+
+    if (!hasUrl && !hasBase64) {
+      if (_floorPins.isEmpty) {
+        return Container(
+          color: Colors.grey.shade100,
+          child: const Center(
+            child: Text('無樓層圖 / 無定位圖', style: TextStyle(color: Colors.grey)),
+          ),
+        );
+      }
+
+      return _buildPinCanvas(
+        background: Container(color: Colors.grey.shade100),
+      );
+    }
+
+    // Build background with URL or base64, with fallback
+    Widget buildBackgroundImage() {
+      if (hasUrl) {
+        return Image.network(
+          _floorPlanDisplayUrl!,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) {
+            if (hasBase64) {
+              return Image.memory(
+                base64Decode(_floorPlanBase64!),
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  color: Colors.grey.shade100,
+                  child: const Center(
+                    child:
+                        Text('樓層圖載入失敗', style: TextStyle(color: Colors.grey)),
+                  ),
+                ),
+              );
+            }
+            return Container(
+              color: Colors.grey.shade100,
+              child: const Center(
+                child: Text('樓層圖載入失敗', style: TextStyle(color: Colors.grey)),
+              ),
+            );
+          },
+        );
+      } else if (hasBase64) {
+        return Image.memory(
+          base64Decode(_floorPlanBase64!),
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Container(
+            color: Colors.grey.shade100,
+            child: const Center(
+              child: Text('樓層圖載入失敗', style: TextStyle(color: Colors.grey)),
+            ),
+          ),
+        );
+      }
+      return Container(
+        color: Colors.grey.shade100,
+        child: const Center(
+          child: Text('無樓層圖', style: TextStyle(color: Colors.grey)),
+        ),
+      );
+    }
+
+    return _buildPinCanvas(background: buildBackgroundImage());
+  }
+
+  Widget _buildPinCanvas({required Widget background}) {
+    if (_floorPins.isEmpty) {
+      return background;
+    }
+
+    double minX = double.infinity;
+    double maxX = -double.infinity;
+    double minY = double.infinity;
+    double maxY = -double.infinity;
+
+    for (final pin in _floorPins) {
+      final x = (pin['x'] as num?)?.toDouble();
+      final y = (pin['y'] as num?)?.toDouble();
+      if (x == null || y == null) continue;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+
+    final spanX = (maxX - minX).abs() < 0.0001 ? 1.0 : (maxX - minX);
+    final spanY = (maxY - minY).abs() < 0.0001 ? 1.0 : (maxY - minY);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Stack(
+          children: [
+            Positioned.fill(child: background),
+            ..._floorPins.map((pin) {
+              final x = (pin['x'] as num?)?.toDouble();
+              final y = (pin['y'] as num?)?.toDouble();
+              if (x == null || y == null) return const SizedBox.shrink();
+
+              final nx = ((x - minX) / spanX).clamp(0.05, 0.95);
+              final ny = ((y - minY) / spanY).clamp(0.05, 0.95);
+              final pinId = pin['id']?.toString() ?? '';
+              final active = _selectedFloorPin?['id']?.toString() == pinId;
+
+              return Positioned(
+                left: (constraints.maxWidth * nx) - 11,
+                top: (constraints.maxHeight * (1 - ny)) - 11,
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedFloorPin = pin;
+                      _showLinkedPhoto = true;
+                    });
+                  },
+                  child: Container(
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: active ? Colors.red : AppTheme.primaryColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.25),
+                          blurRadius: 4,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(Icons.location_on,
+                        color: Colors.white, size: 12),
+                  ),
+                ),
+              );
+            }),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildStatusCard() {
     return _card(
       child: Column(
@@ -851,6 +1507,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
         onTap: () {
           setState(() {
             _severity = value;
+            _updateRiskFromSeverity(value);
             _hasChanges = true;
           });
         },
@@ -863,12 +1520,29 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
             border: active ? Border.all(color: color) : null,
           ),
           child: Center(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontWeight: active ? FontWeight.bold : FontWeight.normal,
-                color: active ? color : AppTheme.textSecondary,
-              ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: active ? FontWeight.bold : FontWeight.normal,
+                    color: active ? color : AppTheme.textSecondary,
+                  ),
+                ),
+                if (active)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      '分數: $_riskScore',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: color,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         ),
@@ -884,6 +1558,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
     bool highlight = false,
     Color? highlightColor,
     String? hintText,
+    Widget? child,
   }) {
     final color = highlightColor ?? Colors.deepOrange;
     return _card(
@@ -923,44 +1598,134 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          TextField(
-            controller: controller,
-            maxLines: maxLines,
-            decoration: InputDecoration(
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(
-                  color:
-                      highlight ? color.withOpacity(0.3) : AppTheme.borderColor,
+          if (child != null)
+            child
+          else
+            TextField(
+              controller: controller,
+              maxLines: maxLines,
+              decoration: InputDecoration(
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: highlight
+                        ? color.withOpacity(0.3)
+                        : AppTheme.borderColor,
+                  ),
                 ),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(
-                  color:
-                      highlight ? color.withOpacity(0.3) : AppTheme.borderColor,
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: highlight
+                        ? color.withOpacity(0.3)
+                        : AppTheme.borderColor,
+                  ),
                 ),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(
-                  color: highlight ? color : AppTheme.primaryColor,
-                  width: 2,
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: highlight ? color : AppTheme.primaryColor,
+                    width: 2,
+                  ),
                 ),
+                filled: true,
+                fillColor:
+                    highlight ? color.withOpacity(0.03) : Colors.grey.shade50,
+                hintText: hintText ?? (highlight ? '在此修改 AI 分析內容...' : null),
               ),
-              filled: true,
-              fillColor:
-                  highlight ? color.withOpacity(0.03) : Colors.grey.shade50,
-              hintText: hintText ?? (highlight ? '在此修改 AI 分析內容...' : null),
+              style: TextStyle(
+                fontSize: 14,
+                height: 1.6,
+                color: highlight ? Colors.black87 : AppTheme.textPrimary,
+              ),
             ),
-            style: TextStyle(
-              fontSize: 14,
-              height: 1.6,
-              color: highlight ? Colors.black87 : AppTheme.textPrimary,
-            ),
-          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildStructuredAiAnalysisSection() {
+    return Column(
+      children: [
+        for (final label in _analysisFieldOrder) ...[
+          _buildFixedLabelEditableRow(
+            label: label,
+            controller: _analysisFieldControllers[label]!,
+          ),
+          const SizedBox(height: 12),
+        ],
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            'Image Defect Analysis:（固定）',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: Colors.grey.shade800,
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _imageDefectController,
+          minLines: 4,
+          maxLines: 10,
+          decoration: InputDecoration(
+            hintText: '請輸入或修改 Image Defect Analysis 內容...',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.deepOrange.withOpacity(0.3)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.deepOrange.withOpacity(0.3)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Colors.deepOrange, width: 2),
+            ),
+            filled: true,
+            fillColor: Colors.deepOrange.withOpacity(0.03),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFixedLabelEditableRow({
+    required String label,
+    required TextEditingController controller,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '$label:（固定）',
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          minLines: 2,
+          maxLines: 4,
+          decoration: InputDecoration(
+            hintText: '請輸入或修改 $label 內容...',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.deepOrange.withOpacity(0.3)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.deepOrange.withOpacity(0.3)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Colors.deepOrange, width: 2),
+            ),
+            filled: true,
+            fillColor: Colors.deepOrange.withOpacity(0.03),
+          ),
+        ),
+      ],
     );
   }
 

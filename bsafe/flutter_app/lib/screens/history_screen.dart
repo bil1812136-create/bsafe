@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:bsafe_app/providers/report_provider.dart';
+import 'package:bsafe_app/providers/navigation_provider.dart';
 import 'package:bsafe_app/models/report_model.dart';
 import 'package:bsafe_app/theme/app_theme.dart';
 import 'package:bsafe_app/widgets/report_detail_card.dart';
@@ -14,19 +15,23 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
-  String _filterRisk = 'all';
   String _filterStatus = 'all';
   String _searchQuery = '';
+  bool _isInitialized = false;
 
-  List<ReportModel> _getFilteredReports(List<ReportModel> reports) {
+  List<ReportModel> _getFilteredReports(
+    List<ReportModel> reports,
+    String filterRisk,
+    String filterStatus,
+  ) {
     return reports.where((report) {
       // Filter by risk level
-      if (_filterRisk != 'all' && report.riskLevel != _filterRisk) {
+      if (filterRisk != 'all' && report.riskLevel != filterRisk) {
         return false;
       }
 
       // Filter by status
-      if (_filterStatus != 'all' && report.status != _filterStatus) {
+      if (filterStatus != 'all' && report.status != filterStatus) {
         return false;
       }
 
@@ -62,6 +67,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
           backgroundColor: count > 0 ? Colors.green : Colors.grey.shade700,
         ),
       );
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // 清除過濾狀態以支持重新初始化
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_isInitialized) {
+      _isInitialized = true;
     }
   }
 
@@ -148,54 +167,71 @@ class _HistoryScreenState extends State<HistoryScreen> {
           ),
 
           // Filter Chips
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                _FilterChip(
-                  label: '全部',
-                  isSelected: _filterRisk == 'all',
-                  onSelected: () => setState(() => _filterRisk = 'all'),
+          Consumer<NavigationProvider>(
+            builder: (context, navProvider, _) {
+              final filterRisk = navProvider.historyFilterRisk;
+
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    _FilterChip(
+                      label: '全部',
+                      isSelected: filterRisk == 'all',
+                      onSelected: () {
+                        navProvider.setHistoryFilters(risk: 'all');
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    _FilterChip(
+                      label: '高風險',
+                      isSelected: filterRisk == 'high',
+                      color: AppTheme.riskHigh,
+                      onSelected: () {
+                        navProvider.setHistoryFilters(risk: 'high');
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    _FilterChip(
+                      label: '中風險',
+                      isSelected: filterRisk == 'medium',
+                      color: AppTheme.riskMedium,
+                      onSelected: () {
+                        navProvider.setHistoryFilters(risk: 'medium');
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    _FilterChip(
+                      label: '低風險',
+                      isSelected: filterRisk == 'low',
+                      color: AppTheme.riskLow,
+                      onSelected: () {
+                        navProvider.setHistoryFilters(risk: 'low');
+                      },
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                _FilterChip(
-                  label: '高風險',
-                  isSelected: _filterRisk == 'high',
-                  color: AppTheme.riskHigh,
-                  onSelected: () => setState(() => _filterRisk = 'high'),
-                ),
-                const SizedBox(width: 8),
-                _FilterChip(
-                  label: '中風險',
-                  isSelected: _filterRisk == 'medium',
-                  color: AppTheme.riskMedium,
-                  onSelected: () => setState(() => _filterRisk = 'medium'),
-                ),
-                const SizedBox(width: 8),
-                _FilterChip(
-                  label: '低風險',
-                  isSelected: _filterRisk == 'low',
-                  color: AppTheme.riskLow,
-                  onSelected: () => setState(() => _filterRisk = 'low'),
-                ),
-              ],
-            ),
+              );
+            },
           ),
 
           const SizedBox(height: 8),
 
           // Reports List
           Expanded(
-            child: Consumer<ReportProvider>(
-              builder: (context, reportProvider, _) {
+            child: Consumer2<ReportProvider, NavigationProvider>(
+              builder: (context, reportProvider, navProvider, _) {
                 if (reportProvider.isLoading &&
                     reportProvider.reports.isEmpty) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                final filteredReports =
-                    _getFilteredReports(reportProvider.reports);
+                final filteredReports = _getFilteredReports(
+                  reportProvider.reports,
+                  navProvider.historyFilterRisk,
+                  navProvider.historyFilterStatus,
+                );
 
                 if (filteredReports.isEmpty) {
                   return Center(
@@ -209,7 +245,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          _searchQuery.isNotEmpty || _filterRisk != 'all'
+                          _searchQuery.isNotEmpty ||
+                                  navProvider.historyFilterRisk != 'all'
                               ? '沒有符合條件的報告'
                               : '暫無報告記錄',
                           style: TextStyle(

@@ -6,6 +6,8 @@ class StatCard extends StatelessWidget {
   final String value;
   final IconData icon;
   final Color color;
+  final VoidCallback? onTap;
+  final bool isClickable;
 
   const StatCard({
     super.key,
@@ -13,15 +15,20 @@ class StatCard extends StatelessWidget {
     required this.value,
     required this.icon,
     required this.color,
+    this.onTap,
+    this.isClickable = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final widget = Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: isClickable
+            ? Border.all(color: color.withOpacity(0.2), width: 1)
+            : null,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),
@@ -65,5 +72,21 @@ class StatCard extends StatelessWidget {
         ],
       ),
     );
+
+    if (isClickable && onTap != null) {
+      return GestureDetector(
+        onTap: onTap,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            transform: Matrix4.identity()..scale(1.0),
+            child: widget,
+          ),
+        ),
+      );
+    }
+
+    return widget;
   }
 }

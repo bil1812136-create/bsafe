@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:bsafe_app/theme/app_theme.dart';
 import 'package:bsafe_app/screens/web/web_report_detail_screen.dart';
@@ -15,10 +17,16 @@ class WebDashboardScreen extends StatefulWidget {
 
 class _WebDashboardScreenState extends State<WebDashboardScreen> {
   List<Map<String, dynamic>> _reports = [];
+  List<Map<String, dynamic>> _floorPlans = [];
   bool _isLoading = true;
+  bool _isFloorPlanLoading = true;
+  bool _isUploadingFloorPlan = false;
   String? _error;
-  String _filterRiskLevel = 'all';
-  String _filterStatus = 'all';
+  String? _floorPlanError;
+  String _filterRiskLevel = 'all'; // 'all', 'high', 'medium', 'low'
+  String _activeSection = 'reports'; // reports | floor_plans
+  final TextEditingController _floorNumberController = TextEditingController();
+  final ImagePicker _picker = ImagePicker();
   Timer? _refreshTimer;
 
   SupabaseClient get _supabase => Supabase.instance.client;
@@ -27,6 +35,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
   void initState() {
     super.initState();
     _loadReports();
+    _loadFloorPlans();
     // 每 15 秒自動刷新（接收手機端新報告）
     _refreshTimer = Timer.periodic(
       const Duration(seconds: 15),
@@ -37,7 +46,164 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _floorNumberController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadFloorPlans({bool silent = false}) async {
+    if (!silent) {
+      setState(() {
+        _isFloorPlanLoading = true;
+        _floorPlanError = null;
+      });
+    }
+
+    try {
+      final rows = await _supabase
+          .from('inspection_sessions')
+          .select('session_id, floor, floor_plan_path, payload, created_at')
+          .order('created_at', ascending: false)
+          .limit(100);
+
+      if (!mounted) return;
+      setState(() {
+        _floorPlans = List<Map<String, dynamic>>.from(rows);
+        _isFloorPlanLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isFloorPlanLoading = false;
+        _floorPlanError = '載入樓層圖失敗: $e';
+      });
+    }
+  }
+
+  Future<void> _pickAndUploadFloorPlan() async {
+    final floorText = _floorNumberController.text.trim();
+    final floorNumber = int.tryParse(floorText);
+    if (floorNumber == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('請先輸入正確樓層（數字）')),
+      );
+      return;
+    }
+
+    final file = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 90,
+      maxWidth: 2500,
+      maxHeight: 2500,
+    );
+
+    if (file == null) return;
+
+    setState(() => _isUploadingFloorPlan = true);
+    try {
+      final bytes = await file.readAsBytes();
+      final path =
+          'buildings/floorplans/floor_${floorNumber}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      String? publicUrl;
+      String? floorPlanPath;
+      String? floorPlanBase64;
+
+      try {
+        await _supabase.storage.from('floor-plans').uploadBinary(
+              path,
+              bytes,
+              fileOptions: const FileOptions(
+                upsert: true,
+                contentType: 'image/jpeg',
+              ),
+            );
+        publicUrl = _supabase.storage.from('floor-plans').getPublicUrl(path);
+        floorPlanPath = path;
+      } catch (storageError) {
+        floorPlanBase64 = base64Encode(bytes);
+        floorPlanPath = null;
+        publicUrl = null;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Storage 無權限，已改為資料庫儲存樓層圖: $storageError',
+              ),
+            ),
+          );
+        }
+      }
+
+      final sessionId = 'web_${DateTime.now().millisecondsSinceEpoch}';
+      await _supabase.from('inspection_sessions').insert({
+        'session_id': sessionId,
+        'name': 'Web Floor Plan F$floorNumber',
+        'project_id': 'web-dashboard',
+        'floor': floorNumber,
+        'floor_plan_path': floorPlanPath,
+        'status': 'active',
+        'payload': {
+          'id': sessionId,
+          'name': 'Web Floor Plan F$floorNumber',
+          'projectId': 'web-dashboard',
+          'floor': floorNumber,
+          'floor_plan_url': publicUrl,
+          'floorPlanPath': floorPlanPath,
+          'floor_plan_base64': floorPlanBase64,
+          'pins': [],
+        },
+      });
+
+      if (!mounted) return;
+      _floorNumberController.clear();
+      await _loadFloorPlans(silent: true);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('樓層圖已上傳並建立成功')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('上傳失敗: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isUploadingFloorPlan = false);
+    }
+  }
+
+  String? _resolveFloorPlanUrl(Map<String, dynamic> row) {
+    final payload = row['payload'];
+    if (payload is! Map) return null;
+    final payloadMap = Map<String, dynamic>.from(payload);
+    final direct = (payloadMap['floor_plan_url'] ?? payloadMap['floorPlanUrl'])
+        ?.toString();
+    if (direct != null && direct.isNotEmpty) {
+      if (direct.startsWith('http://') || direct.startsWith('https://')) {
+        return direct;
+      }
+      return _supabase.storage.from('floor-plans').getPublicUrl(direct);
+    }
+
+    final rowPath = row['floor_plan_path']?.toString();
+    if (rowPath != null && rowPath.isNotEmpty) {
+      if (rowPath.startsWith('http://') || rowPath.startsWith('https://')) {
+        return rowPath;
+      }
+      return _supabase.storage.from('floor-plans').getPublicUrl(rowPath);
+    }
+
+    final path = payloadMap['floorPlanPath']?.toString();
+    if (path == null || path.isEmpty) return null;
+    if (path.startsWith('http://') || path.startsWith('https://')) return path;
+    return _supabase.storage.from('floor-plans').getPublicUrl(path);
+  }
+
+  String? _resolveFloorPlanBase64(Map<String, dynamic> row) {
+    final payload = row['payload'];
+    if (payload is! Map) return null;
+    final payloadMap = Map<String, dynamic>.from(payload);
+    final raw = payloadMap['floor_plan_base64']?.toString();
+    if (raw == null || raw.isEmpty) return null;
+    return raw;
   }
 
   Future<void> _loadReports({bool silent = false}) async {
@@ -53,9 +219,6 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
 
       if (_filterRiskLevel != 'all') {
         query = query.eq('risk_level', _filterRiskLevel);
-      }
-      if (_filterStatus != 'all') {
-        query = query.eq('status', _filterStatus);
       }
 
       final data = await query.order('created_at', ascending: false);
@@ -88,14 +251,16 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
 
           // ── 主內容區 ──
           Expanded(
-            child: Column(
-              children: [
-                _buildTopBar(screenWidth),
-                _buildStatsRow(),
-                _buildFilterBar(),
-                Expanded(child: _buildReportTable()),
-              ],
-            ),
+            child: _activeSection == 'reports'
+                ? Column(
+                    children: [
+                      _buildTopBar(screenWidth),
+                      _buildStatsRow(),
+                      _buildFilterBar(),
+                      Expanded(child: _buildReportTable()),
+                    ],
+                  )
+                : _buildFloorPlanManagement(),
           ),
         ],
       ),
@@ -142,9 +307,24 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
           ),
           const SizedBox(height: 40),
           // Nav items
-          _sidebarItem(Icons.dashboard, '報告總覽', true),
+          _sidebarItem(
+            Icons.dashboard,
+            '報告總覽',
+            _activeSection == 'reports',
+            onTap: () {
+              setState(() => _activeSection = 'reports');
+            },
+          ),
           _sidebarItem(Icons.analytics, '統計分析', false),
-          _sidebarItem(Icons.map, '樓層圖管理', false),
+          _sidebarItem(
+            Icons.map,
+            '樓層圖管理',
+            _activeSection == 'floor_plans',
+            onTap: () {
+              setState(() => _activeSection = 'floor_plans');
+              _loadFloorPlans();
+            },
+          ),
           _sidebarItem(Icons.settings, '設定', false),
           const Spacer(),
           // Connection status
@@ -180,7 +360,12 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
     );
   }
 
-  Widget _sidebarItem(IconData icon, String label, bool active) {
+  Widget _sidebarItem(
+    IconData icon,
+    String label,
+    bool active, {
+    VoidCallback? onTap,
+  }) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       decoration: BoxDecoration(
@@ -199,8 +384,192 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
           ),
         ),
         dense: true,
-        onTap: () {},
+        onTap: onTap,
       ),
+    );
+  }
+
+  Widget _buildFloorPlanManagement() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
+          color: Colors.white,
+          child: Row(
+            children: [
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '樓層圖管理',
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    '上傳樓層圖供手機端選擇、加 pin 並上報',
+                    style:
+                        TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+                  ),
+                ],
+              ),
+              const Spacer(),
+              OutlinedButton.icon(
+                onPressed: _loadFloorPlans,
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('刷新'),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(32, 20, 32, 12),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 160,
+                child: TextField(
+                  controller: _floorNumberController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: '樓層 (例如 3)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              ElevatedButton.icon(
+                onPressed:
+                    _isUploadingFloorPlan ? null : _pickAndUploadFloorPlan,
+                icon: _isUploadingFloorPlan
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.upload_file),
+                label: Text(_isUploadingFloorPlan ? '上傳中...' : '上傳樓層圖'),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: _isFloorPlanLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _floorPlanError != null
+                  ? Center(child: Text(_floorPlanError!))
+                  : _floorPlans.isEmpty
+                      ? const Center(child: Text('尚未有樓層圖'))
+                      : ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(32, 8, 32, 24),
+                          itemCount: _floorPlans.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            final row = _floorPlans[index];
+                            final floor = row['floor'] ?? '-';
+                            final imageUrl = _resolveFloorPlanUrl(row);
+                            final imageBase64 = _resolveFloorPlanBase64(row);
+                            return Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: AppTheme.borderColor),
+                              ),
+                              child: Row(
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: imageUrl != null
+                                        ? Image.network(
+                                            imageUrl,
+                                            width: 140,
+                                            height: 90,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) {
+                                              if (imageBase64 != null &&
+                                                  imageBase64.isNotEmpty) {
+                                                return Image.memory(
+                                                  base64Decode(imageBase64),
+                                                  width: 140,
+                                                  height: 90,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (_, __, ___) =>
+                                                      Container(
+                                                    width: 140,
+                                                    height: 90,
+                                                    color: Colors.grey.shade200,
+                                                    alignment: Alignment.center,
+                                                    child: const Text('載入失敗'),
+                                                  ),
+                                                );
+                                              }
+                                              return Container(
+                                                width: 140,
+                                                height: 90,
+                                                color: Colors.grey.shade200,
+                                                alignment: Alignment.center,
+                                                child: const Text('載入失敗'),
+                                              );
+                                            },
+                                          )
+                                        : imageBase64 != null
+                                            ? Image.memory(
+                                                base64Decode(imageBase64),
+                                                width: 140,
+                                                height: 90,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (_, __, ___) =>
+                                                    Container(
+                                                  width: 140,
+                                                  height: 90,
+                                                  color: Colors.grey.shade200,
+                                                  alignment: Alignment.center,
+                                                  child: const Text('載入失敗'),
+                                                ),
+                                              )
+                                            : Container(
+                                                width: 140,
+                                                height: 90,
+                                                color: Colors.grey.shade200,
+                                                alignment: Alignment.center,
+                                                child: const Text('無圖片'),
+                                              ),
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          '樓層: $floor F',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          'Session ID: ${row['session_id']}',
+                                          style: const TextStyle(
+                                            color: AppTheme.textSecondary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+        ),
+      ],
     );
   }
 
@@ -253,22 +622,127 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
     final high = _reports.where((r) => r['risk_level'] == 'high').length;
     final medium = _reports.where((r) => r['risk_level'] == 'medium').length;
     final low = _reports.where((r) => r['risk_level'] == 'low').length;
-    final pending = _reports.where((r) => r['status'] == 'pending').length;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
       child: Row(
         children: [
-          _statCard('全部報告', '$total', AppTheme.primaryColor, Icons.description),
+          _clickableStatCard(
+            label: '全部報告',
+            value: '$total',
+            color: AppTheme.primaryColor,
+            icon: Icons.description,
+            isActive: _filterRiskLevel == 'all',
+            onTap: () {
+              setState(() => _filterRiskLevel = 'all');
+              _loadReports();
+            },
+          ),
           const SizedBox(width: 16),
-          _statCard('高風險', '$high', AppTheme.riskHigh, Icons.warning),
+          _clickableStatCard(
+            label: '高風險',
+            value: '$high',
+            color: AppTheme.riskHigh,
+            icon: Icons.warning,
+            isActive: _filterRiskLevel == 'high',
+            onTap: () {
+              setState(() => _filterRiskLevel = 'high');
+              _loadReports();
+            },
+          ),
           const SizedBox(width: 16),
-          _statCard('中風險', '$medium', AppTheme.riskMedium, Icons.info),
+          _clickableStatCard(
+            label: '中風險',
+            value: '$medium',
+            color: AppTheme.riskMedium,
+            icon: Icons.info,
+            isActive: _filterRiskLevel == 'medium',
+            onTap: () {
+              setState(() => _filterRiskLevel = 'medium');
+              _loadReports();
+            },
+          ),
           const SizedBox(width: 16),
-          _statCard('低風險', '$low', AppTheme.riskLow, Icons.check_circle),
-          const SizedBox(width: 16),
-          _statCard('待處理', '$pending', Colors.purple, Icons.pending_actions),
+          _clickableStatCard(
+            label: '低風險',
+            value: '$low',
+            color: AppTheme.riskLow,
+            icon: Icons.check_circle,
+            isActive: _filterRiskLevel == 'low',
+            onTap: () {
+              setState(() => _filterRiskLevel = 'low');
+              _loadReports();
+            },
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _clickableStatCard({
+    required String label,
+    required String value,
+    required Color color,
+    required IconData icon,
+    required bool isActive,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: isActive ? color.withOpacity(0.08) : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: isActive
+                ? Border.all(color: color, width: 2)
+                : Border.all(color: Colors.transparent, width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(isActive ? 0.08 : 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: color, size: 24),
+              ),
+              const SizedBox(width: 12),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      value,
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                      ),
+                    ),
+                    Text(
+                      label,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -332,10 +806,10 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
 
   Widget _buildFilterBar() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
       child: Row(
         children: [
-          const Text('篩選:', style: TextStyle(fontWeight: FontWeight.w600)),
+          const Text('風險等級:', style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(width: 12),
           _filterChip('全部', 'all', _filterRiskLevel, (v) {
             setState(() => _filterRiskLevel = v);
@@ -351,21 +825,6 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
           }),
           _filterChip('低風險', 'low', _filterRiskLevel, (v) {
             setState(() => _filterRiskLevel = v);
-            _loadReports();
-          }),
-          const SizedBox(width: 24),
-          const Text('狀態:', style: TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(width: 12),
-          _filterChip('全部', 'all', _filterStatus, (v) {
-            setState(() => _filterStatus = v);
-            _loadReports();
-          }),
-          _filterChip('待處理', 'pending', _filterStatus, (v) {
-            setState(() => _filterStatus = v);
-            _loadReports();
-          }),
-          _filterChip('已解決', 'resolved', _filterStatus, (v) {
-            setState(() => _filterStatus = v);
             _loadReports();
           }),
         ],
@@ -471,9 +930,6 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                       label: Text('類別',
                           style: TextStyle(fontWeight: FontWeight.bold))),
                   DataColumn(
-                      label: Text('風險等級',
-                          style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(
                       label: Text('風險分數',
                           style: TextStyle(fontWeight: FontWeight.bold))),
                   DataColumn(
@@ -524,23 +980,6 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
           ),
         ),
         DataCell(Text(category)),
-        DataCell(
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: riskColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              AppTheme.getRiskLabel(riskLevel),
-              style: TextStyle(
-                color: riskColor,
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
-              ),
-            ),
-          ),
-        ),
         DataCell(Text(
           '${report['risk_score'] ?? 0}',
           style: TextStyle(fontWeight: FontWeight.bold, color: riskColor),

@@ -56,6 +56,7 @@ class ReportProvider extends ChangeNotifier {
       'lowRisk': reports.where((r) => r.riskLevel == 'low').length,
       'urgent': reports.where((r) => r.isUrgent).length,
       'pending': reports.where((r) => r.status == 'pending').length,
+      'in_progress': reports.where((r) => r.status == 'in_progress').length,
       'resolved': reports.where((r) => r.status == 'resolved').length,
     };
   }
@@ -112,15 +113,18 @@ class ReportProvider extends ChangeNotifier {
     double? latitude,
     double? longitude,
     bool isOnline = true,
+    Map<String, dynamic>? precomputedAnalysis,
   }) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      // AI 分析
+      // AI 分析：若已在 UI 端完成，優先使用該結果，避免重跑覆蓋
       Map<String, dynamic> analysis;
-      if (isOnline && imageBase64 != null) {
+      if (precomputedAnalysis != null && precomputedAnalysis.isNotEmpty) {
+        analysis = precomputedAnalysis;
+      } else if (isOnline && imageBase64 != null) {
         try {
           analysis = await _api.analyzeImageWithAI(imageBase64);
         } catch (e) {
@@ -129,6 +133,11 @@ class ReportProvider extends ChangeNotifier {
       } else {
         analysis = ApiService.localAnalysis(severity, category);
       }
+
+      final analysisText = (analysis['analysis'] ??
+              analysis['formatted_report'] ??
+              analysis['description'])
+          ?.toString();
 
       final report = ReportModel(
         title: title,
@@ -143,7 +152,7 @@ class ReportProvider extends ChangeNotifier {
         location: location,
         latitude: latitude,
         longitude: longitude,
-        aiAnalysis: analysis['analysis'],
+        aiAnalysis: analysisText,
         synced: true,
       );
 
