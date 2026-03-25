@@ -1,0 +1,36 @@
+# Flutter build artifacts
+/build/
+/flutter/ephemeral/
+/flutter_export_environment.sh
+
+# Dart
+/.dart_tool/
+/.packages
+/pubspec.lock
+
+# iOS
+/ios/**/*.pbxuser
+/ios/**/*.mode1v3
+/ios/**/*.mode2v3
+/ios/**/*.perspectivev3
+/ios/**/*.xcworkspace
+/ios/**/*.xcodeproj
+/ios/.generated/
+
+# Android
+/android/build/
+/android/gradle/
+/android/.gradle
+/android/.idea
+/android/**/*.iml
+
+# IDE
+/.vscode/
+/.idea/
+*.swp
+*.swo
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
