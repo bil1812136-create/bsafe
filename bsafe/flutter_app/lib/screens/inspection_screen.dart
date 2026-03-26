@@ -3162,14 +3162,14 @@ class _InspectionScreenState extends State<InspectionScreen> {
                     child: TextField(
                       controller: floorController,
                       keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
+                      decoration: const InputDecoration(
                         labelText: '輸入樓層號碼',
                         hintText: '例如: 5',
-                        border: const OutlineInputBorder(),
+                        border: OutlineInputBorder(),
                         suffixText: 'F',
                         isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 10),
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       ),
                     ),
                   ),
@@ -4517,7 +4517,7 @@ class _PhotoAnalysisDialogState extends State<_PhotoAnalysisDialog> {
   List<YoloDetection> _yoloDetections = [];
   bool _isYoloDetecting = false;
   bool _yoloModelLoaded = false;
-  bool _showBoundingBoxes = true;
+  final bool _showBoundingBoxes = true;
 
   @override
   void initState() {
@@ -5259,6 +5259,23 @@ class _PhotoAnalysisDialogState extends State<_PhotoAnalysisDialog> {
 
       // ✨ 新增：保存時同步到 Supabase reports 表（HistoryScreen 可看到）
       try {
+        final currentSession =
+            context.read<InspectionProvider>().currentSession;
+        final currentSessionId = currentSession?.id ?? '';
+        final currentFloor = currentSession?.floor ?? 1;
+        String boundsRef = '';
+        try {
+          final uwb = context.read<UwbService>();
+          if (uwb.anchors.isNotEmpty) {
+            final minX = uwb.anchors.map((a) => a.x).reduce(min) - 1;
+            final maxX = uwb.anchors.map((a) => a.x).reduce(max) + 1;
+            final minY = uwb.anchors.map((a) => a.y).reduce(min) - 1;
+            final maxY = uwb.anchors.map((a) => a.y).reduce(max) + 1;
+            boundsRef =
+                ';minX=${minX.toStringAsFixed(4)};maxX=${maxX.toStringAsFixed(4)};minY=${minY.toStringAsFixed(4)};maxY=${maxY.toStringAsFixed(4)}';
+          }
+        } catch (_) {}
+
         final damageDetected = _analysisResult?['damage_detected'] == true;
         final rawCategory = _analysisResult?['category'] as String?;
         final rawSeverity = _analysisResult?['severity'] as String?;
@@ -5294,7 +5311,7 @@ class _PhotoAnalysisDialogState extends State<_PhotoAnalysisDialog> {
               ? _analysisResult!['analysis'].toString()
               : '',
           location:
-              'UWB 座標: (${widget.pin.x.toStringAsFixed(2)}, ${widget.pin.y.toStringAsFixed(2)})',
+              'UWB 座標: (${widget.pin.x.toStringAsFixed(2)}, ${widget.pin.y.toStringAsFixed(2)}) | ref:session=$currentSessionId;pin=${widget.pin.id};floor=$currentFloor$boundsRef',
           latitude: widget.pin.x,
           longitude: widget.pin.y,
           createdAt: DateTime.now(),

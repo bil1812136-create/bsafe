@@ -41,6 +41,10 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
   int? _floorNumber;
   List<Map<String, dynamic>> _floorPins = [];
   Map<String, dynamic>? _selectedFloorPin;
+  double? _coordMinX;
+  double? _coordMaxX;
+  double? _coordMinY;
+  double? _coordMaxY;
   final Map<String, TextEditingController> _analysisFieldControllers = {};
   late TextEditingController _imageDefectController;
   List<String> _analysisFieldOrder = [];
@@ -116,6 +120,16 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
 
       final sessions = List<Map<String, dynamic>>.from(rows);
 
+      final locationRef = _extractInspectionRefFromLocation(
+          widget.report['location'] as String?);
+      final targetSessionId = locationRef['sessionId'] as String?;
+      final targetPinId = locationRef['pinId'] as String?;
+      final targetFloor = locationRef['floor'] as int?;
+      final refMinX = locationRef['minX'] as double?;
+      final refMaxX = locationRef['maxX'] as double?;
+      final refMinY = locationRef['minY'] as double?;
+      final refMaxY = locationRef['maxY'] as double?;
+
       final reportX = (widget.report['latitude'] as num?)?.toDouble();
       final reportY = (widget.report['longitude'] as num?)?.toDouble();
 
@@ -124,47 +138,106 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
       Map<String, dynamic>? matchedPin;
       double bestDistance = double.infinity;
 
-      for (final row in sessions) {
-        final session = Map<String, dynamic>.from(
-            row['payload'] as Map<String, dynamic>? ?? {});
-        if (session.isEmpty) continue;
+      if (targetSessionId != null && targetSessionId.isNotEmpty) {
+        for (final row in sessions) {
+          final session = Map<String, dynamic>.from(
+              row['payload'] as Map<String, dynamic>? ?? {});
+          if (session.isEmpty) continue;
 
-        final pinsRaw = (session['pins'] as List<dynamic>? ?? [])
-            .map((p) => Map<String, dynamic>.from(p as Map))
-            .toList();
-        if (pinsRaw.isEmpty) continue;
+          final sessionId =
+              (session['id'] ?? row['session_id'])?.toString() ?? '';
+          if (sessionId != targetSessionId) continue;
 
-        for (final pin in pinsRaw) {
-          final px = (pin['x'] as num?)?.toDouble();
-          final py = (pin['y'] as num?)?.toDouble();
-          if (reportX == null || reportY == null || px == null || py == null) {
-            continue;
+          final pinsRaw = (session['pins'] as List<dynamic>? ?? [])
+              .map((p) => Map<String, dynamic>.from(p as Map))
+              .toList();
+
+          Map<String, dynamic>? exactPin;
+          if (targetPinId != null && targetPinId.isNotEmpty) {
+            for (final pin in pinsRaw) {
+              if ((pin['id']?.toString() ?? '') == targetPinId) {
+                exactPin = pin;
+                break;
+              }
+            }
           }
-          final dx = px - reportX;
-          final dy = py - reportY;
-          final distance = (dx * dx + dy * dy);
-          if (distance < bestDistance) {
-            bestDistance = distance;
-            bestSession = session;
-            bestSessionRow = row;
-            matchedPin = pin;
+
+          bestSession = session;
+          bestSessionRow = row;
+          matchedPin = exactPin ?? (pinsRaw.isNotEmpty ? pinsRaw.first : null);
+          bestDistance = 0;
+          break;
+        }
+      }
+
+      if (bestSession == null) {
+        for (final row in sessions) {
+          final session = Map<String, dynamic>.from(
+              row['payload'] as Map<String, dynamic>? ?? {});
+          if (session.isEmpty) continue;
+
+          if (targetFloor != null) {
+            final floor = (session['floor'] as num?)?.toInt();
+            if (floor != null && floor != targetFloor) {
+              continue;
+            }
+          }
+
+          final pinsRaw = (session['pins'] as List<dynamic>? ?? [])
+              .map((p) => Map<String, dynamic>.from(p as Map))
+              .toList();
+          if (pinsRaw.isEmpty) continue;
+
+          for (final pin in pinsRaw) {
+            final px = (pin['x'] as num?)?.toDouble();
+            final py = (pin['y'] as num?)?.toDouble();
+            if (reportX == null ||
+                reportY == null ||
+                px == null ||
+                py == null) {
+              continue;
+            }
+            final dx = px - reportX;
+            final dy = py - reportY;
+            final distance = (dx * dx + dy * dy);
+            if (distance < bestDistance) {
+              bestDistance = distance;
+              bestSession = session;
+              bestSessionRow = row;
+              matchedPin = pin;
+            }
           }
         }
       }
 
       // Fallback to first session if no pin match found
       if (bestSession == null && sessions.isNotEmpty) {
-        bestSessionRow = sessions.first;
-        final session = Map<String, dynamic>.from(
-            sessions.first['payload'] as Map<String, dynamic>? ?? {});
-        if (session.isNotEmpty) {
-          bestSession = session;
-          final pinsRaw = (session['pins'] as List<dynamic>? ?? [])
-              .map((p) => Map<String, dynamic>.from(p as Map))
-              .toList();
-          if (pinsRaw.isNotEmpty) {
-            matchedPin = pinsRaw.first;
+        Map<String, dynamic>? fallbackRow;
+        Map<String, dynamic>? fallbackSession;
+
+        for (final row in sessions) {
+          final session = Map<String, dynamic>.from(
+              row['payload'] as Map<String, dynamic>? ?? {});
+          final pinsRaw = (session['pins'] as List<dynamic>? ?? []);
+          if (session.isNotEmpty && pinsRaw.isNotEmpty) {
+            fallbackRow = row;
+            fallbackSession = session;
+            break;
           }
+        }
+
+        fallbackRow ??= sessions.first;
+        fallbackSession ??= Map<String, dynamic>.from(
+            fallbackRow!['payload'] as Map<String, dynamic>? ?? {});
+
+        bestSessionRow = fallbackRow;
+        bestSession = fallbackSession;
+
+        final pinsRaw = (fallbackSession['pins'] as List<dynamic>? ?? [])
+            .map((p) => Map<String, dynamic>.from(p as Map))
+            .toList();
+        if (pinsRaw.isNotEmpty) {
+          matchedPin = pinsRaw.first;
         }
       }
 
@@ -213,12 +286,21 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
         final pins = (bestSession['pins'] as List<dynamic>? ?? [])
             .map((p) => Map<String, dynamic>.from(p as Map))
             .toList();
+        final bounds = _resolveCoordinateBounds(bestSession, pins);
+        final finalMinX = refMinX ?? bounds['minX'];
+        final finalMaxX = refMaxX ?? bounds['maxX'];
+        final finalMinY = refMinY ?? bounds['minY'];
+        final finalMaxY = refMaxY ?? bounds['maxY'];
 
         setState(() {
           _floorPlanDisplayUrl = resolvedUrl;
           _floorPlanBase64 = base64Data;
           _floorNumber = (bestSessionRow!['floor'] as num?)?.toInt();
           _floorPins = pins;
+          _coordMinX = finalMinX;
+          _coordMaxX = finalMaxX;
+          _coordMinY = finalMinY;
+          _coordMaxY = finalMaxY;
           _selectedFloorPin =
               matchedPin ?? (pins.isNotEmpty ? pins.first : null);
           _isLoadingFloorPlan = false;
@@ -232,6 +314,10 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
           _floorPlanDisplayUrl = null;
           _floorPlanBase64 = null;
           _floorPins = [];
+          _coordMinX = null;
+          _coordMaxX = null;
+          _coordMinY = null;
+          _coordMaxY = null;
           _selectedFloorPin = null;
         });
       }
@@ -243,10 +329,124 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
           _floorPlanDisplayUrl = null;
           _floorPlanBase64 = null;
           _floorPins = [];
+          _coordMinX = null;
+          _coordMaxX = null;
+          _coordMinY = null;
+          _coordMaxY = null;
           _selectedFloorPin = null;
         });
       }
     }
+  }
+
+  Map<String, dynamic> _extractInspectionRefFromLocation(String? location) {
+    if (location == null || location.isEmpty) return {};
+
+    final refIndex = location.indexOf('ref:');
+    if (refIndex < 0) return {};
+
+    final refText = location.substring(refIndex + 4).trim();
+    final parts = refText.split(';');
+    String? sessionId;
+    String? pinId;
+    int? floor;
+    double? minX;
+    double? maxX;
+    double? minY;
+    double? maxY;
+
+    for (final part in parts) {
+      final kv = part.split('=');
+      if (kv.length != 2) continue;
+      final key = kv[0].trim();
+      final value = kv[1].trim();
+      if (key == 'session' && value.isNotEmpty) {
+        sessionId = value;
+      } else if (key == 'pin' && value.isNotEmpty) {
+        pinId = value;
+      } else if (key == 'floor') {
+        floor = int.tryParse(value);
+      } else if (key == 'minX') {
+        minX = double.tryParse(value);
+      } else if (key == 'maxX') {
+        maxX = double.tryParse(value);
+      } else if (key == 'minY') {
+        minY = double.tryParse(value);
+      } else if (key == 'maxY') {
+        maxY = double.tryParse(value);
+      }
+    }
+
+    return {
+      if (sessionId != null) 'sessionId': sessionId,
+      if (pinId != null) 'pinId': pinId,
+      if (floor != null) 'floor': floor,
+      if (minX != null) 'minX': minX,
+      if (maxX != null) 'maxX': maxX,
+      if (minY != null) 'minY': minY,
+      if (maxY != null) 'maxY': maxY,
+    };
+  }
+
+  Map<String, double> _resolveCoordinateBounds(
+    Map<String, dynamic> session,
+    List<Map<String, dynamic>> pins,
+  ) {
+    final rawBounds = session['coordinate_bounds'];
+    if (rawBounds is Map) {
+      final map = Map<String, dynamic>.from(rawBounds);
+      final minX = (map['minX'] as num?)?.toDouble();
+      final maxX = (map['maxX'] as num?)?.toDouble();
+      final minY = (map['minY'] as num?)?.toDouble();
+      final maxY = (map['maxY'] as num?)?.toDouble();
+      if (minX != null && maxX != null && minY != null && maxY != null) {
+        return {
+          'minX': minX,
+          'maxX': maxX,
+          'minY': minY,
+          'maxY': maxY,
+        };
+      }
+    }
+
+    if (pins.isEmpty) {
+      return {'minX': 0, 'maxX': 1, 'minY': 0, 'maxY': 1};
+    }
+
+    double minX = double.infinity;
+    double maxX = -double.infinity;
+    double minY = double.infinity;
+    double maxY = -double.infinity;
+
+    for (final pin in pins) {
+      final x = (pin['x'] as num?)?.toDouble();
+      final y = (pin['y'] as num?)?.toDouble();
+      if (x == null || y == null) continue;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+
+    if (!minX.isFinite || !maxX.isFinite || !minY.isFinite || !maxY.isFinite) {
+      return {'minX': 0, 'maxX': 1, 'minY': 0, 'maxY': 1};
+    }
+
+    if ((maxX - minX).abs() < 0.0001) {
+      minX -= 0.5;
+      maxX += 0.5;
+    }
+    if ((maxY - minY).abs() < 0.0001) {
+      minY -= 0.5;
+      maxY += 0.5;
+    }
+
+    return {
+      'minX': minX,
+      'maxX': maxX,
+      'minY': minY,
+      'maxY': maxY,
+    };
   }
 
   String? _pinImageUrl(Map<String, dynamic>? pin) {
@@ -1308,12 +1508,12 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
       if (hasUrl) {
         return Image.network(
           _floorPlanDisplayUrl!,
-          fit: BoxFit.cover,
+          fit: BoxFit.fill,
           errorBuilder: (_, __, ___) {
             if (hasBase64) {
               return Image.memory(
                 base64Decode(_floorPlanBase64!),
-                fit: BoxFit.cover,
+                fit: BoxFit.fill,
                 errorBuilder: (_, __, ___) => Container(
                   color: Colors.grey.shade100,
                   child: const Center(
@@ -1334,7 +1534,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
       } else if (hasBase64) {
         return Image.memory(
           base64Decode(_floorPlanBase64!),
-          fit: BoxFit.cover,
+          fit: BoxFit.fill,
           errorBuilder: (_, __, ___) => Container(
             color: Colors.grey.shade100,
             child: const Center(
@@ -1359,20 +1559,10 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
       return background;
     }
 
-    double minX = double.infinity;
-    double maxX = -double.infinity;
-    double minY = double.infinity;
-    double maxY = -double.infinity;
-
-    for (final pin in _floorPins) {
-      final x = (pin['x'] as num?)?.toDouble();
-      final y = (pin['y'] as num?)?.toDouble();
-      if (x == null || y == null) continue;
-      if (x < minX) minX = x;
-      if (x > maxX) maxX = x;
-      if (y < minY) minY = y;
-      if (y > maxY) maxY = y;
-    }
+    final minX = _coordMinX ?? 0.0;
+    final maxX = _coordMaxX ?? 1.0;
+    final minY = _coordMinY ?? 0.0;
+    final maxY = _coordMaxY ?? 1.0;
 
     final spanX = (maxX - minX).abs() < 0.0001 ? 1.0 : (maxX - minX);
     final spanY = (maxY - minY).abs() < 0.0001 ? 1.0 : (maxY - minY);
@@ -1387,8 +1577,8 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
               final y = (pin['y'] as num?)?.toDouble();
               if (x == null || y == null) return const SizedBox.shrink();
 
-              final nx = ((x - minX) / spanX).clamp(0.05, 0.95);
-              final ny = ((y - minY) / spanY).clamp(0.05, 0.95);
+              final nx = ((x - minX) / spanX).clamp(0.0, 1.0);
+              final ny = ((y - minY) / spanY).clamp(0.0, 1.0);
               final pinId = pin['id']?.toString() ?? '';
               final active = _selectedFloorPin?['id']?.toString() == pinId;
 

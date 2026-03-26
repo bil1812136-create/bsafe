@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:bsafe_app/providers/connectivity_provider.dart';
+import 'package:bsafe_app/providers/language_provider.dart';
 import 'package:bsafe_app/providers/navigation_provider.dart';
 import 'package:bsafe_app/providers/report_provider.dart';
 import 'package:bsafe_app/theme/app_theme.dart';
@@ -16,6 +17,7 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final language = context.watch<LanguageProvider>();
     return Scaffold(
       body: Consumer<ReportProvider>(
         builder: (context, reportProvider, _) {
@@ -96,8 +98,8 @@ class HomeScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          '建築安全監測',
+                        Text(
+                          language.t('monitor_title'),
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 24,
@@ -106,7 +108,7 @@ class HomeScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          '共監測 ${stats['total'] ?? 0} 個問題報告',
+                          '${language.t('monitor_count_prefix')} ${stats['total'] ?? 0} ${language.t('monitor_count_suffix')}',
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.9),
                             fontSize: 16,
@@ -133,7 +135,7 @@ class HomeScreen extends StatelessWidget {
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
-                                  '${reportProvider.pendingSyncCount} 個待同步',
+                                  '${reportProvider.pendingSyncCount} ${language.t('pending_sync_suffix')}',
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w600,
@@ -148,8 +150,8 @@ class HomeScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  const Text(
-                    '風險概覽',
+                  Text(
+                    language.t('risk_overview'),
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
@@ -159,7 +161,7 @@ class HomeScreen extends StatelessWidget {
                         children: [
                           Expanded(
                             child: StatCard(
-                              title: '高風險',
+                              title: language.t('high_risk'),
                               value: '${stats['highRisk'] ?? 0}',
                               icon: Icons.warning_amber_rounded,
                               color: AppTheme.riskHigh,
@@ -171,7 +173,7 @@ class HomeScreen extends StatelessWidget {
                           const SizedBox(width: 12),
                           Expanded(
                             child: StatCard(
-                              title: '中風險',
+                              title: language.t('medium_risk'),
                               value: '${stats['mediumRisk'] ?? 0}',
                               icon: Icons.error_outline,
                               color: AppTheme.riskMedium,
@@ -184,7 +186,7 @@ class HomeScreen extends StatelessWidget {
                           const SizedBox(width: 12),
                           Expanded(
                             child: StatCard(
-                              title: '低風險',
+                              title: language.t('low_risk'),
                               value: '${stats['lowRisk'] ?? 0}',
                               icon: Icons.check_circle_outline,
                               color: AppTheme.riskLow,
@@ -204,7 +206,7 @@ class HomeScreen extends StatelessWidget {
                         children: [
                           Expanded(
                             child: StatCard(
-                              title: '待處理',
+                              title: language.t('pending'),
                               value: '${stats['pending'] ?? 0}',
                               icon: Icons.pending_actions,
                               color: Colors.blue,
@@ -216,7 +218,7 @@ class HomeScreen extends StatelessWidget {
                           const SizedBox(width: 12),
                           Expanded(
                             child: StatCard(
-                              title: '處理中',
+                              title: language.t('in_progress'),
                               value: '${stats['in_progress'] ?? 0}',
                               icon: Icons.work_history,
                               color: Colors.orange,
@@ -228,7 +230,7 @@ class HomeScreen extends StatelessWidget {
                           const SizedBox(width: 12),
                           Expanded(
                             child: StatCard(
-                              title: '已解決',
+                              title: language.t('resolved'),
                               value: '${stats['resolved'] ?? 0}',
                               icon: Icons.task_alt,
                               color: Colors.green,
@@ -242,8 +244,8 @@ class HomeScreen extends StatelessWidget {
                     },
                   ),
                   const SizedBox(height: 24),
-                  const Text(
-                    '快速上報',
+                  Text(
+                    language.t('quick_report'),
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),

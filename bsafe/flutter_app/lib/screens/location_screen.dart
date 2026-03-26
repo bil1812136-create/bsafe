@@ -8,6 +8,7 @@ import 'package:bsafe_app/services/desktop_serial_service.dart';
 import 'package:bsafe_app/widgets/uwb_position_canvas.dart';
 import 'package:bsafe_app/widgets/uwb_settings_panel.dart';
 import 'package:bsafe_app/widgets/uwb_data_tables.dart';
+import 'package:bsafe_app/providers/language_provider.dart';
 import 'package:bsafe_app/theme/app_theme.dart';
 
 class LocationScreen extends StatefulWidget {
@@ -41,6 +42,8 @@ class _LocationScreenState extends State<LocationScreen>
 
   @override
   Widget build(BuildContext context) {
+    final language = context.watch<LanguageProvider>();
+
     return ChangeNotifierProvider.value(
       value: _uwbService,
       child: Scaffold(
@@ -70,9 +73,9 @@ class _LocationScreenState extends State<LocationScreen>
                       labelColor: Colors.white,
                       unselectedLabelColor: Colors.grey.shade700,
                       labelStyle: const TextStyle(fontWeight: FontWeight.bold),
-                      tabs: const [
-                        Tab(text: '定位地圖'),
-                        Tab(text: '數據詳情'),
+                      tabs: [
+                        Tab(text: language.t('positioning_map')),
+                        Tab(text: language.t('data_details')),
                       ],
                     ),
                   ),
@@ -287,7 +290,8 @@ class _LocationScreenState extends State<LocationScreen>
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white.withValues(alpha: 0.2),
                         foregroundColor: Colors.white,
-                        disabledBackgroundColor: Colors.white.withValues(alpha: 0.1),
+                        disabledBackgroundColor:
+                            Colors.white.withValues(alpha: 0.1),
                         disabledForegroundColor: Colors.white38,
                         padding: const EdgeInsets.symmetric(vertical: 10),
                         shape: RoundedRectangleBorder(
@@ -1368,7 +1372,8 @@ class _LocationScreenState extends State<LocationScreen>
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.3)),
+            border:
+                Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.3)),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(

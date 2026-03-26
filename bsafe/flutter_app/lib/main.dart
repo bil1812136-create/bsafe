@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:bsafe_app/providers/report_provider.dart';
 import 'package:bsafe_app/providers/connectivity_provider.dart';
 import 'package:bsafe_app/providers/inspection_provider.dart';
+import 'package:bsafe_app/providers/language_provider.dart';
 import 'package:bsafe_app/providers/navigation_provider.dart';
 import 'package:bsafe_app/screens/home_screen.dart';
 import 'package:bsafe_app/screens/report_screen.dart';
@@ -54,6 +55,7 @@ class BSafeApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ConnectivityProvider()),
         ChangeNotifierProvider(create: (_) => ReportProvider()),
         ChangeNotifierProvider(create: (_) => InspectionProvider()),
+        ChangeNotifierProvider(create: (_) => LanguageProvider()),
         ChangeNotifierProvider(create: (_) => NavigationProvider()),
       ],
       child: MaterialApp(
@@ -85,6 +87,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   @override
   Widget build(BuildContext context) {
     final navigationProvider = Provider.of<NavigationProvider>(context);
+    final languageProvider = Provider.of<LanguageProvider>(context);
     final int currentIndex = navigationProvider.currentIndex;
     final connectivityProvider = Provider.of<ConnectivityProvider>(context);
 
@@ -117,8 +120,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                                   const SizedBox(width: 12),
                                   Text(
                                     connectivity.isOnline
-                                        ? '已切換到在線模式'
-                                        : '已切換到離線模式',
+                                        ? languageProvider.t('switched_online')
+                                        : languageProvider
+                                            .t('switched_offline'),
                                     style: const TextStyle(fontSize: 16),
                                   ),
                                 ],
@@ -151,7 +155,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                               ),
                               const SizedBox(width: 4),
                               Text(
-                                connectivity.isOnline ? '在線' : '離線',
+                                connectivity.isOnline
+                                    ? languageProvider.t('online')
+                                    : languageProvider.t('offline'),
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 12,
@@ -166,6 +172,14 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   ),
                 ],
               ),
+              actions: [
+                IconButton(
+                  tooltip: languageProvider.t('settings'),
+                  icon: const Icon(Icons.settings),
+                  onPressed: () =>
+                      _showSettingsSheet(context, languageProvider),
+                ),
+              ],
             ),
       body: Column(
         children: [
@@ -191,8 +205,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   Flexible(
                     child: Text(
                       connectivityProvider.isManualOfflineMode
-                          ? '手動離線模式 - 點擊右上角圖標切換'
-                          : '離線模式 - 資料將在恢復連線後同步',
+                          ? languageProvider.t('manual_offline_hint')
+                          : languageProvider.t('offline_sync_hint'),
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w600,
@@ -244,31 +258,31 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 showUnselectedLabels: true,
                 selectedFontSize: 12,
                 unselectedFontSize: 10,
-                items: const [
+                items: [
                   BottomNavigationBarItem(
-                    icon: Icon(Icons.home_rounded),
-                    activeIcon: Icon(Icons.home_rounded),
-                    label: '首頁',
+                    icon: const Icon(Icons.home_rounded),
+                    activeIcon: const Icon(Icons.home_rounded),
+                    label: languageProvider.t('nav_home'),
                   ),
                   BottomNavigationBarItem(
-                    icon: Icon(Icons.camera_alt_rounded),
-                    activeIcon: Icon(Icons.camera_alt_rounded),
-                    label: '上報',
+                    icon: const Icon(Icons.camera_alt_rounded),
+                    activeIcon: const Icon(Icons.camera_alt_rounded),
+                    label: languageProvider.t('nav_report'),
                   ),
                   BottomNavigationBarItem(
-                    icon: Icon(Icons.history_rounded),
-                    activeIcon: Icon(Icons.history_rounded),
-                    label: '記錄',
+                    icon: const Icon(Icons.history_rounded),
+                    activeIcon: const Icon(Icons.history_rounded),
+                    label: languageProvider.t('nav_history'),
                   ),
                   BottomNavigationBarItem(
-                    icon: Icon(Icons.bar_chart_rounded),
-                    activeIcon: Icon(Icons.bar_chart_rounded),
-                    label: '分析',
+                    icon: const Icon(Icons.bar_chart_rounded),
+                    activeIcon: const Icon(Icons.bar_chart_rounded),
+                    label: languageProvider.t('nav_analysis'),
                   ),
                   BottomNavigationBarItem(
-                    icon: Icon(Icons.place_rounded),
-                    activeIcon: Icon(Icons.place_rounded),
-                    label: '位置',
+                    icon: const Icon(Icons.place_rounded),
+                    activeIcon: const Icon(Icons.place_rounded),
+                    label: languageProvider.t('nav_location'),
                   ),
                 ],
               ),
@@ -276,6 +290,55 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  void _showSettingsSheet(
+      BuildContext context, LanguageProvider languageProvider) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                languageProvider.t('settings'),
+                style:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                languageProvider.t('language'),
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              RadioListTile<AppLanguage>(
+                value: AppLanguage.zh,
+                groupValue: languageProvider.language,
+                onChanged: (value) {
+                  if (value == null) return;
+                  languageProvider.setLanguage(value);
+                },
+                title: Text(languageProvider.t('chinese')),
+              ),
+              RadioListTile<AppLanguage>(
+                value: AppLanguage.en,
+                groupValue: languageProvider.language,
+                onChanged: (value) {
+                  if (value == null) return;
+                  languageProvider.setLanguage(value);
+                },
+                title: Text(languageProvider.t('english')),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

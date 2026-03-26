@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:bsafe_app/models/report_model.dart';
 import 'package:bsafe_app/services/api_service.dart';
 import 'package:bsafe_app/services/supabase_service.dart';
+import 'package:bsafe_app/services/realtime_service.dart';
 
 class ReportProvider extends ChangeNotifier {
   List<ReportModel> _reports = [];
@@ -9,6 +10,7 @@ class ReportProvider extends ChangeNotifier {
   List<Map<String, dynamic>> _trendData = [];
   bool _isLoading = false;
   String? _error;
+  ReportModel? _currentReport; // 正在查看的報告（用於實時監聽）
 
   // Getters
   List<ReportModel> get reports => _reports;
@@ -16,9 +18,11 @@ class ReportProvider extends ChangeNotifier {
   List<Map<String, dynamic>> get trendData => _trendData;
   bool get isLoading => _isLoading;
   String? get error => _error;
+  ReportModel? get currentReport => _currentReport; // 獲取當前報告
   int get pendingSyncCount => 0;
 
   final ApiService _api = ApiService.instance;
+  final RealtimeService _realtime = RealtimeService.instance;
 
   ReportProvider() {
     loadReports();
@@ -337,6 +341,91 @@ class ReportProvider extends ChangeNotifier {
   // Clear error
   void clearError() {
     _error = null;
+    notifyListeners();
+  }
+
+  /// 訂閱特定報告的實時更新
+  /// 當對話或報告內容更新時，會自動刷新 UI
+  void subscribeToReport(ReportModel report) {
+    if (report.id == null) {
+      debugPrint('⚠️ 無效的報告 ID，無法訂閱實時更新');
+      return;
+    }
+
+    _currentReport = report;
+    final reportId = report.id!;
+
+    debugPrint('👁️ 開始訂閱報告 #$reportId 的實時更新');
+
+    // 訂閱到 Realtime Service
+    _realtime.subscribeToReport(reportId, (updatedReport) {
+      // 當收到更新時，更新 _currentReport 並刷新 UI
+      _currentReport = updatedReport;
+
+      // 同時更新列表中的報告
+      final index = _reports.indexWhere((r) => r.id == reportId);
+      if (index >= 0) {
+        _reports[index] = updatedReport;
+      }
+
+      debugPrint('🔄 報告 #$reportId 已更新（對話/狀態）');
+      notifyListeners(); // 觸發 UI 刷新
+    });
+  }
+
+  /// 取消訂閱當前報告的實時更新
+  Future<void> unsubscribeFromCurrentReport() async {
+    if (_currentReport?.id == null) return;
+    final reportId = _currentReport!.id!;
+    await _realtime.unsubscribeFromReport(reportId);
+    _currentReport = null;
+    debugPrint('✋ 已取消訂閱報告 #$reportId');
+  }
+
+  /// 更新當前報告（用於接收實時更新）
+  /// 只有當報告的conversation或狀態真的改變時，才觸發UI重建
+  void updateCurrentReport(ReportModel updated) {
+    // 檢查是否有實際改變
+    if (_currentReport != null) {
+      bool hasChanged = false;
+
+      // 比較conversation（最重要的字段 - 包含新消息和圖片）
+      if (_currentReport!.conversation != updated.conversation) {
+        debugPrint('🔄 Conversation 更新');
+        hasChanged = true;
+      }
+
+      // 比較status
+      if (_currentReport!.status != updated.status) {
+        debugPrint('🔄 Status 更新');
+        hasChanged = true;
+      }
+
+      // 比較severity和risk_level
+      if (_currentReport!.severity != updated.severity) {
+        debugPrint('🔄 Severity 更新');
+        hasChanged = true;
+      }
+
+      // 比較description
+      if (_currentReport!.description != updated.description) {
+        debugPrint('🔄 Description 更新');
+        hasChanged = true;
+      }
+
+      // 如果沒有改變，就不觸發更新
+      if (!hasChanged) {
+        debugPrint('ℹ️ 報告 #${updated.id} 無實際改變，跳過UI更新');
+        return;
+      }
+    }
+
+    // 有改變或首次設置，才更新
+    _currentReport = updated;
+    final index = _reports.indexWhere((r) => r.id == updated.id);
+    if (index >= 0) {
+      _reports[index] = updated;
+    }
     notifyListeners();
   }
 }

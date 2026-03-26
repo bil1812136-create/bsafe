@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:bsafe_app/providers/report_provider.dart';
+import 'package:bsafe_app/providers/language_provider.dart';
 import 'package:bsafe_app/theme/app_theme.dart';
 
 class AnalysisScreen extends StatelessWidget {
@@ -9,6 +10,8 @@ class AnalysisScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final language = context.watch<LanguageProvider>();
+
     return Scaffold(
       body: Consumer<ReportProvider>(
         builder: (context, reportProvider, _) {
@@ -25,9 +28,9 @@ class AnalysisScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Risk Distribution Pie Chart
-                const Text(
-                  '📊 風險分佈',
-                  style: TextStyle(
+                Text(
+                  language.t('risk_distribution'),
+                  style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
@@ -57,17 +60,17 @@ class AnalysisScreen extends StatelessWidget {
                         children: [
                           _LegendItem(
                             color: AppTheme.riskHigh,
-                            label: '高風險',
+                            label: language.t('high_risk'),
                             value: stats['highRisk'] ?? 0,
                           ),
                           _LegendItem(
                             color: AppTheme.riskMedium,
-                            label: '中風險',
+                            label: language.t('medium_risk'),
                             value: stats['mediumRisk'] ?? 0,
                           ),
                           _LegendItem(
                             color: AppTheme.riskLow,
-                            label: '低風險',
+                            label: language.t('low_risk'),
                             value: stats['lowRisk'] ?? 0,
                           ),
                         ],
@@ -79,9 +82,9 @@ class AnalysisScreen extends StatelessWidget {
                 const SizedBox(height: 24),
 
                 // Trend Line Chart
-                const Text(
-                  '📈 近7天趨勢',
-                  style: TextStyle(
+                Text(
+                  language.t('trend_7days'),
+                  style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
@@ -106,14 +109,20 @@ class AnalysisScreen extends StatelessWidget {
                         child: _buildLineChart(trendData),
                       ),
                       const SizedBox(height: 16),
-                      const Row(
+                      Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          _ChartLegend(color: AppTheme.riskHigh, label: '高'),
-                          SizedBox(width: 20),
-                          _ChartLegend(color: AppTheme.riskMedium, label: '中'),
-                          SizedBox(width: 20),
-                          _ChartLegend(color: AppTheme.riskLow, label: '低'),
+                          _ChartLegend(
+                              color: AppTheme.riskHigh,
+                              label: language.t('high_abbr')),
+                          const SizedBox(width: 20),
+                          _ChartLegend(
+                              color: AppTheme.riskMedium,
+                              label: language.t('medium_abbr')),
+                          const SizedBox(width: 20),
+                          _ChartLegend(
+                              color: AppTheme.riskLow,
+                              label: language.t('low_abbr')),
                         ],
                       ),
                     ],
@@ -123,9 +132,9 @@ class AnalysisScreen extends StatelessWidget {
                 const SizedBox(height: 24),
 
                 // Status Bar Chart
-                const Text(
-                  '📋 處理狀態',
-                  style: TextStyle(
+                Text(
+                  language.t('processing_status'),
+                  style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),

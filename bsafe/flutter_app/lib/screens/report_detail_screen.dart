@@ -27,10 +27,22 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     _report = widget.report;
     // 從雲端刷新最新資料（包含 conversation）
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ReportProvider>().refreshFromCloud();
+      final provider = context.read<ReportProvider>();
+      provider.refreshFromCloud();
       // 清除未讀標記
-      context.read<ReportProvider>().clearUnreadCompany(_report);
+      provider.clearUnreadCompany(_report);
+      // 🔴 新增：訂閱實時更新 — 當 webapp/另一個 app 發送信息時自動刷新
+      provider.subscribeToReport(_report);
     });
+  }
+
+  @override
+  void dispose() {
+    // 🔴 新增：離開詳情頁面時，取消實時監聽
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ReportProvider>().unsubscribeFromCurrentReport();
+    });
+    super.dispose();
   }
 
   /// 打開「更新資料」表單 — 上傳圖片＋輸入文字＋發送
@@ -165,6 +177,13 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 🔴 從 Provider 獲取最新的報告資料（支持實時更新）
+    final provider = context.watch<ReportProvider>();
+    if (provider.currentReport != null &&
+        provider.currentReport!.id == _report.id) {
+      _report = provider.currentReport!; // 使用最新的實時數據
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('報告詳情'),
@@ -175,8 +194,8 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
             onPressed: () async {
               await context.read<ReportProvider>().refreshFromCloud();
               // 重新取得最新報告
-              final provider = context.read<ReportProvider>();
-              final updated = provider.reports.cast<ReportModel?>().firstWhere(
+              final prov = context.read<ReportProvider>();
+              final updated = prov.reports.cast<ReportModel?>().firstWhere(
                     (r) => r?.id == _report.id,
                     orElse: () => null,
                   );

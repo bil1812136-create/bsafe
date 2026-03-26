@@ -12,27 +12,37 @@ import 'package:bsafe_app/models/report_model.dart';
 ///
 /// 2. 在 Supabase Dashboard → SQL Editor 執行以下 SQL 建立資料表：
 ///
-///    -- AI 分析報告表
+///    -- AI 分析報告表（包含多輪對話支持）
 ///    CREATE TABLE reports (
-///      id            BIGSERIAL PRIMARY KEY,
-///      local_id      INTEGER,
-///      title         TEXT NOT NULL,
-///      description   TEXT NOT NULL,
-///      category      TEXT NOT NULL,
-///      severity      TEXT NOT NULL,
-///      risk_level    TEXT DEFAULT 'low',
-///      risk_score    INTEGER DEFAULT 0,
-///      is_urgent     BOOLEAN DEFAULT FALSE,
-///      status        TEXT DEFAULT 'pending',
-///      image_url     TEXT,
-///      location      TEXT,
-///      latitude      DOUBLE PRECISION,
-///      longitude     DOUBLE PRECISION,
-///      ai_analysis   TEXT,
-///      created_at    TIMESTAMPTZ DEFAULT NOW(),
-///      updated_at    TIMESTAMPTZ DEFAULT NOW(),
+///      id                    BIGSERIAL PRIMARY KEY,
+///      local_id              INTEGER,
+///      title                 TEXT NOT NULL,
+///      description           TEXT NOT NULL,
+///      category              TEXT NOT NULL,
+///      severity              TEXT NOT NULL,
+///      risk_level            TEXT DEFAULT 'low',
+///      risk_score            INTEGER DEFAULT 0,
+///      is_urgent             BOOLEAN DEFAULT FALSE,
+///      status                TEXT DEFAULT 'pending',
+///      image_url             TEXT,
+///      image_base64          TEXT,
+///      location              TEXT,
+///      latitude              DOUBLE PRECISION,
+///      longitude             DOUBLE PRECISION,
+///      ai_analysis           TEXT,
+///      company_notes         TEXT,
+///      worker_response       TEXT,
+///      worker_response_image TEXT,
+///      conversation          JSONB,
+///      has_unread_company    BOOLEAN DEFAULT FALSE,
+///      created_at            TIMESTAMPTZ DEFAULT NOW(),
+///      updated_at            TIMESTAMPTZ DEFAULT NOW(),
 ///      UNIQUE(local_id)
 ///    );
+///
+///    -- 啟用 Realtime 監聽（自動同步對話）
+///    ALTER TABLE reports REPLICA IDENTITY FULL;
+///    ALTER PUBLICATION supabase_realtime ADD TABLE reports;
 ///
 ///    -- 讓匿名用戶可以讀寫（開發用）
 ///    ALTER TABLE reports ENABLE ROW LEVEL SECURITY;

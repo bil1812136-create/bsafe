@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:bsafe_app/providers/report_provider.dart';
 import 'package:bsafe_app/providers/navigation_provider.dart';
+import 'package:bsafe_app/providers/language_provider.dart';
 import 'package:bsafe_app/models/report_model.dart';
 import 'package:bsafe_app/theme/app_theme.dart';
 import 'package:bsafe_app/widgets/report_detail_card.dart';
@@ -52,6 +53,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Future<void> _syncToCloud() async {
     setState(() => _isSyncing = true);
     final provider = context.read<ReportProvider>();
+    final language = context.read<LanguageProvider>();
     final count = await provider.syncAllToCloud();
     if (mounted) {
       setState(() => _isSyncing = false);
@@ -61,7 +63,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
             children: [
               const Icon(Icons.cloud_done, color: Colors.white),
               const SizedBox(width: 8),
-              Text(count > 0 ? '已同步 $count 筆報告到雲端' : '所有報告已是最新'),
+              Text(count > 0
+                  ? '${language.t('synced_success')} $count ${language.t('synced_count')}'
+                  : language.t('all_updated')),
             ],
           ),
           backgroundColor: count > 0 ? Colors.green : Colors.grey.shade700,
@@ -86,9 +90,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final language = context.watch<LanguageProvider>();
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('歷史記錄'),
+        title: Text(language.t('history')),
         actions: [
           Consumer<ReportProvider>(
             builder: (context, provider, _) {
@@ -105,7 +111,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             child: CircularProgressIndicator(
                                 strokeWidth: 2, color: Colors.white))
                         : const Icon(Icons.cloud_upload),
-                    tooltip: '同步到雲端',
+                    tooltip: language.t('sync_to_cloud'),
                     onPressed: _isSyncing ? null : _syncToCloud,
                   ),
                   if (unsyncedCount > 0 && !_isSyncing)
@@ -143,7 +149,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             padding: const EdgeInsets.all(16),
             child: TextField(
               decoration: InputDecoration(
-                hintText: '搜索報告...',
+                hintText: language.t('search_report'),
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _searchQuery.isNotEmpty
                     ? IconButton(
@@ -177,7 +183,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 child: Row(
                   children: [
                     _FilterChip(
-                      label: '全部',
+                      label: language.t('all'),
                       isSelected: filterRisk == 'all',
                       onSelected: () {
                         navProvider.setHistoryFilters(risk: 'all');
@@ -185,7 +191,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     ),
                     const SizedBox(width: 8),
                     _FilterChip(
-                      label: '高風險',
+                      label: language.t('high_risk'),
                       isSelected: filterRisk == 'high',
                       color: AppTheme.riskHigh,
                       onSelected: () {
@@ -194,7 +200,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     ),
                     const SizedBox(width: 8),
                     _FilterChip(
-                      label: '中風險',
+                      label: language.t('medium_risk'),
                       isSelected: filterRisk == 'medium',
                       color: AppTheme.riskMedium,
                       onSelected: () {
@@ -203,7 +209,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     ),
                     const SizedBox(width: 8),
                     _FilterChip(
-                      label: '低風險',
+                      label: language.t('low_risk'),
                       isSelected: filterRisk == 'low',
                       color: AppTheme.riskLow,
                       onSelected: () {
@@ -247,8 +253,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         Text(
                           _searchQuery.isNotEmpty ||
                                   navProvider.historyFilterRisk != 'all'
-                              ? '沒有符合條件的報告'
-                              : '暫無報告記錄',
+                              ? language.t('no_matching_report')
+                              : language.t('no_report_yet'),
                           style: TextStyle(
                             color: Colors.grey.shade600,
                             fontSize: 16,
@@ -294,6 +300,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   // ignore: unused_element
   void _showFilterDialog() {
+    final language = context.read<LanguageProvider>();
+
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -307,24 +315,24 @@ class _HistoryScreenState extends State<HistoryScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  '篩選條件',
-                  style: TextStyle(
+                Text(
+                  language.t('filter_conditions'),
+                  style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 const SizedBox(height: 20),
-                const Text(
-                  '狀態',
-                  style: TextStyle(fontWeight: FontWeight.w600),
+                Text(
+                  language.t('status'),
+                  style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
                   children: [
                     ChoiceChip(
-                      label: const Text('全部'),
+                      label: Text(language.t('all')),
                       selected: _filterStatus == 'all',
                       onSelected: (_) {
                         setModalState(() => _filterStatus = 'all');
@@ -332,7 +340,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       },
                     ),
                     ChoiceChip(
-                      label: const Text('待處理'),
+                      label: Text(language.t('pending')),
                       selected: _filterStatus == 'pending',
                       onSelected: (_) {
                         setModalState(() => _filterStatus = 'pending');
@@ -340,7 +348,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       },
                     ),
                     ChoiceChip(
-                      label: const Text('處理中'),
+                      label: Text(language.t('in_progress')),
                       selected: _filterStatus == 'in_progress',
                       onSelected: (_) {
                         setModalState(() => _filterStatus = 'in_progress');
@@ -348,7 +356,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       },
                     ),
                     ChoiceChip(
-                      label: const Text('已解決'),
+                      label: Text(language.t('resolved')),
                       selected: _filterStatus == 'resolved',
                       onSelected: (_) {
                         setModalState(() => _filterStatus = 'resolved');
@@ -364,7 +372,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     onPressed: () {
                       Navigator.pop(context);
                     },
-                    child: const Text('確定'),
+                    child: Text(language.t('confirm')),
                   ),
                 ),
               ],

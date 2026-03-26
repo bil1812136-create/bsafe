@@ -1069,7 +1069,8 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('確認刪除'),
-        content: Text('確定要刪除報告「${report['title']}」嗎？此操作無法復原。'),
+        content:
+            Text('確定要刪除報告「${report['title']}」嗎？\n\n將同時刪除此報告對應的 Pin，且無法復原。'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
@@ -1077,13 +1078,162 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () async {
               Navigator.pop(ctx);
-              await _supabase.from('reports').delete().eq('id', report['id']);
-              _loadReports();
+              try {
+                await _deleteRelatedPinForReport(report);
+                await _supabase.from('reports').delete().eq('id', report['id']);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('報告與對應 Pin 已刪除')),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('刪除失敗: $e')),
+                  );
+                }
+              } finally {
+                _loadReports();
+              }
             },
             child: const Text('刪除'),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _deleteRelatedPinForReport(Map<String, dynamic> report) async {
+    final locationRef =
+        _extractInspectionRefFromLocation(report['location'] as String?);
+    final targetSessionId = locationRef['sessionId'] as String?;
+    final targetPinId = locationRef['pinId'] as String?;
+    final targetFloor = locationRef['floor'] as int?;
+
+    final reportX = (report['latitude'] as num?)?.toDouble();
+    final reportY = (report['longitude'] as num?)?.toDouble();
+
+    final rows = await _supabase
+        .from('inspection_sessions')
+        .select('session_id, floor, payload');
+
+    final sessions = List<Map<String, dynamic>>.from(rows);
+    if (sessions.isEmpty) return;
+
+    Map<String, dynamic>? targetRow;
+    Map<String, dynamic>? targetSession;
+    int? targetPinIndex;
+
+    if (targetSessionId != null && targetSessionId.isNotEmpty) {
+      for (final row in sessions) {
+        final payload = Map<String, dynamic>.from(
+            row['payload'] as Map<String, dynamic>? ?? {});
+        final sessionId =
+            (payload['id'] ?? row['session_id'])?.toString() ?? '';
+        if (sessionId != targetSessionId) continue;
+
+        final pins = (payload['pins'] as List<dynamic>? ?? [])
+            .map((p) => Map<String, dynamic>.from(p as Map))
+            .toList();
+
+        if (targetPinId != null && targetPinId.isNotEmpty) {
+          final idx = pins
+              .indexWhere((p) => (p['id']?.toString() ?? '') == targetPinId);
+          if (idx >= 0) {
+            targetRow = row;
+            targetSession = payload;
+            targetPinIndex = idx;
+            break;
+          }
+        }
+      }
+    }
+
+    if (targetRow == null || targetSession == null || targetPinIndex == null) {
+      double bestDistance = double.infinity;
+      for (final row in sessions) {
+        final payload = Map<String, dynamic>.from(
+            row['payload'] as Map<String, dynamic>? ?? {});
+        if (payload.isEmpty) continue;
+
+        if (targetFloor != null) {
+          final floor = (payload['floor'] as num?)?.toInt() ??
+              (row['floor'] as num?)?.toInt();
+          if (floor != null && floor != targetFloor) continue;
+        }
+
+        final pins = (payload['pins'] as List<dynamic>? ?? [])
+            .map((p) => Map<String, dynamic>.from(p as Map))
+            .toList();
+        if (pins.isEmpty) continue;
+
+        for (int i = 0; i < pins.length; i++) {
+          final px = (pins[i]['x'] as num?)?.toDouble();
+          final py = (pins[i]['y'] as num?)?.toDouble();
+          if (reportX == null || reportY == null || px == null || py == null) {
+            continue;
+          }
+          final dx = px - reportX;
+          final dy = py - reportY;
+          final distance = dx * dx + dy * dy;
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            targetRow = row;
+            targetSession = payload;
+            targetPinIndex = i;
+          }
+        }
+      }
+    }
+
+    if (targetRow == null || targetSession == null || targetPinIndex == null) {
+      return;
+    }
+
+    final rawPins =
+        List<dynamic>.from(targetSession['pins'] as List<dynamic>? ?? []);
+    if (targetPinIndex < 0 || targetPinIndex >= rawPins.length) return;
+
+    rawPins.removeAt(targetPinIndex);
+    targetSession['pins'] = rawPins;
+    targetSession['updatedAt'] = DateTime.now().toIso8601String();
+
+    await _supabase.from('inspection_sessions').update({
+      'payload': targetSession,
+      'updated_at': DateTime.now().toIso8601String(),
+    }).eq('session_id', targetRow['session_id']);
+  }
+
+  Map<String, dynamic> _extractInspectionRefFromLocation(String? location) {
+    if (location == null || location.isEmpty) return {};
+
+    final refIndex = location.indexOf('ref:');
+    if (refIndex < 0) return {};
+
+    final refText = location.substring(refIndex + 4).trim();
+    final parts = refText.split(';');
+    String? sessionId;
+    String? pinId;
+    int? floor;
+
+    for (final part in parts) {
+      final kv = part.split('=');
+      if (kv.length != 2) continue;
+      final key = kv[0].trim();
+      final value = kv[1].trim();
+      if (key == 'session' && value.isNotEmpty) {
+        sessionId = value;
+      } else if (key == 'pin' && value.isNotEmpty) {
+        pinId = value;
+      } else if (key == 'floor') {
+        floor = int.tryParse(value);
+      }
+    }
+
+    return {
+      if (sessionId != null) 'sessionId': sessionId,
+      if (pinId != null) 'pinId': pinId,
+      if (floor != null) 'floor': floor,
+    };
   }
 }
