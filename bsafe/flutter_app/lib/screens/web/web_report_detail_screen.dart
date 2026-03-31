@@ -228,7 +228,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
 
         fallbackRow ??= sessions.first;
         fallbackSession ??= Map<String, dynamic>.from(
-            fallbackRow!['payload'] as Map<String, dynamic>? ?? {});
+            fallbackRow['payload'] as Map<String, dynamic>? ?? {});
 
         bestSessionRow = fallbackRow;
         bestSession = fallbackSession;

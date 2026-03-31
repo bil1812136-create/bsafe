@@ -29,7 +29,7 @@ class DefectClassifierService {
       '$_geminiApiUrl/$_geminiModel:generateContent?key=$_geminiApiKey',
     );
 
-    final prompt = '''
+    const prompt = '''
 You are a building defect classifier.
 Analyze the image and return exactly ONE label from this list:
   Crack on Wall

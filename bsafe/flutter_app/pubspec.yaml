@@ -43,7 +43,7 @@ dependencies:
   uuid: ^4.2.1
   
   # Serial Port (Desktop support)
-  flutter_libserialport: ^0.4.0
+  flutter_libserialport: ^0.6.0
   
   # USB Serial (Android OTG support)
   usb_serial: ^0.5.2

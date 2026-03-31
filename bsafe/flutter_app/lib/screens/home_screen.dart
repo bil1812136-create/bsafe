@@ -100,7 +100,7 @@ class HomeScreen extends StatelessWidget {
                       children: [
                         Text(
                           language.t('monitor_title'),
-                          style: TextStyle(
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
@@ -152,7 +152,7 @@ class HomeScreen extends StatelessWidget {
                   const SizedBox(height: 24),
                   Text(
                     language.t('risk_overview'),
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
                   Consumer<NavigationProvider>(
@@ -246,7 +246,7 @@ class HomeScreen extends StatelessWidget {
                   const SizedBox(height: 24),
                   Text(
                     language.t('quick_report'),
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   const _HomeQuickReportPanel(),
