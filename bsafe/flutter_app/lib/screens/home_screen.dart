@@ -279,10 +279,40 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
   bool _isSubmitting = false;
   bool _isLoadingFloorPlans = true;
   Map<String, dynamic>? _aiResult;
+  List<String> _folderOptions = [];
+  String? _selectedFolder;
   List<Map<String, dynamic>> _floorPlanOptions = [];
   Map<String, dynamic>? _selectedFloorPlan;
   double? _selectedPinX;
   double? _selectedPinY;
+
+  List<Map<String, dynamic>> get _filteredFloorPlanOptions {
+    if (_selectedFolder == null || _selectedFolder!.isEmpty) return [];
+    return _floorPlanOptions
+        .where((item) => item['buildingName']?.toString() == _selectedFolder)
+        .toList();
+  }
+
+  String _extractBuildingName(
+    Map<String, dynamic> payload,
+    String? floorPlanPath,
+  ) {
+    final fromPayload =
+        (payload['building_name'] ?? payload['buildingName'])?.toString();
+    if (fromPayload != null && fromPayload.trim().isNotEmpty) {
+      return fromPayload.trim();
+    }
+
+    final path = floorPlanPath ?? payload['floorPlanPath']?.toString();
+    if (path != null && path.startsWith('buildings/')) {
+      final parts = path.split('/');
+      if (parts.length >= 2 && parts[1].isNotEmpty) {
+        return parts[1];
+      }
+    }
+
+    return '未分類';
+  }
 
   String? _normalizeFloorPlanUrl(String? value) {
     if (value == null || value.isEmpty) return null;
@@ -389,11 +419,13 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
         }
 
         final floorNumber = row['floor'] ?? payload['floor'];
+        final buildingName = _extractBuildingName(payload, floorPlanPath);
 
         options.add({
           'session_id': row['session_id'],
           'label': 'F$floorNumber',
           'floorNumber': floorNumber,
+          'buildingName': buildingName,
           'floorPlanUrl': resolvedUrl,
           'floorPlanBase64': floorPlanBase64,
           'payload': payload,
@@ -403,15 +435,30 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
       if (!mounted) return;
       setState(() {
         _floorPlanOptions = options;
-        _selectedFloorPlan = options.isNotEmpty ? options.first : null;
+        _folderOptions = options
+            .map((e) => e['buildingName']?.toString() ?? '')
+            .where((e) => e.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
+        _selectedFolder =
+            _folderOptions.isNotEmpty ? _folderOptions.first : null;
+        final filtered = _filteredFloorPlanOptions;
+        _selectedFloorPlan = filtered.isNotEmpty ? filtered.first : null;
+        _selectedPinX = null;
+        _selectedPinY = null;
         if (_selectedFloorPlan != null) {
           _locationTextController.text =
-              '${_selectedFloorPlan!['label']} - 未選 pin';
+              '${_selectedFloorPlan!['buildingName']} / ${_selectedFloorPlan!['label']} - 未選 pin';
+        } else {
+          _locationTextController.clear();
         }
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
+        _folderOptions = [];
+        _selectedFolder = null;
         _floorPlanOptions = [];
         _selectedFloorPlan = null;
       });
@@ -553,108 +600,7 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _pickImage(ImageSource.camera),
-                  icon: const Icon(Icons.photo_camera),
-                  label: const Text('拍照'),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _pickImage(ImageSource.gallery),
-                  icon: const Icon(Icons.photo_library),
-                  label: const Text('相簿'),
-                ),
-              ),
-            ],
-          ),
-          if (_selectedImageBytes != null) ...[
-            const SizedBox(height: 12),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Image.memory(
-                _selectedImageBytes!,
-                height: 160,
-                width: double.infinity,
-                fit: BoxFit.cover,
-              ),
-            ),
-          ],
-          if (_isAnalyzing) ...[
-            const SizedBox(height: 12),
-            const Row(
-              children: [
-                SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-                SizedBox(width: 8),
-                Text('AI 生成中...'),
-              ],
-            ),
-          ],
-          if (_aiResult != null) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: _aiResult!['_ai_mode'] == 'local_fallback'
-                    ? Colors.orange.shade50
-                    : Colors.green.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: _aiResult!['_ai_mode'] == 'local_fallback'
-                      ? Colors.orange.shade200
-                      : Colors.green.shade200,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    _aiResult!['_ai_mode'] == 'local_fallback'
-                        ? Icons.info
-                        : Icons.check_circle,
-                    color: _aiResult!['_ai_mode'] == 'local_fallback'
-                        ? Colors.orange
-                        : Colors.green,
-                    size: 18,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _aiResult!['_ai_mode'] == 'local_fallback'
-                              ? '本地評估: ${_aiResult?['title'] ?? '已分析'}'
-                              : 'AI 分析: ${_aiResult?['title'] ?? '已分析'}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
-                          ),
-                        ),
-                        if (_aiResult!['_ai_mode'] == 'local_fallback')
-                          Text(
-                            '(網絡或地區限制)',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.orange.shade700,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-          const SizedBox(height: 14),
-          const Text('當前位置', style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text('選擇樓層圖來源', style: TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           if (_isLoadingFloorPlans)
             const LinearProgressIndicator()
@@ -663,7 +609,38 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
               '未找到樓層圖資料（可先到 Web 樓層圖管理上傳）',
               style: TextStyle(color: Colors.grey.shade600),
             )
-          else
+          else ...[
+            DropdownButtonFormField<String>(
+              initialValue: _selectedFolder,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                labelText: 'Folder / 建築名稱',
+              ),
+              items: _folderOptions
+                  .map((folder) => DropdownMenuItem<String>(
+                        value: folder,
+                        child: Text(folder),
+                      ))
+                  .toList(),
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() {
+                  _selectedFolder = value;
+                  _selectedPinX = null;
+                  _selectedPinY = null;
+                  final filtered = _filteredFloorPlanOptions;
+                  _selectedFloorPlan =
+                      filtered.isNotEmpty ? filtered.first : null;
+                  _locationTextController.text = _selectedFloorPlan == null
+                      ? ''
+                      : '${_selectedFloorPlan!['buildingName']} / ${_selectedFloorPlan!['label']} - 未選 pin';
+                });
+              },
+            ),
+            const SizedBox(height: 10),
             DropdownButtonFormField<Map<String, dynamic>>(
               initialValue: _selectedFloorPlan,
               isExpanded: true,
@@ -671,8 +648,9 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
                 border: OutlineInputBorder(),
                 contentPadding:
                     EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                labelText: '樓層圖',
               ),
-              items: _floorPlanOptions
+              items: _filteredFloorPlanOptions
                   .map((item) => DropdownMenuItem<Map<String, dynamic>>(
                         value: item,
                         child: Text(item['label'] as String),
@@ -684,149 +662,263 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
                   _selectedFloorPlan = value;
                   _selectedPinX = null;
                   _selectedPinY = null;
-                  _locationTextController.text = '${value['label']} - 未選 pin';
+                  _locationTextController.text =
+                      '${value['buildingName']} / ${value['label']} - 未選 pin';
                 });
               },
             ),
-          if (((_selectedFloorPlan?['floorPlanUrl'] as String?)?.isNotEmpty ==
-                  true) ||
-              ((_selectedFloorPlan?['floorPlanBase64'] as String?)
-                      ?.isNotEmpty ==
-                  true)) ...[
+          ],
+          if (_selectedFloorPlan == null) ...[
             const SizedBox(height: 10),
-            AspectRatio(
-              aspectRatio: 16 / 9,
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  return GestureDetector(
-                    onTapDown: (details) {
-                      final local = details.localPosition;
-                      final nx =
-                          (local.dx / constraints.maxWidth).clamp(0.0, 1.0);
-                      final ny =
-                          (local.dy / constraints.maxHeight).clamp(0.0, 1.0);
-                      setState(() {
-                        _selectedPinX = nx * 100;
-                        _selectedPinY = (1 - ny) * 100;
-                        _locationTextController.text =
-                            '${_selectedFloorPlan!['label']} - Pin(${_selectedPinX!.toStringAsFixed(1)}, ${_selectedPinY!.toStringAsFixed(1)})';
-                      });
-                    },
-                    child: Stack(
-                      children: [
-                        Positioned.fill(
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child:
-                                (_selectedFloorPlan!['floorPlanUrl'] as String?)
-                                            ?.isNotEmpty ==
-                                        true
-                                    ? Image.network(
-                                        _selectedFloorPlan!['floorPlanUrl']
-                                            as String,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) {
-                                          final fallback = (_selectedFloorPlan![
-                                                  'floorPlanBase64'] as String?)
-                                              ?.trim();
-                                          if (fallback != null &&
-                                              fallback.isNotEmpty) {
-                                            return Image.memory(
-                                              base64Decode(fallback),
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (_, __, ___) =>
-                                                  Container(
-                                                color: Colors.grey.shade100,
-                                                alignment: Alignment.center,
-                                                child: const Text('樓層圖載入失敗'),
-                                              ),
-                                            );
-                                          }
-                                          return Container(
-                                            color: Colors.grey.shade100,
-                                            alignment: Alignment.center,
-                                            child: const Text('樓層圖載入失敗'),
+            Text(
+              '請先選擇 folder 及樓層圖，之後才可拍照與選 pin 上報。',
+              style: TextStyle(color: Colors.grey.shade700),
+            ),
+          ] else ...[
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _pickImage(ImageSource.camera),
+                    icon: const Icon(Icons.photo_camera),
+                    label: const Text('拍照'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _pickImage(ImageSource.gallery),
+                    icon: const Icon(Icons.photo_library),
+                    label: const Text('相簿'),
+                  ),
+                ),
+              ],
+            ),
+            if (_selectedImageBytes != null) ...[
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.memory(
+                  _selectedImageBytes!,
+                  height: 160,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ],
+            if (_isAnalyzing) ...[
+              const SizedBox(height: 12),
+              const Row(
+                children: [
+                  SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  SizedBox(width: 8),
+                  Text('AI 生成中...'),
+                ],
+              ),
+            ],
+            if (_aiResult != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: _aiResult!['_ai_mode'] == 'local_fallback'
+                      ? Colors.orange.shade50
+                      : Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: _aiResult!['_ai_mode'] == 'local_fallback'
+                        ? Colors.orange.shade200
+                        : Colors.green.shade200,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _aiResult!['_ai_mode'] == 'local_fallback'
+                          ? Icons.info
+                          : Icons.check_circle,
+                      color: _aiResult!['_ai_mode'] == 'local_fallback'
+                          ? Colors.orange
+                          : Colors.green,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _aiResult!['_ai_mode'] == 'local_fallback'
+                                ? '本地評估: ${_aiResult?['title'] ?? '已分析'}'
+                                : 'AI 分析: ${_aiResult?['title'] ?? '已分析'}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                          if (_aiResult!['_ai_mode'] == 'local_fallback')
+                            Text(
+                              '(網絡或地區限制)',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.orange.shade700,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 14),
+            const Text('當前位置', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            if (((_selectedFloorPlan?['floorPlanUrl'] as String?)?.isNotEmpty ==
+                    true) ||
+                ((_selectedFloorPlan?['floorPlanBase64'] as String?)
+                        ?.isNotEmpty ==
+                    true)) ...[
+              const SizedBox(height: 10),
+              AspectRatio(
+                aspectRatio: 16 / 9,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return GestureDetector(
+                      onTapDown: (details) {
+                        final local = details.localPosition;
+                        final nx =
+                            (local.dx / constraints.maxWidth).clamp(0.0, 1.0);
+                        final ny =
+                            (local.dy / constraints.maxHeight).clamp(0.0, 1.0);
+                        setState(() {
+                          _selectedPinX = nx * 100;
+                          _selectedPinY = (1 - ny) * 100;
+                          _locationTextController.text =
+                              '${_selectedFloorPlan!['buildingName']} / ${_selectedFloorPlan!['label']} - Pin(${_selectedPinX!.toStringAsFixed(1)}, ${_selectedPinY!.toStringAsFixed(1)})';
+                        });
+                      },
+                      child: Stack(
+                        children: [
+                          Positioned.fill(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: (_selectedFloorPlan!['floorPlanUrl']
+                                              as String?)
+                                          ?.isNotEmpty ==
+                                      true
+                                  ? Image.network(
+                                      _selectedFloorPlan!['floorPlanUrl']
+                                          as String,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) {
+                                        final fallback = (_selectedFloorPlan![
+                                                'floorPlanBase64'] as String?)
+                                            ?.trim();
+                                        if (fallback != null &&
+                                            fallback.isNotEmpty) {
+                                          return Image.memory(
+                                            base64Decode(fallback),
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) =>
+                                                Container(
+                                              color: Colors.grey.shade100,
+                                              alignment: Alignment.center,
+                                              child: const Text('樓層圖載入失敗'),
+                                            ),
                                           );
-                                        },
-                                      )
-                                    : Image.memory(
-                                        base64Decode(
-                                          _selectedFloorPlan!['floorPlanBase64']
-                                              as String,
-                                        ),
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) => Container(
+                                        }
+                                        return Container(
                                           color: Colors.grey.shade100,
                                           alignment: Alignment.center,
                                           child: const Text('樓層圖載入失敗'),
-                                        ),
+                                        );
+                                      },
+                                    )
+                                  : Image.memory(
+                                      base64Decode(
+                                        _selectedFloorPlan!['floorPlanBase64']
+                                            as String,
                                       ),
-                          ),
-                        ),
-                        if (_selectedPinX != null && _selectedPinY != null)
-                          Positioned(
-                            left:
-                                constraints.maxWidth * (_selectedPinX! / 100) -
-                                    10,
-                            top: constraints.maxHeight *
-                                    (1 - (_selectedPinY! / 100)) -
-                                10,
-                            child: Container(
-                              width: 20,
-                              height: 20,
-                              decoration: BoxDecoration(
-                                color: Colors.red,
-                                shape: BoxShape.circle,
-                                border:
-                                    Border.all(color: Colors.white, width: 2),
-                              ),
-                              child: const Icon(
-                                Icons.place,
-                                size: 12,
-                                color: Colors.white,
-                              ),
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => Container(
+                                        color: Colors.grey.shade100,
+                                        alignment: Alignment.center,
+                                        child: const Text('樓層圖載入失敗'),
+                                      ),
+                                    ),
                             ),
                           ),
-                      ],
-                    ),
-                  );
-                },
+                          if (_selectedPinX != null && _selectedPinY != null)
+                            Positioned(
+                              left: constraints.maxWidth *
+                                      (_selectedPinX! / 100) -
+                                  10,
+                              top: constraints.maxHeight *
+                                      (1 - (_selectedPinY! / 100)) -
+                                  10,
+                              child: Container(
+                                width: 20,
+                                height: 20,
+                                decoration: BoxDecoration(
+                                  color: Colors.red,
+                                  shape: BoxShape.circle,
+                                  border:
+                                      Border.all(color: Colors.white, width: 2),
+                                ),
+                                child: const Icon(
+                                  Icons.place,
+                                  size: 12,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                _selectedPinX == null
+                    ? '請點擊樓層圖以設定 pin 位置'
+                    : '已選 pin: (${_selectedPinX!.toStringAsFixed(1)}, ${_selectedPinY!.toStringAsFixed(1)})',
+                style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+              ),
+            ],
+            const SizedBox(height: 8),
+            TextField(
+              controller: _locationTextController,
+              decoration: const InputDecoration(
+                labelText: '位置文字（可修改）',
+                border: OutlineInputBorder(),
               ),
             ),
-            const SizedBox(height: 6),
-            Text(
-              _selectedPinX == null
-                  ? '請點擊樓層圖以設定 pin 位置'
-                  : '已選 pin: (${_selectedPinX!.toStringAsFixed(1)}, ${_selectedPinY!.toStringAsFixed(1)})',
-              style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _isSubmitting ? null : _submit,
+                icon: _isSubmitting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.send),
+                label: Text(_isSubmitting ? '提交中...' : '生成報告並提交'),
+              ),
             ),
           ],
-          const SizedBox(height: 8),
-          TextField(
-            controller: _locationTextController,
-            decoration: const InputDecoration(
-              labelText: '位置文字（可修改）',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _isSubmitting ? null : _submit,
-              icon: _isSubmitting
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.send),
-              label: Text(_isSubmitting ? '提交中...' : '生成報告並提交'),
-            ),
-          ),
         ],
       ),
     );

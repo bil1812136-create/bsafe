@@ -13,6 +13,7 @@ import 'package:bsafe_app/screens/report_screen.dart';
 import 'package:bsafe_app/screens/history_screen.dart';
 import 'package:bsafe_app/screens/analysis_screen.dart';
 import 'package:bsafe_app/screens/inspection_screen.dart';
+import 'package:bsafe_app/screens/followup_screen.dart';
 import 'package:bsafe_app/theme/app_theme.dart';
 import 'package:bsafe_app/services/supabase_service.dart';
 
@@ -81,6 +82,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     const ReportScreen(),
     const HistoryScreen(),
     const AnalysisScreen(),
+    const FollowUpScreen(),
     const InspectionScreen(), // 位置 tab — 使用現有 UWB 定位功能
   ];
 
@@ -90,9 +92,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     final languageProvider = Provider.of<LanguageProvider>(context);
     final int currentIndex = navigationProvider.currentIndex;
     final connectivityProvider = Provider.of<ConnectivityProvider>(context);
+    final reportProvider = Provider.of<ReportProvider>(context);
+    final unreadFollowups =
+        reportProvider.reports.where((r) => r.hasUnreadCompany).length;
 
     return Scaffold(
-      appBar: currentIndex == 4
+      appBar: currentIndex == 5
           ? null // 位置頁面（InspectionScreen）有自己的 AppBar
           : AppBar(
               title: Row(
@@ -184,7 +189,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       body: Column(
         children: [
           // Offline Banner（位置頁面不顯示，因為它有自己的 UI）
-          if (!connectivityProvider.isOnline && currentIndex != 4)
+          if (!connectivityProvider.isOnline && currentIndex != 5)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
@@ -278,6 +283,47 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                     icon: const Icon(Icons.bar_chart_rounded),
                     activeIcon: const Icon(Icons.bar_chart_rounded),
                     label: languageProvider.t('nav_analysis'),
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        const Icon(Icons.forum_rounded),
+                        if (unreadFollowups > 0)
+                          Positioned(
+                            right: -2,
+                            top: -2,
+                            child: Container(
+                              width: 10,
+                              height: 10,
+                              decoration: const BoxDecoration(
+                                color: Colors.red,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    activeIcon: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        const Icon(Icons.forum_rounded),
+                        if (unreadFollowups > 0)
+                          Positioned(
+                            right: -2,
+                            top: -2,
+                            child: Container(
+                              width: 10,
+                              height: 10,
+                              decoration: const BoxDecoration(
+                                color: Colors.red,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    label: languageProvider.t('nav_followup'),
                   ),
                   BottomNavigationBarItem(
                     icon: const Icon(Icons.place_rounded),

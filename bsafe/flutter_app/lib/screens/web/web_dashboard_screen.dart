@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -21,10 +22,13 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
   bool _isLoading = true;
   bool _isFloorPlanLoading = true;
   bool _isUploadingFloorPlan = false;
+  String? _selectedFloorPlanFolder;
+  String? _deletingSessionId;
   String? _error;
   String? _floorPlanError;
   String _filterRiskLevel = 'all'; // 'all', 'high', 'medium', 'low'
   String _activeSection = 'reports'; // reports | floor_plans
+  final TextEditingController _buildingNameController = TextEditingController();
   final TextEditingController _floorNumberController = TextEditingController();
   final ImagePicker _picker = ImagePicker();
   Timer? _refreshTimer;
@@ -46,6 +50,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _buildingNameController.dispose();
     _floorNumberController.dispose();
     super.dispose();
   }
@@ -68,6 +73,11 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
       if (!mounted) return;
       setState(() {
         _floorPlans = List<Map<String, dynamic>>.from(rows);
+        final folders = _groupFloorPlansByBuilding(_floorPlans).keys.toList();
+        if (_selectedFloorPlanFolder != null &&
+            !folders.contains(_selectedFloorPlanFolder)) {
+          _selectedFloorPlanFolder = null;
+        }
         _isFloorPlanLoading = false;
       });
     } catch (e) {
@@ -80,8 +90,15 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
   }
 
   Future<void> _pickAndUploadFloorPlan() async {
+    final buildingName = _buildingNameController.text.trim();
     final floorText = _floorNumberController.text.trim();
     final floorNumber = int.tryParse(floorText);
+    if (buildingName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('請先輸入建築名稱（folder）')),
+      );
+      return;
+    }
     if (floorNumber == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('請先輸入正確樓層（數字）')),
@@ -101,8 +118,13 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
     setState(() => _isUploadingFloorPlan = true);
     try {
       final bytes = await file.readAsBytes();
+      final buildingFolder = buildingName
+          .toLowerCase()
+          .replaceAll(RegExp(r'[^a-z0-9\u4e00-\u9fff_-]+'), '_')
+          .replaceAll(RegExp(r'_+'), '_')
+          .replaceAll(RegExp(r'^_|_$'), '');
       final path =
-          'buildings/floorplans/floor_${floorNumber}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+          'buildings/${buildingFolder.isEmpty ? 'default' : buildingFolder}/floor_${floorNumber}_${DateTime.now().millisecondsSinceEpoch}.jpg';
       String? publicUrl;
       String? floorPlanPath;
       String? floorPlanBase64;
@@ -136,15 +158,17 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
       final sessionId = 'web_${DateTime.now().millisecondsSinceEpoch}';
       await _supabase.from('inspection_sessions').insert({
         'session_id': sessionId,
-        'name': 'Web Floor Plan F$floorNumber',
+        'name': '$buildingName - F$floorNumber',
         'project_id': 'web-dashboard',
         'floor': floorNumber,
         'floor_plan_path': floorPlanPath,
         'status': 'active',
         'payload': {
           'id': sessionId,
-          'name': 'Web Floor Plan F$floorNumber',
+          'name': '$buildingName - F$floorNumber',
           'projectId': 'web-dashboard',
+          'building_name': buildingName,
+          'building_folder': buildingFolder,
           'floor': floorNumber,
           'floor_plan_url': publicUrl,
           'floorPlanPath': floorPlanPath,
@@ -191,7 +215,8 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
       return _supabase.storage.from('floor-plans').getPublicUrl(rowPath);
     }
 
-    final path = payloadMap['floorPlanPath']?.toString();
+    final path = (payloadMap['floorPlanPath'] ?? payloadMap['floor_plan_path'])
+        ?.toString();
     if (path == null || path.isEmpty) return null;
     if (path.startsWith('http://') || path.startsWith('https://')) return path;
     return _supabase.storage.from('floor-plans').getPublicUrl(path);
@@ -201,9 +226,225 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
     final payload = row['payload'];
     if (payload is! Map) return null;
     final payloadMap = Map<String, dynamic>.from(payload);
-    final raw = payloadMap['floor_plan_base64']?.toString();
+    final raw =
+        (payloadMap['floor_plan_base64'] ?? payloadMap['floorPlanBase64'])
+            ?.toString();
     if (raw == null || raw.isEmpty) return null;
     return raw;
+  }
+
+  Uint8List? _decodeBase64Safe(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      final cleaned = raw.contains(',') ? raw.split(',').last : raw;
+      return base64Decode(cleaned);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  List<Map<String, dynamic>> _extractPins(Map<String, dynamic> row) {
+    final payload = Map<String, dynamic>.from(
+      row['payload'] as Map<String, dynamic>? ?? {},
+    );
+    final pins = payload['pins'] as List<dynamic>? ?? const [];
+    return pins
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+  }
+
+  void _showFloorPlanPreviewDialog(Map<String, dynamic> row) {
+    final imageUrl = _resolveFloorPlanUrl(row);
+    final imageBase64 = _resolveFloorPlanBase64(row);
+    final imageBytes = _decodeBase64Safe(imageBase64);
+    final pins = _extractPins(row);
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return Dialog(
+          insetPadding: const EdgeInsets.all(24),
+          child: SizedBox(
+            width: 900,
+            height: 620,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Text(
+                        '樓層圖預覽與 Pin',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text('Pins: ${pins.length}'),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        return Container(
+                          width: constraints.maxWidth,
+                          height: constraints.maxHeight,
+                          color: Colors.grey.shade100,
+                          child: Stack(
+                            children: [
+                              Positioned.fill(
+                                child: imageUrl != null
+                                    ? Image.network(
+                                        imageUrl,
+                                        fit: BoxFit.contain,
+                                        errorBuilder: (_, __, ___) {
+                                          if (imageBytes != null) {
+                                            return Image.memory(
+                                              imageBytes,
+                                              fit: BoxFit.contain,
+                                            );
+                                          }
+                                          return const Center(
+                                            child: Text('樓層圖載入失敗'),
+                                          );
+                                        },
+                                      )
+                                    : imageBytes != null
+                                        ? Image.memory(
+                                            imageBytes,
+                                            fit: BoxFit.contain,
+                                          )
+                                        : const Center(child: Text('無圖片')),
+                              ),
+                              ...pins.map((pin) {
+                                final x = (pin['x'] as num?)?.toDouble();
+                                final y = (pin['y'] as num?)?.toDouble();
+                                if (x == null || y == null) {
+                                  return const SizedBox.shrink();
+                                }
+                                final left = constraints.maxWidth * (x / 100);
+                                final top =
+                                    constraints.maxHeight * (1 - (y / 100));
+                                return Positioned(
+                                  left: left - 9,
+                                  top: top - 9,
+                                  child: Tooltip(
+                                    message:
+                                        'Pin ${pin['id'] ?? ''} (${x.toStringAsFixed(1)}, ${y.toStringAsFixed(1)})',
+                                    child: Container(
+                                      width: 18,
+                                      height: 18,
+                                      decoration: BoxDecoration(
+                                        color: Colors.red,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: Colors.white,
+                                          width: 2,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  String _extractBuildingNameFromRow(Map<String, dynamic> row) {
+    final payload = Map<String, dynamic>.from(
+      row['payload'] as Map<String, dynamic>? ?? {},
+    );
+
+    final explicit =
+        (payload['building_name'] ?? payload['buildingName'])?.toString();
+    if (explicit != null && explicit.trim().isNotEmpty) {
+      return explicit.trim();
+    }
+
+    final path =
+        (row['floor_plan_path'] ?? payload['floorPlanPath'])?.toString().trim();
+    if (path != null && path.startsWith('buildings/')) {
+      final parts = path.split('/');
+      if (parts.length >= 2 && parts[1].isNotEmpty) {
+        return parts[1];
+      }
+    }
+
+    return '未分類';
+  }
+
+  Map<String, List<Map<String, dynamic>>> _groupFloorPlansByBuilding(
+    List<Map<String, dynamic>> source,
+  ) {
+    final map = <String, List<Map<String, dynamic>>>{};
+    for (final row in source) {
+      final building = _extractBuildingNameFromRow(row);
+      map.putIfAbsent(building, () => []).add(row);
+    }
+    final sortedKeys = map.keys.toList()..sort();
+    return {for (final key in sortedKeys) key: map[key]!};
+  }
+
+  Future<void> _deleteFloorPlan(Map<String, dynamic> row) async {
+    final sessionId = row['session_id']?.toString();
+    if (sessionId == null || sessionId.isEmpty) return;
+
+    final payload = Map<String, dynamic>.from(
+      row['payload'] as Map<String, dynamic>? ?? {},
+    );
+    final floorPlanPath =
+        (row['floor_plan_path'] ?? payload['floorPlanPath'])?.toString();
+
+    setState(() => _deletingSessionId = sessionId);
+    try {
+      if (floorPlanPath != null && floorPlanPath.isNotEmpty) {
+        try {
+          await _supabase.storage.from('floor-plans').remove([floorPlanPath]);
+        } catch (_) {
+          // Ignore storage cleanup failures; DB deletion is still primary.
+        }
+      }
+
+      await _supabase
+          .from('inspection_sessions')
+          .delete()
+          .eq('session_id', sessionId);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('樓層圖已刪除')),
+      );
+      await _loadFloorPlans(silent: true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('刪除失敗: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _deletingSessionId = null);
+      }
+    }
   }
 
   Future<void> _loadReports({bool silent = false}) async {
@@ -390,6 +631,11 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
   }
 
   Widget _buildFloorPlanManagement() {
+    final grouped = _groupFloorPlansByBuilding(_floorPlans);
+    final selectedRows = _selectedFloorPlanFolder == null
+        ? <Map<String, dynamic>>[]
+        : grouped[_selectedFloorPlanFolder] ?? <Map<String, dynamic>>[];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -427,6 +673,18 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
           child: Row(
             children: [
               SizedBox(
+                width: 220,
+                child: TextField(
+                  controller: _buildingNameController,
+                  decoration: const InputDecoration(
+                    labelText: '建築名稱 / Folder',
+                    hintText: '例如: Building_A',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              SizedBox(
                 width: 160,
                 child: TextField(
                   controller: _floorNumberController,
@@ -463,110 +721,279 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                   ? Center(child: Text(_floorPlanError!))
                   : _floorPlans.isEmpty
                       ? const Center(child: Text('尚未有樓層圖'))
-                      : ListView.separated(
-                          padding: const EdgeInsets.fromLTRB(32, 8, 32, 24),
-                          itemCount: _floorPlans.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 12),
-                          itemBuilder: (context, index) {
-                            final row = _floorPlans[index];
-                            final floor = row['floor'] ?? '-';
-                            final imageUrl = _resolveFloorPlanUrl(row);
-                            final imageBase64 = _resolveFloorPlanBase64(row);
-                            return Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: AppTheme.borderColor),
+                      : Column(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(32, 0, 32, 8),
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: grouped.keys
+                                      .map(
+                                        (folder) => ChoiceChip(
+                                          label: Text(
+                                              '$folder (${grouped[folder]!.length})'),
+                                          selected: _selectedFloorPlanFolder ==
+                                              folder,
+                                          onSelected: (_) {
+                                            setState(() {
+                                              _selectedFloorPlanFolder = folder;
+                                            });
+                                          },
+                                        ),
+                                      )
+                                      .toList(),
+                                ),
                               ),
-                              child: Row(
-                                children: [
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: imageUrl != null
-                                        ? Image.network(
-                                            imageUrl,
-                                            width: 140,
-                                            height: 90,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (_, __, ___) {
-                                              if (imageBase64 != null &&
-                                                  imageBase64.isNotEmpty) {
-                                                return Image.memory(
-                                                  base64Decode(imageBase64),
-                                                  width: 140,
-                                                  height: 90,
-                                                  fit: BoxFit.cover,
-                                                  errorBuilder: (_, __, ___) =>
-                                                      Container(
-                                                    width: 140,
-                                                    height: 90,
-                                                    color: Colors.grey.shade200,
-                                                    alignment: Alignment.center,
-                                                    child: const Text('載入失敗'),
-                                                  ),
-                                                );
-                                              }
-                                              return Container(
-                                                width: 140,
-                                                height: 90,
-                                                color: Colors.grey.shade200,
-                                                alignment: Alignment.center,
-                                                child: const Text('載入失敗'),
-                                              );
-                                            },
-                                          )
-                                        : imageBase64 != null
-                                            ? Image.memory(
-                                                base64Decode(imageBase64),
-                                                width: 140,
-                                                height: 90,
-                                                fit: BoxFit.cover,
-                                                errorBuilder: (_, __, ___) =>
-                                                    Container(
-                                                  width: 140,
-                                                  height: 90,
-                                                  color: Colors.grey.shade200,
-                                                  alignment: Alignment.center,
-                                                  child: const Text('載入失敗'),
-                                                ),
-                                              )
-                                            : Container(
-                                                width: 140,
-                                                height: 90,
-                                                color: Colors.grey.shade200,
-                                                alignment: Alignment.center,
-                                                child: const Text('無圖片'),
+                            ),
+                            Expanded(
+                              child: _selectedFloorPlanFolder == null
+                                  ? const Center(
+                                      child: Text('請先點選一個 folder 查看對應樓層圖'),
+                                    )
+                                  : selectedRows.isEmpty
+                                      ? const Center(
+                                          child: Text('此 folder 暫無樓層圖'))
+                                      : ListView.separated(
+                                          padding: const EdgeInsets.fromLTRB(
+                                              32, 8, 32, 24),
+                                          itemCount: selectedRows.length,
+                                          separatorBuilder: (_, __) =>
+                                              const SizedBox(height: 12),
+                                          itemBuilder: (context, index) {
+                                            final row = selectedRows[index];
+                                            final floor = row['floor'] ?? '-';
+                                            final payload =
+                                                Map<String, dynamic>.from(
+                                              row['payload'] as Map<String,
+                                                      dynamic>? ??
+                                                  {},
+                                            );
+                                            final buildingName = (payload[
+                                                            'building_name'] ??
+                                                        payload['buildingName'])
+                                                    ?.toString() ??
+                                                '未命名建築';
+                                            final imageUrl =
+                                                _resolveFloorPlanUrl(row);
+                                            final imageBase64 =
+                                                _resolveFloorPlanBase64(row);
+                                            final imageBytes =
+                                                _decodeBase64Safe(imageBase64);
+
+                                            return Container(
+                                              padding: const EdgeInsets.all(14),
+                                              decoration: BoxDecoration(
+                                                color: Colors.white,
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                                border: Border.all(
+                                                    color:
+                                                        AppTheme.borderColor),
                                               ),
-                                  ),
-                                  const SizedBox(width: 14),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          '樓層: $floor F',
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16,
-                                          ),
+                                              child: Row(
+                                                children: [
+                                                  GestureDetector(
+                                                    onTap: () =>
+                                                        _showFloorPlanPreviewDialog(
+                                                            row),
+                                                    child: ClipRRect(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              8),
+                                                      child: imageUrl != null
+                                                          ? Image.network(
+                                                              imageUrl,
+                                                              width: 140,
+                                                              height: 90,
+                                                              fit: BoxFit.cover,
+                                                              errorBuilder:
+                                                                  (_, __, ___) {
+                                                                if (imageBytes !=
+                                                                    null) {
+                                                                  return Image
+                                                                      .memory(
+                                                                    imageBytes,
+                                                                    width: 140,
+                                                                    height: 90,
+                                                                    fit: BoxFit
+                                                                        .cover,
+                                                                    errorBuilder: (_,
+                                                                            __,
+                                                                            ___) =>
+                                                                        Container(
+                                                                      width:
+                                                                          140,
+                                                                      height:
+                                                                          90,
+                                                                      color: Colors
+                                                                          .grey
+                                                                          .shade200,
+                                                                      alignment:
+                                                                          Alignment
+                                                                              .center,
+                                                                      child: const Text(
+                                                                          '載入失敗'),
+                                                                    ),
+                                                                  );
+                                                                }
+                                                                return Container(
+                                                                  width: 140,
+                                                                  height: 90,
+                                                                  color: Colors
+                                                                      .grey
+                                                                      .shade200,
+                                                                  alignment:
+                                                                      Alignment
+                                                                          .center,
+                                                                  child:
+                                                                      const Text(
+                                                                          '載入失敗'),
+                                                                );
+                                                              },
+                                                            )
+                                                          : imageBytes != null
+                                                              ? Image.memory(
+                                                                  imageBytes,
+                                                                  width: 140,
+                                                                  height: 90,
+                                                                  fit: BoxFit
+                                                                      .cover,
+                                                                  errorBuilder: (_,
+                                                                          __,
+                                                                          ___) =>
+                                                                      Container(
+                                                                    width: 140,
+                                                                    height: 90,
+                                                                    color: Colors
+                                                                        .grey
+                                                                        .shade200,
+                                                                    alignment:
+                                                                        Alignment
+                                                                            .center,
+                                                                    child: const Text(
+                                                                        '載入失敗'),
+                                                                  ),
+                                                                )
+                                                              : Container(
+                                                                  width: 140,
+                                                                  height: 90,
+                                                                  color: Colors
+                                                                      .grey
+                                                                      .shade200,
+                                                                  alignment:
+                                                                      Alignment
+                                                                          .center,
+                                                                  child:
+                                                                      const Text(
+                                                                          '無圖片'),
+                                                                ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 14),
+                                                  Expanded(
+                                                    child: Column(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .start,
+                                                      children: [
+                                                        Text(
+                                                          '$buildingName - $floor F',
+                                                          style:
+                                                              const TextStyle(
+                                                            fontWeight:
+                                                                FontWeight.bold,
+                                                            fontSize: 16,
+                                                          ),
+                                                        ),
+                                                        const SizedBox(
+                                                            height: 6),
+                                                        Text(
+                                                          'Session ID: ${row['session_id']}',
+                                                          style:
+                                                              const TextStyle(
+                                                            color: AppTheme
+                                                                .textSecondary,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  ElevatedButton.icon(
+                                                    style: ElevatedButton
+                                                        .styleFrom(
+                                                      backgroundColor:
+                                                          Colors.red,
+                                                    ),
+                                                    onPressed:
+                                                        _deletingSessionId ==
+                                                                row['session_id']
+                                                            ? null
+                                                            : () async {
+                                                                final ok =
+                                                                    await showDialog<
+                                                                            bool>(
+                                                                          context:
+                                                                              context,
+                                                                          builder: (ctx) =>
+                                                                              AlertDialog(
+                                                                            title:
+                                                                                const Text('刪除樓層圖'),
+                                                                            content:
+                                                                                Text(
+                                                                              '確定刪除「$buildingName - $floor F」嗎？',
+                                                                            ),
+                                                                            actions: [
+                                                                              TextButton(
+                                                                                onPressed: () => Navigator.pop(ctx, false),
+                                                                                child: const Text('取消'),
+                                                                              ),
+                                                                              ElevatedButton(
+                                                                                style: ElevatedButton.styleFrom(
+                                                                                  backgroundColor: Colors.red,
+                                                                                ),
+                                                                                onPressed: () => Navigator.pop(ctx, true),
+                                                                                child: const Text('刪除'),
+                                                                              ),
+                                                                            ],
+                                                                          ),
+                                                                        ) ??
+                                                                        false;
+                                                                if (!ok) return;
+                                                                await _deleteFloorPlan(
+                                                                    row);
+                                                              },
+                                                    icon: _deletingSessionId ==
+                                                            row['session_id']
+                                                        ? const SizedBox(
+                                                            width: 14,
+                                                            height: 14,
+                                                            child:
+                                                                CircularProgressIndicator(
+                                                              strokeWidth: 2,
+                                                              color:
+                                                                  Colors.white,
+                                                            ),
+                                                          )
+                                                        : const Icon(Icons
+                                                            .delete_outline),
+                                                    label: Text(
+                                                      _deletingSessionId ==
+                                                              row['session_id']
+                                                          ? '刪除中'
+                                                          : '刪除',
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          },
                                         ),
-                                        const SizedBox(height: 6),
-                                        Text(
-                                          'Session ID: ${row['session_id']}',
-                                          style: const TextStyle(
-                                            color: AppTheme.textSecondary,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
+                            ),
+                          ],
                         ),
         ),
       ],
