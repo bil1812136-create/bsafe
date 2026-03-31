@@ -695,11 +695,11 @@ class _ReportScreenState extends State<ReportScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
+                        const Row(
                           children: [
-                            const Icon(Icons.info_outline,
+                            Icon(Icons.info_outline,
                                 size: 20, color: AppTheme.textSecondary),
-                            const SizedBox(width: 8),
+                            SizedBox(width: 8),
                             Text(
                               'Instructions',
                               style: TextStyle(
