@@ -57,41 +57,47 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
 
   SupabaseClient get _supabase => Supabase.instance.client;
 
+  String? _asString(dynamic value) {
+    if (value == null) return null;
+    if (value is String) return value;
+    return value.toString();
+  }
+
   @override
   void initState() {
     super.initState();
     final r = widget.report;
-    _titleController = TextEditingController(text: r['title'] ?? '');
-    _analysisController = TextEditingController(text: r['ai_analysis'] ?? '');
+    _titleController = TextEditingController(text: _asString(r['title']) ?? '');
+    _analysisController =
+        TextEditingController(text: _asString(r['ai_analysis']) ?? '');
     _convoInputController = TextEditingController();
-    _status = r['status'] ?? 'pending';
-    _severity = r['severity'] ?? 'moderate';
-    _riskLevel = r['risk_level'] ?? 'medium';
-    _riskScore = r['risk_score'] ?? 50;
+    _status = _asString(r['status']) ?? 'pending';
+    _severity = _asString(r['severity']) ?? 'moderate';
+    _riskLevel = _asString(r['risk_level']) ?? 'medium';
+    _riskScore = (r['risk_score'] as num?)?.toInt() ?? 50;
 
-    _initAnalysisFields(r['ai_analysis'] as String? ?? '');
+    _initAnalysisFields(_asString(r['ai_analysis']) ?? '');
 
     // 解析 conversation
-    _conversation =
-        ReportModel.conversationFromJson(r['conversation'] as String?);
+    _conversation = ReportModel.conversationFromJson(r['conversation']);
     // 向後兼容：若 conversation 為空，從舊欄位遷移
     if (_conversation.isEmpty) {
-      if (r['company_notes'] != null &&
-          (r['company_notes'] as String).isNotEmpty) {
+      final companyNotes = _asString(r['company_notes']);
+      if (companyNotes != null && companyNotes.isNotEmpty) {
         _conversation.add(ConversationMessage(
           sender: 'company',
-          text: r['company_notes'] as String,
+          text: companyNotes,
           timestamp: r['updated_at'] != null
               ? DateTime.tryParse(r['updated_at'] as String) ?? DateTime.now()
               : DateTime.now(),
         ));
       }
-      if (r['worker_response'] != null &&
-          (r['worker_response'] as String).isNotEmpty) {
+      final workerResponse = _asString(r['worker_response']);
+      if (workerResponse != null && workerResponse.isNotEmpty) {
         _conversation.add(ConversationMessage(
           sender: 'worker',
-          text: r['worker_response'] as String,
-          image: r['worker_response_image'] as String?,
+          text: workerResponse,
+          image: _asString(r['worker_response_image']),
           timestamp: r['updated_at'] != null
               ? DateTime.tryParse(r['updated_at'] as String) ?? DateTime.now()
               : DateTime.now(),
@@ -228,7 +234,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
 
         fallbackRow ??= sessions.first;
         fallbackSession ??= Map<String, dynamic>.from(
-            fallbackRow!['payload'] as Map<String, dynamic>? ?? {});
+            fallbackRow['payload'] as Map<String, dynamic>? ?? {});
 
         bestSessionRow = fallbackRow;
         bestSession = fallbackSession;
@@ -512,8 +518,8 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
           final newRiskScore =
               (data['risk_score'] as num?)?.toInt() ?? _riskScore;
 
-          final newConvStr = data['conversation'] as String?;
-          final newConv = ReportModel.conversationFromJson(newConvStr);
+          final newConv =
+              ReportModel.conversationFromJson(data['conversation']);
           final hasNewMsg = newConv.length > _conversation.length;
 
           setState(() {
@@ -773,11 +779,14 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
           .single();
 
       List<dynamic> conv = [];
-      if (existing['conversation'] != null &&
-          (existing['conversation'] as String).isNotEmpty) {
+      final existingConversation = existing['conversation'];
+      if (existingConversation is String && existingConversation.isNotEmpty) {
         try {
-          conv = jsonDecode(existing['conversation'] as String);
+          final decoded = jsonDecode(existingConversation);
+          if (decoded is List) conv = decoded;
         } catch (_) {}
+      } else if (existingConversation is List) {
+        conv = existingConversation;
       }
 
       final newMsg = {
