@@ -121,11 +121,24 @@ class ReportModel {
     return jsonEncode(list.map((m) => m.toJson()).toList());
   }
 
-  /// 從 JSON 字串反序列化 conversation
-  static List<ConversationMessage> conversationFromJson(String? json) {
-    if (json == null || json.isEmpty) return [];
+  /// 從 Supabase/JSON 反序列化 conversation
+  /// 支援：
+  /// - null
+  /// - JSON 字串
+  /// - List<dynamic> / JSArray
+  static List<ConversationMessage> conversationFromJson(dynamic raw) {
+    if (raw == null) return [];
     try {
-      final List<dynamic> list = jsonDecode(json);
+      final List<dynamic> list;
+      if (raw is String) {
+        if (raw.isEmpty) return [];
+        final decoded = jsonDecode(raw);
+        list = decoded is List ? decoded : [];
+      } else if (raw is List) {
+        list = raw;
+      } else {
+        return [];
+      }
       return list
           .map(
               (e) => ConversationMessage.fromJson(Map<String, dynamic>.from(e)))
@@ -185,7 +198,7 @@ class ReportModel {
       companyNotes: map['company_notes'] as String?,
       workerResponse: map['worker_response'] as String?,
       workerResponseImage: map['worker_response_image'] as String?,
-      conversation: conversationFromJson(map['conversation'] as String?),
+      conversation: conversationFromJson(map['conversation']),
       hasUnreadCompany: (map['has_unread_company'] as int?) == 1,
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: map['updated_at'] != null
@@ -244,7 +257,7 @@ class ReportModel {
       companyNotes: json['company_notes'] as String?,
       workerResponse: json['worker_response'] as String?,
       workerResponseImage: json['worker_response_image'] as String?,
-      conversation: conversationFromJson(json['conversation'] as String?),
+      conversation: conversationFromJson(json['conversation']),
       hasUnreadCompany: json['has_unread_company'] == true,
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'] as String)

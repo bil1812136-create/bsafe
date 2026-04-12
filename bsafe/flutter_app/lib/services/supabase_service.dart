@@ -57,9 +57,9 @@ import 'package:bsafe_app/models/report_model.dart';
 /// ════════════════════════════════════════════════════════════
 class SupabaseService {
   // ── 填入你的 Supabase 專案資料 ──────────────────────────────
-  static const String supabaseUrl = 'https://adtahhkhyuyqipkulwwp.supabase.co';
+  static const String supabaseUrl = 'https://mvywylhlmktejvsmcqkk.supabase.co';
   static const String supabaseAnonKey =
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFkdGFoaGtoeXV5cWlwa3Vsd3dwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2OTE0MTAsImV4cCI6MjA4ODI2NzQxMH0.HpCdD2BRnhnuNdqavWfJAaePHfYLFEt0nRafmEF2Ido';
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12eXd5bGhsbWt0ZWp2c21jcWtrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMTk1NzYsImV4cCI6MjA5MDY5NTU3Nn0.qv1mqv8FW83Z_btolYWYEN5fGTXMW8-V08ZphvO3Dv8';
   // ───────────────────────────────────────────────────────────
 
   static final SupabaseService instance = SupabaseService._init();
@@ -347,8 +347,7 @@ class SupabaseService {
       companyNotes: data['company_notes'] as String?,
       workerResponse: data['worker_response'] as String?,
       workerResponseImage: data['worker_response_image'] as String?,
-      conversation:
-          ReportModel.conversationFromJson(data['conversation'] as String?),
+      conversation: ReportModel.conversationFromJson(data['conversation']),
       hasUnreadCompany: data['has_unread_company'] == true,
       createdAt: data['created_at'] != null
           ? DateTime.tryParse(data['created_at'] as String) ?? DateTime.now()
