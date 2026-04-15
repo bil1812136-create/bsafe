@@ -187,7 +187,7 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                isCompany ? '公司' : '工人',
+                                isCompany ? '公司' : '我',
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 11,

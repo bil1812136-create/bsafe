@@ -201,16 +201,27 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
     final direct = (payloadMap['floor_plan_url'] ?? payloadMap['floorPlanUrl'])
         ?.toString();
     if (direct != null && direct.isNotEmpty) {
+      if (_looksLikeLocalPath(direct)) return null;
       if (direct.startsWith('http://') || direct.startsWith('https://')) {
-        return direct;
+        return _normalizeStorageObjectUrl(direct);
       }
       return _supabase.storage.from('floor-plans').getPublicUrl(direct);
     }
 
     final rowPath = row['floor_plan_path']?.toString();
     if (rowPath != null && rowPath.isNotEmpty) {
+      if (_looksLikeLocalPath(rowPath)) return null;
       if (rowPath.startsWith('http://') || rowPath.startsWith('https://')) {
-        return rowPath;
+        return _normalizeStorageObjectUrl(rowPath);
+      }
+      if (rowPath.contains('buildings/')) {
+        final idx = rowPath.indexOf('buildings/');
+        if (idx >= 0) {
+          final storagePath = rowPath.substring(idx);
+          return _supabase.storage
+              .from('floor-plans')
+              .getPublicUrl(storagePath);
+        }
       }
       return _supabase.storage.from('floor-plans').getPublicUrl(rowPath);
     }
@@ -218,8 +229,35 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
     final path = (payloadMap['floorPlanPath'] ?? payloadMap['floor_plan_path'])
         ?.toString();
     if (path == null || path.isEmpty) return null;
-    if (path.startsWith('http://') || path.startsWith('https://')) return path;
+    if (_looksLikeLocalPath(path)) return null;
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      return _normalizeStorageObjectUrl(path);
+    }
+    if (path.contains('buildings/')) {
+      final idx = path.indexOf('buildings/');
+      if (idx >= 0) {
+        final storagePath = path.substring(idx);
+        return _supabase.storage.from('floor-plans').getPublicUrl(storagePath);
+      }
+    }
     return _supabase.storage.from('floor-plans').getPublicUrl(path);
+  }
+
+  String _normalizeStorageObjectUrl(String url) {
+    if (!url.contains('/storage/v1/object/')) return url;
+    if (url.contains('/storage/v1/object/public/')) return url;
+    return url.replaceFirst(
+        '/storage/v1/object/', '/storage/v1/object/public/');
+  }
+
+  bool _looksLikeLocalPath(String raw) {
+    final value = raw.trim();
+    final lower = value.toLowerCase();
+    if (lower.startsWith('file://')) return true;
+    if (lower.startsWith('/data/')) return true;
+    if (lower.startsWith('/storage/')) return true;
+    if (RegExp(r'^[a-zA-Z]:[\\/]').hasMatch(value)) return true;
+    return false;
   }
 
   String? _resolveFloorPlanBase64(Map<String, dynamic> row) {
@@ -793,9 +831,15 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                                                     color:
                                                         AppTheme.borderColor),
                                               ),
-                                              child: Row(
-                                                children: [
-                                                  GestureDetector(
+                                              child: LayoutBuilder(
+                                                builder:
+                                                    (context, constraints) {
+                                                  final compact =
+                                                      constraints.maxWidth <
+                                                          760;
+
+                                                  Widget preview =
+                                                      GestureDetector(
                                                     onTap: () =>
                                                         _showFloorPlanPreviewDialog(
                                                             row),
@@ -806,7 +850,10 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                                                       child: imageUrl != null
                                                           ? Image.network(
                                                               imageUrl,
-                                                              width: 140,
+                                                              width: compact
+                                                                  ? constraints
+                                                                      .maxWidth
+                                                                  : 140,
                                                               height: 90,
                                                               fit: BoxFit.cover,
                                                               errorBuilder:
@@ -816,7 +863,10 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                                                                   return Image
                                                                       .memory(
                                                                     imageBytes,
-                                                                    width: 140,
+                                                                    width: compact
+                                                                        ? constraints
+                                                                            .maxWidth
+                                                                        : 140,
                                                                     height: 90,
                                                                     fit: BoxFit
                                                                         .cover,
@@ -824,8 +874,10 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                                                                             __,
                                                                             ___) =>
                                                                         Container(
-                                                                      width:
-                                                                          140,
+                                                                      width: compact
+                                                                          ? constraints
+                                                                              .maxWidth
+                                                                          : 140,
                                                                       height:
                                                                           90,
                                                                       color: Colors
@@ -840,7 +892,10 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                                                                   );
                                                                 }
                                                                 return Container(
-                                                                  width: 140,
+                                                                  width: compact
+                                                                      ? constraints
+                                                                          .maxWidth
+                                                                      : 140,
                                                                   height: 90,
                                                                   color: Colors
                                                                       .grey
@@ -857,7 +912,10 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                                                           : imageBytes != null
                                                               ? Image.memory(
                                                                   imageBytes,
-                                                                  width: 140,
+                                                                  width: compact
+                                                                      ? constraints
+                                                                          .maxWidth
+                                                                      : 140,
                                                                   height: 90,
                                                                   fit: BoxFit
                                                                       .cover,
@@ -865,7 +923,10 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                                                                           __,
                                                                           ___) =>
                                                                       Container(
-                                                                    width: 140,
+                                                                    width: compact
+                                                                        ? constraints
+                                                                            .maxWidth
+                                                                        : 140,
                                                                     height: 90,
                                                                     color: Colors
                                                                         .grey
@@ -878,7 +939,10 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                                                                   ),
                                                                 )
                                                               : Container(
-                                                                  width: 140,
+                                                                  width: compact
+                                                                      ? constraints
+                                                                          .maxWidth
+                                                                      : 140,
                                                                   height: 90,
                                                                   color: Colors
                                                                       .grey
@@ -891,38 +955,34 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                                                                           '無圖片'),
                                                                 ),
                                                     ),
-                                                  ),
-                                                  const SizedBox(width: 14),
-                                                  Expanded(
-                                                    child: Column(
-                                                      crossAxisAlignment:
-                                                          CrossAxisAlignment
-                                                              .start,
-                                                      children: [
-                                                        Text(
-                                                          '$buildingName - $floor F',
-                                                          style:
-                                                              const TextStyle(
-                                                            fontWeight:
-                                                                FontWeight.bold,
-                                                            fontSize: 16,
-                                                          ),
+                                                  );
+
+                                                  Widget info = Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      Text(
+                                                        '$buildingName - $floor F',
+                                                        style: const TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          fontSize: 16,
                                                         ),
-                                                        const SizedBox(
-                                                            height: 6),
-                                                        Text(
-                                                          'Session ID: ${row['session_id']}',
-                                                          style:
-                                                              const TextStyle(
-                                                            color: AppTheme
-                                                                .textSecondary,
-                                                          ),
+                                                      ),
+                                                      const SizedBox(height: 6),
+                                                      Text(
+                                                        'Session ID: ${row['session_id']}',
+                                                        style: const TextStyle(
+                                                          color: AppTheme
+                                                              .textSecondary,
                                                         ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  ElevatedButton.icon(
+                                                      ),
+                                                    ],
+                                                  );
+
+                                                  Widget deleteButton =
+                                                      ElevatedButton.icon(
                                                     style: ElevatedButton
                                                         .styleFrom(
                                                       backgroundColor:
@@ -986,8 +1046,39 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                                                           ? '刪除中'
                                                           : '刪除',
                                                     ),
-                                                  ),
-                                                ],
+                                                  );
+
+                                                  if (compact) {
+                                                    return Column(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .start,
+                                                      children: [
+                                                        preview,
+                                                        const SizedBox(
+                                                            height: 12),
+                                                        info,
+                                                        const SizedBox(
+                                                            height: 10),
+                                                        Align(
+                                                          alignment: Alignment
+                                                              .centerLeft,
+                                                          child: deleteButton,
+                                                        ),
+                                                      ],
+                                                    );
+                                                  }
+
+                                                  return Row(
+                                                    children: [
+                                                      preview,
+                                                      const SizedBox(width: 14),
+                                                      Expanded(child: info),
+                                                      const SizedBox(width: 8),
+                                                      deleteButton,
+                                                    ],
+                                                  );
+                                                },
                                               ),
                                             );
                                           },
@@ -1357,7 +1448,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                       label: Text('類別',
                           style: TextStyle(fontWeight: FontWeight.bold))),
                   DataColumn(
-                      label: Text('風險分數',
+                      label: Text('風險等級',
                           style: TextStyle(fontWeight: FontWeight.bold))),
                   DataColumn(
                       label: Text('狀態',
@@ -1408,7 +1499,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
         ),
         DataCell(Text(category)),
         DataCell(Text(
-          '${report['risk_score'] ?? 0}',
+          AppTheme.getRiskLabel(riskLevel),
           style: TextStyle(fontWeight: FontWeight.bold, color: riskColor),
         )),
         DataCell(_statusBadge(status)),

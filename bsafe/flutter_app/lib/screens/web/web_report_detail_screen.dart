@@ -894,7 +894,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
                   _buildFloorPlanCard(),
                   const SizedBox(height: 24),
                   // 基本資訊
-                  _buildInfoCard(riskLevel, riskScore, riskColor, createdAt),
+                  _buildInfoCard(riskLevel, riskColor, createdAt),
                   const SizedBox(height: 24),
                   // 狀態修改
                   _buildStatusCard(),
@@ -1332,8 +1332,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
     );
   }
 
-  Widget _buildInfoCard(
-      String riskLevel, int riskScore, Color riskColor, String createdAt) {
+  Widget _buildInfoCard(String riskLevel, Color riskColor, String createdAt) {
     return _card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1352,62 +1351,30 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
           _infoRow('建立時間', createdAt),
           const Divider(height: 24),
           // 風險指標
-          Row(
-            children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: riskColor.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: riskColor.withOpacity(0.3)),
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        AppTheme.getRiskLabel(riskLevel),
-                        style: TextStyle(
-                          color: riskColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      const Text('風險等級',
-                          style: TextStyle(
-                              color: AppTheme.textSecondary, fontSize: 12)),
-                    ],
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: riskColor.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: riskColor.withOpacity(0.3)),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  AppTheme.getRiskLabel(riskLevel),
+                  style: TextStyle(
+                    color: riskColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: riskColor.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: riskColor.withOpacity(0.3)),
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        '$riskScore',
-                        style: TextStyle(
-                          color: riskColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 24,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      const Text('風險分數',
-                          style: TextStyle(
-                              color: AppTheme.textSecondary, fontSize: 12)),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+                const SizedBox(height: 4),
+                const Text('風險等級',
+                    style:
+                        TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+              ],
+            ),
           ),
         ],
       ),
@@ -1733,7 +1700,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
-                      '分數: $_riskScore',
+                      '風險等級已更新',
                       style: TextStyle(
                         fontSize: 11,
                         color: color,
@@ -1856,7 +1823,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
         Align(
           alignment: Alignment.centerLeft,
           child: Text(
-            'Image Defect Analysis:（固定）',
+            'Image Defect Analysis:',
             style: TextStyle(
               fontWeight: FontWeight.w700,
               color: Colors.grey.shade800,
@@ -1898,7 +1865,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '$label:（固定）',
+          '$label:',
           style: const TextStyle(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 6),

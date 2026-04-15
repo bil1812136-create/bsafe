@@ -239,13 +239,7 @@ class SupabaseService {
           .eq('id', reportId)
           .single();
 
-      List<dynamic> conv = [];
-      if (existing['conversation'] != null &&
-          (existing['conversation'] as String).isNotEmpty) {
-        try {
-          conv = jsonDecode(existing['conversation'] as String);
-        } catch (_) {}
-      }
+      final conv = _decodeConversation(existing['conversation']);
 
       // 添加新訊息
       conv.add({
@@ -283,13 +277,7 @@ class SupabaseService {
           .eq('id', reportId)
           .single();
 
-      List<dynamic> conv = [];
-      if (existing['conversation'] != null &&
-          (existing['conversation'] as String).isNotEmpty) {
-        try {
-          conv = jsonDecode(existing['conversation'] as String);
-        } catch (_) {}
-      }
+      final conv = _decodeConversation(existing['conversation']);
 
       // 添加新訊息
       conv.add({
@@ -312,6 +300,21 @@ class SupabaseService {
       debugPrint('❌ addCompanyMessage 失敗: $e');
       return false;
     }
+  }
+
+  List<dynamic> _decodeConversation(dynamic raw) {
+    if (raw == null) return [];
+    if (raw is List) return List<dynamic>.from(raw);
+    if (raw is String) {
+      if (raw.isEmpty) return [];
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) return List<dynamic>.from(decoded);
+      } catch (_) {
+        return [];
+      }
+    }
+    return [];
   }
 
   /// 清除未讀標記（工人端查看後調用）
@@ -390,14 +393,82 @@ class SupabaseService {
       final createdAt = payload['createdAt']?.toString();
       final updatedAt = payload['updatedAt']?.toString();
 
+      Map<String, dynamic> mergedPayload = Map<String, dynamic>.from(payload);
+      String? finalFloorPlanPath = payload['floorPlanPath']?.toString();
+
+      try {
+        final existing = await client
+            .from('inspection_sessions')
+            .select('floor_plan_path, payload')
+            .eq('session_id', sessionId)
+            .maybeSingle();
+
+        if (existing != null) {
+          final existingRow = Map<String, dynamic>.from(existing);
+          final existingPayload = Map<String, dynamic>.from(
+            existingRow['payload'] as Map<String, dynamic>? ?? {},
+          );
+
+          mergedPayload = {
+            ...existingPayload,
+            ...payload,
+          };
+
+          final existingFloorPlanPath = (existingRow['floor_plan_path'] ??
+                  existingPayload['floorPlanPath'])
+              ?.toString();
+
+          // If incoming payload only has a local device path, keep cloud-usable path.
+          if (_isLikelyLocalPath(finalFloorPlanPath) &&
+              !_isLikelyLocalPath(existingFloorPlanPath) &&
+              (existingFloorPlanPath?.isNotEmpty ?? false)) {
+            finalFloorPlanPath = existingFloorPlanPath;
+          }
+
+          final incomingUrl =
+              (payload['floor_plan_url'] ?? payload['floorPlanUrl'])
+                  ?.toString();
+          final existingUrl = (existingPayload['floor_plan_url'] ??
+                  existingPayload['floorPlanUrl'])
+              ?.toString();
+          if ((incomingUrl == null || incomingUrl.isEmpty) &&
+              (existingUrl != null && existingUrl.isNotEmpty)) {
+            mergedPayload['floor_plan_url'] =
+                existingPayload['floor_plan_url'] ?? existingUrl;
+            mergedPayload['floorPlanUrl'] =
+                existingPayload['floorPlanUrl'] ?? existingUrl;
+          }
+
+          final incomingBase64 =
+              (payload['floor_plan_base64'] ?? payload['floorPlanBase64'])
+                  ?.toString();
+          final existingBase64 = (existingPayload['floor_plan_base64'] ??
+                  existingPayload['floorPlanBase64'])
+              ?.toString();
+          if ((incomingBase64 == null || incomingBase64.isEmpty) &&
+              (existingBase64 != null && existingBase64.isNotEmpty)) {
+            mergedPayload['floor_plan_base64'] =
+                existingPayload['floor_plan_base64'] ?? existingBase64;
+            mergedPayload['floorPlanBase64'] =
+                existingPayload['floorPlanBase64'] ?? existingBase64;
+          }
+        }
+      } catch (mergeError) {
+        debugPrint('⚠️ upsertInspectionSession merge fallback: $mergeError');
+      }
+
+      if (finalFloorPlanPath != null && finalFloorPlanPath.isNotEmpty) {
+        mergedPayload['floorPlanPath'] = finalFloorPlanPath;
+      }
+
       await client.from('inspection_sessions').upsert({
         'session_id': sessionId,
         'name': payload['name'],
         'project_id': payload['projectId'],
         'floor': payload['floor'],
-        'floor_plan_path': payload['floorPlanPath'],
+        'floor_plan_path': finalFloorPlanPath,
         'status': payload['status'],
-        'payload': payload,
+        'payload': mergedPayload,
         'created_at': createdAt ?? DateTime.now().toIso8601String(),
         'updated_at': updatedAt ?? DateTime.now().toIso8601String(),
       }, onConflict: 'session_id');
@@ -407,6 +478,17 @@ class SupabaseService {
       debugPrint('❌ upsertInspectionSession 失敗: $e');
       return false;
     }
+  }
+
+  bool _isLikelyLocalPath(String? raw) {
+    if (raw == null || raw.isEmpty) return false;
+    final value = raw.trim();
+    final lower = value.toLowerCase();
+    if (lower.startsWith('file://')) return true;
+    if (lower.startsWith('/data/')) return true;
+    if (lower.startsWith('/storage/')) return true;
+    if (RegExp(r'^[a-zA-Z]:[\\/]').hasMatch(value)) return true;
+    return false;
   }
 
   /// 讀取所有巡檢會話（依 updated_at 由新到舊）

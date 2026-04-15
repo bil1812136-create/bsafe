@@ -282,7 +282,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
 
                   const SizedBox(height: 20),
 
-                  // Risk Score Card
+                  // Risk Level Card
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
@@ -298,25 +298,20 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                     child: Row(
                       children: [
                         Container(
-                          width: 80,
-                          height: 80,
+                          width: 56,
+                          height: 56,
                           decoration: BoxDecoration(
-                            shape: BoxShape.circle,
+                            borderRadius: BorderRadius.circular(12),
                             color: Colors.white,
                             border: Border.all(
                               color: AppTheme.getRiskColor(_report.riskLevel),
-                              width: 4,
+                              width: 2,
                             ),
                           ),
-                          child: Center(
-                            child: Text(
-                              '${_report.riskScore}',
-                              style: TextStyle(
-                                fontSize: 28,
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.getRiskColor(_report.riskLevel),
-                              ),
-                            ),
+                          child: Icon(
+                            Icons.shield_outlined,
+                            size: 28,
+                            color: AppTheme.getRiskColor(_report.riskLevel),
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -325,7 +320,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const Text(
-                                '風險評分',
+                                '風險等級',
                                 style: TextStyle(
                                   fontSize: 14,
                                   color: Colors.grey,
@@ -661,7 +656,7 @@ class _ConversationSection extends StatelessWidget {
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  isCompany ? '公司' : '工人',
+                  isCompany ? '公司' : '我',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 11,
