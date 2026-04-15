@@ -72,13 +72,26 @@ class SupabaseService {
       supabaseUrl != 'https://YOUR_PROJECT_ID.supabase.co' &&
       supabaseAnonKey != 'YOUR_ANON_KEY';
 
+  /// Supabase SDK 是否已初始化（測試環境可能未初始化）
+  static bool get isInitialized {
+    try {
+      Supabase.instance.client;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// 同時具備「已設定」與「已初始化」才允許進行雲端操作
+  static bool get isReady => isConfigured && isInitialized;
+
   // ══════════════════════════════════════════════════════════
   // REPORTS — AI 分析結果雲端同步
   // ══════════════════════════════════════════════════════════
 
   /// 上傳單筆報告到 Supabase（包含 AI 分析＋圖片）
   Future<String?> syncReport(ReportModel report) async {
-    if (!isConfigured) return null;
+    if (!isReady) return null;
     try {
       // 先嘗試上傳圖片到 Storage，取得公開 URL
       String? imageUrl;
@@ -135,7 +148,7 @@ class SupabaseService {
 
   /// 批次同步所有未同步的報告
   Future<int> syncBatch(List<ReportModel> reports) async {
-    if (!isConfigured) return 0;
+    if (!isReady) return 0;
     int count = 0;
     for (final report in reports) {
       final result = await syncReport(report);
@@ -147,7 +160,7 @@ class SupabaseService {
 
   /// 從雲端讀取所有報告
   Future<List<Map<String, dynamic>>> fetchAllReports() async {
-    if (!isConfigured) return [];
+    if (!isReady) return [];
     try {
       final response = await client
           .from('reports')
@@ -163,7 +176,7 @@ class SupabaseService {
   /// 直接在 Supabase 建立新報告（不需要 local_id），回傳包含雲端 id 的 ReportModel
   Future<ReportModel?> createReport(ReportModel report,
       {String? imageBase64}) async {
-    if (!isConfigured) return null;
+    if (!isReady) return null;
     try {
       // 先嘗試上傳到 Storage，取得公開 URL
       String? imageUrl;
@@ -214,7 +227,7 @@ class SupabaseService {
   /// 提交工人回覆（文字 + 圖片）並將狀態改為「處理中」— 添加到 conversation
   Future<bool> submitWorkerResponse(
       int reportId, String responseText, String? imageBase64) async {
-    if (!isConfigured) return false;
+    if (!isReady) return false;
     try {
       // 嘗試將圖片上傳到 Storage
       String? responseImageUrl;
@@ -274,7 +287,7 @@ class SupabaseService {
 
   /// 公司端添加對話訊息（跟進任務）
   Future<bool> addCompanyMessage(int reportId, String messageText) async {
-    if (!isConfigured) return false;
+    if (!isReady) return false;
     try {
       // 取得現有 conversation
       final existing = await client
@@ -316,7 +329,7 @@ class SupabaseService {
 
   /// 清除未讀標記（工人端查看後調用）
   Future<void> clearUnreadCompany(int reportId) async {
-    if (!isConfigured) return;
+    if (!isReady) return;
     try {
       await client.from('reports').update({
         'has_unread_company': false,
@@ -361,7 +374,7 @@ class SupabaseService {
 
   /// 刪除雲端報告（by local_id）
   Future<bool> deleteReport(int localId) async {
-    if (!isConfigured) return false;
+    if (!isReady) return false;
     try {
       await client.from('reports').delete().eq('local_id', localId);
       debugPrint('✅ Supabase: 已刪除報告 local_id=$localId');
@@ -378,7 +391,7 @@ class SupabaseService {
 
   /// 上傳或更新巡檢會話（以 session_id 為唯一鍵）
   Future<bool> upsertInspectionSession(Map<String, dynamic> sessionJson) async {
-    if (!isConfigured) return false;
+    if (!isReady) return false;
     try {
       final payload = Map<String, dynamic>.from(sessionJson);
       final sessionId = payload['id']?.toString();
@@ -411,7 +424,7 @@ class SupabaseService {
 
   /// 讀取所有巡檢會話（依 updated_at 由新到舊）
   Future<List<Map<String, dynamic>>> fetchInspectionSessions() async {
-    if (!isConfigured) return [];
+    if (!isReady) return [];
     try {
       final rows = await client
           .from('inspection_sessions')
@@ -431,7 +444,7 @@ class SupabaseService {
 
   /// 刪除單一巡檢會話
   Future<bool> deleteInspectionSession(String sessionId) async {
-    if (!isConfigured) return false;
+    if (!isReady) return false;
     try {
       await client
           .from('inspection_sessions')
@@ -460,7 +473,7 @@ class SupabaseService {
     required Uint8List imageBytes,
     String extension = 'png',
   }) async {
-    if (!isConfigured) return null;
+    if (!isReady) return null;
     try {
       final path = 'buildings/$buildingId/floor_$floor.$extension';
       await client.storage.from('floor-plans').uploadBinary(
@@ -480,7 +493,7 @@ class SupabaseService {
   /// 取得已上傳樓層圖的公開 URL（不重新上傳）
   String? getFloorPlanUrl(String buildingId, int floor,
       [String extension = 'png']) {
-    if (!isConfigured) return null;
+    if (!isReady) return null;
     final path = 'buildings/$buildingId/floor_$floor.$extension';
     return client.storage.from('floor-plans').getPublicUrl(path);
   }
@@ -488,7 +501,7 @@ class SupabaseService {
   /// 下載樓層圖位元組
   Future<Uint8List?> downloadFloorPlan(String buildingId, int floor,
       [String extension = 'png']) async {
-    if (!isConfigured) return null;
+    if (!isReady) return null;
     try {
       final path = 'buildings/$buildingId/floor_$floor.$extension';
       final bytes = await client.storage.from('floor-plans').download(path);
@@ -502,7 +515,7 @@ class SupabaseService {
 
   /// 列出指定建物的所有樓層圖
   Future<List<FileObject>> listFloorPlans(String buildingId) async {
-    if (!isConfigured) return [];
+    if (!isReady) return [];
     try {
       return await client.storage
           .from('floor-plans')
@@ -519,6 +532,7 @@ class SupabaseService {
 
   /// 上傳圖片供 AI 分析用，返回 Supabase 公開 URL（不依附報告 ID）
   Future<String?> uploadImageForAnalysis(String imageBase64) async {
+    if (!isReady) return null;
     try {
       final bytes = base64Decode(imageBase64);
       final timestamp = DateTime.now().millisecondsSinceEpoch;
@@ -541,6 +555,7 @@ class SupabaseService {
   }
 
   Future<String?> _uploadReportImage(String base64, String reportId) async {
+    if (!isReady) return null;
     try {
       final bytes = base64Decode(base64);
       final path = 'reports/report_$reportId.jpg';
