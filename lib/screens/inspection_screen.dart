@@ -3309,7 +3309,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
                 session: created,
                 preferredFloor: _currentFloor,
               );
-              if (!mounted) return;
+              if (!ctx.mounted) return;
               Navigator.pop(ctx);
             },
             child: const Text('建立'),
@@ -3321,6 +3321,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
 
   Future<void> _showLoadSessionDialog(InspectionProvider inspection) async {
     await inspection.ensureLoaded();
+    if (!mounted) return;
     final projectId = widget.project?.id;
     final projectSessions = projectId != null
         ? inspection.sessions.where((s) => s.projectId == projectId).toList()
@@ -3360,7 +3361,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
                           session: session,
                           preferredFloor: session.floor,
                         );
-                        if (!mounted) return;
+                        if (!ctx.mounted) return;
                         Navigator.pop(ctx);
                       },
                     );
@@ -4515,8 +4516,6 @@ class _PhotoAnalysisDialogState extends State<_PhotoAnalysisDialog> {
 
   // YOLO 相關
   List<YoloDetection> _yoloDetections = [];
-  bool _isYoloDetecting = false;
-  bool _yoloModelLoaded = false;
   final bool _showBoundingBoxes = true;
 
   @override
@@ -4533,10 +4532,7 @@ class _PhotoAnalysisDialogState extends State<_PhotoAnalysisDialog> {
 
   Future<void> _initYolo() async {
     if (YoloService.isSupported) {
-      final loaded = await YoloService.instance.loadModel();
-      if (mounted) {
-        setState(() => _yoloModelLoaded = loaded);
-      }
+      await YoloService.instance.loadModel();
     }
   }
 
@@ -5103,113 +5099,6 @@ class _PhotoAnalysisDialogState extends State<_PhotoAnalysisDialog> {
     }
   }
 
-  /// YOLO 物件偵測
-  Future<void> _runYoloDetection() async {
-    if (_imageBase64 == null) return;
-
-    setState(() {
-      _isYoloDetecting = true;
-    });
-
-    try {
-      final imageBytes = base64Decode(_imageBase64!);
-      final detections = await YoloService.instance.detect(
-        Uint8List.fromList(imageBytes),
-        confidenceThreshold: 0.25,
-      );
-
-      if (!mounted) return;
-
-      // 將 YOLO 結果也轉為安全分析格式
-      final safetyAnalysis = YoloService.toSafetyAnalysis(detections);
-
-      setState(() {
-        _yoloDetections = detections;
-        _isYoloDetecting = false;
-        // 如果沒有 AI 分析結果，使用 YOLO 結果
-        if (_analysisResult == null) {
-          _analysisResult = safetyAnalysis;
-        } else {
-          // 合併 YOLO 偵測資訊到現有分析結果
-          _analysisResult = {
-            ..._analysisResult!,
-            'yolo_detections': safetyAnalysis['detections'],
-            'yolo_detection_count': safetyAnalysis['detection_count'],
-            'yolo_analysis': safetyAnalysis['analysis'],
-          };
-        }
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isYoloDetecting = false;
-      });
-      debugPrint('YOLO 偵測錯誤: $e');
-    }
-  }
-
-  Widget _buildYoloResultSummary() {
-    // 按類別分組
-    final classCount = <String, int>{};
-    for (final det in _yoloDetections) {
-      classCount[det.className] = (classCount[det.className] ?? 0) + 1;
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.deepPurple.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.deepPurple.withValues(alpha: 0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.smart_toy, size: 16, color: Colors.deepPurple),
-              const SizedBox(width: 6),
-              const Text(
-                'YOLO 偵測結果',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                  color: Colors.deepPurple,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                '${_yoloDetections.length} 物件',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.deepPurple,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 6,
-            runSpacing: 4,
-            children: classCount.entries.map((e) {
-              return Chip(
-                label: Text(
-                  '${e.key} ×${e.value}',
-                  style: const TextStyle(fontSize: 11),
-                ),
-                backgroundColor: Colors.deepPurple.withValues(alpha: 0.1),
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _saveAndClose() async {
     var updatedPin = widget.pin;
 
@@ -5281,8 +5170,6 @@ class _PhotoAnalysisDialogState extends State<_PhotoAnalysisDialog> {
         final rawSeverity = _analysisResult?['severity'] as String?;
         final rawTitle = _analysisResult?['title'] as String?;
 
-        final defectTitle =
-            rawCategory ?? (damageDetected ? '建築安全問題' : '影像證據不足 / 未檢測到缺陷');
         final defectDescription =
             _analysisResult?['analysis'] as String? ?? '已拍照記錄';
         final riskLevel = _analysisResult?['risk_level'] as String? ?? 'medium';
@@ -5322,6 +5209,7 @@ class _PhotoAnalysisDialogState extends State<_PhotoAnalysisDialog> {
         final created = await SupabaseService.instance
             .createReport(report, imageBase64: _imageBase64);
         if (created != null) {
+          if (!mounted) return;
           // 同步報告清單（讓 HistoryScreen 立即看到）
           context.read<ReportProvider>().refreshFromCloud();
           debugPrint('✅ 巡檢缺陷已同步到歷史記錄 (ID: ${created.id})');
@@ -5334,6 +5222,7 @@ class _PhotoAnalysisDialogState extends State<_PhotoAnalysisDialog> {
       }
     }
 
+    if (!mounted) return;
     widget.onComplete(updatedPin);
     Navigator.pop(context);
   }

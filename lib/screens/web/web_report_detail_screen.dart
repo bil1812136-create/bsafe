@@ -1358,9 +1358,9 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: riskColor.withOpacity(0.08),
+                    color: riskColor.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: riskColor.withOpacity(0.3)),
+                    border: Border.all(color: riskColor.withValues(alpha: 0.3)),
                   ),
                   child: Column(
                     children: [
@@ -1385,9 +1385,9 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: riskColor.withOpacity(0.08),
+                    color: riskColor.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: riskColor.withOpacity(0.3)),
+                    border: Border.all(color: riskColor.withValues(alpha: 0.3)),
                   ),
                   child: Column(
                     children: [
@@ -1610,7 +1610,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
                       border: Border.all(color: Colors.white, width: 2),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.25),
+                          color: Colors.black.withValues(alpha: 0.25),
                           blurRadius: 4,
                         ),
                       ],
@@ -1676,9 +1676,9 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         margin: const EdgeInsets.only(bottom: 6),
         decoration: BoxDecoration(
-          color: active ? color.withOpacity(0.1) : Colors.transparent,
+          color: active ? color.withValues(alpha: 0.1) : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
-          border: active ? Border.all(color: color.withOpacity(0.5)) : null,
+          border: active ? Border.all(color: color.withValues(alpha: 0.5)) : null,
         ),
         child: Row(
           children: [
@@ -1714,7 +1714,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: active ? color.withOpacity(0.15) : Colors.grey.shade100,
+            color: active ? color.withValues(alpha: 0.15) : Colors.grey.shade100,
             borderRadius: BorderRadius.circular(10),
             border: active ? Border.all(color: color) : null,
           ),
@@ -1781,7 +1781,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
+                    color: color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
@@ -1808,7 +1808,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide(
                     color: highlight
-                        ? color.withOpacity(0.3)
+                        ? color.withValues(alpha: 0.3)
                         : AppTheme.borderColor,
                   ),
                 ),
@@ -1816,7 +1816,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide(
                     color: highlight
-                        ? color.withOpacity(0.3)
+                        ? color.withValues(alpha: 0.3)
                         : AppTheme.borderColor,
                   ),
                 ),
@@ -1829,7 +1829,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
                 ),
                 filled: true,
                 fillColor:
-                    highlight ? color.withOpacity(0.03) : Colors.grey.shade50,
+                    highlight ? color.withValues(alpha: 0.03) : Colors.grey.shade50,
                 hintText: hintText ?? (highlight ? '在此修改 AI 分析內容...' : null),
               ),
               style: TextStyle(
@@ -1872,18 +1872,18 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
             hintText: '請輸入或修改 Image Defect Analysis 內容...',
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: Colors.deepOrange.withOpacity(0.3)),
+              borderSide: BorderSide(color: Colors.deepOrange.withValues(alpha: 0.3)),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: Colors.deepOrange.withOpacity(0.3)),
+              borderSide: BorderSide(color: Colors.deepOrange.withValues(alpha: 0.3)),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: Colors.deepOrange, width: 2),
             ),
             filled: true,
-            fillColor: Colors.deepOrange.withOpacity(0.03),
+            fillColor: Colors.deepOrange.withValues(alpha: 0.03),
           ),
         ),
       ],
@@ -1910,18 +1910,18 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
             hintText: '請輸入或修改 $label 內容...',
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: Colors.deepOrange.withOpacity(0.3)),
+              borderSide: BorderSide(color: Colors.deepOrange.withValues(alpha: 0.3)),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: Colors.deepOrange.withOpacity(0.3)),
+              borderSide: BorderSide(color: Colors.deepOrange.withValues(alpha: 0.3)),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: Colors.deepOrange, width: 2),
             ),
             filled: true,
-            fillColor: Colors.deepOrange.withOpacity(0.03),
+            fillColor: Colors.deepOrange.withValues(alpha: 0.03),
           ),
         ),
       ],
@@ -1937,7 +1937,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),

@@ -27,7 +27,7 @@ class StatCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: isClickable
-            ? Border.all(color: color.withOpacity(0.2), width: 1)
+            ? Border.all(color: color.withValues(alpha: 0.2), width: 1)
             : null,
         boxShadow: [
           BoxShadow(
@@ -80,7 +80,6 @@ class StatCard extends StatelessWidget {
           cursor: SystemMouseCursors.click,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
-            transform: Matrix4.identity()..scale(1.0),
             child: widget,
           ),
         ),

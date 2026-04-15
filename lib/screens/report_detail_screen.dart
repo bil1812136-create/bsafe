@@ -193,6 +193,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
             tooltip: '從雲端刷新',
             onPressed: () async {
               await context.read<ReportProvider>().refreshFromCloud();
+              if (!context.mounted) return;
               // 重新取得最新報告
               final prov = context.read<ReportProvider>();
               final updated = prov.reports.cast<ReportModel?>().firstWhere(
@@ -428,6 +429,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                 child: OutlinedButton.icon(
                   onPressed: () async {
                     await context.read<ReportProvider>().refreshFromCloud();
+                    if (!context.mounted) return;
                     final provider = context.read<ReportProvider>();
                     final updated =
                         provider.reports.cast<ReportModel?>().firstWhere(

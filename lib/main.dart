@@ -144,8 +144,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                               horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(
                             color: connectivity.isOnline
-                                ? Colors.green.withOpacity(0.2)
-                                : Colors.orange.withOpacity(0.2),
+                                ? Colors.green.withValues(alpha: 0.2)
+                                : Colors.orange.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Row(
@@ -233,7 +233,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           borderRadius: BorderRadius.circular(30),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: 0.1),
               blurRadius: 20,
               offset: const Offset(0, 5),
             ),
@@ -245,10 +245,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.8),
+                color: Colors.white.withValues(alpha: 0.8),
                 borderRadius: BorderRadius.circular(30),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.3),
+                  color: Colors.white.withValues(alpha: 0.3),
                   width: 1.5,
                 ),
               ),
@@ -363,23 +363,24 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 languageProvider.t('language'),
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
-              RadioListTile<AppLanguage>(
-                value: AppLanguage.zh,
+              RadioGroup<AppLanguage>(
                 groupValue: languageProvider.language,
                 onChanged: (value) {
                   if (value == null) return;
                   languageProvider.setLanguage(value);
                 },
-                title: Text(languageProvider.t('chinese')),
-              ),
-              RadioListTile<AppLanguage>(
-                value: AppLanguage.en,
-                groupValue: languageProvider.language,
-                onChanged: (value) {
-                  if (value == null) return;
-                  languageProvider.setLanguage(value);
-                },
-                title: Text(languageProvider.t('english')),
+                child: Column(
+                  children: [
+                    RadioListTile<AppLanguage>(
+                      value: AppLanguage.zh,
+                      title: Text(languageProvider.t('chinese')),
+                    ),
+                    RadioListTile<AppLanguage>(
+                      value: AppLanguage.en,
+                      title: Text(languageProvider.t('english')),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

@@ -541,7 +541,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
             child: Text(
               '公司管理後台',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.7),
+                color: Colors.white.withValues(alpha: 0.7),
                 fontSize: 13,
               ),
             ),
@@ -574,7 +574,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.15),
+                color: Colors.green.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
@@ -610,7 +610,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       decoration: BoxDecoration(
-        color: active ? Colors.white.withOpacity(0.15) : Colors.transparent,
+        color: active ? Colors.white.withValues(alpha: 0.15) : Colors.transparent,
         borderRadius: BorderRadius.circular(12),
       ),
       child: ListTile(
@@ -1120,14 +1120,14 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
         child: Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: isActive ? color.withOpacity(0.08) : Colors.white,
+            color: isActive ? color.withValues(alpha: 0.08) : Colors.white,
             borderRadius: BorderRadius.circular(16),
             border: isActive
                 ? Border.all(color: color, width: 2)
                 : Border.all(color: Colors.transparent, width: 2),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(isActive ? 0.08 : 0.04),
+                color: Colors.black.withValues(alpha: isActive ? 0.08 : 0.04),
                 blurRadius: 10,
                 offset: const Offset(0, 2),
               ),
@@ -1138,7 +1138,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
+                  color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(icon, color: color, size: 24),
@@ -1169,61 +1169,6 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _statCard(String label, String value, Color color, IconData icon) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: color, size: 24),
-            ),
-            const SizedBox(width: 12),
-            Flexible(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    value,
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: color,
-                    ),
-                  ),
-                  Text(
-                    label,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppTheme.textSecondary,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
         ),
       ),
     );
@@ -1268,7 +1213,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
         label: Text(label),
         selected: active,
         onSelected: (_) => onTap(value),
-        selectedColor: AppTheme.primaryColor.withOpacity(0.15),
+        selectedColor: AppTheme.primaryColor.withValues(alpha: 0.15),
         checkmarkColor: AppTheme.primaryColor,
         labelStyle: TextStyle(
           color: active ? AppTheme.primaryColor : AppTheme.textSecondary,
@@ -1327,7 +1272,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 10,
               offset: const Offset(0, 2),
             ),
@@ -1341,7 +1286,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
               scrollDirection: Axis.vertical,
               child: DataTable(
                 headingRowColor: WidgetStateProperty.all(
-                  AppTheme.primaryColor.withOpacity(0.05),
+                  AppTheme.primaryColor.withValues(alpha: 0.05),
                 ),
                 columnSpacing: 16,
                 dataRowMinHeight: 48,
@@ -1458,7 +1403,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(label,
