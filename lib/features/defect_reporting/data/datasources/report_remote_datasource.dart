@@ -5,8 +5,6 @@ import 'package:bsafe_app/core/config/app_config.dart';
 import 'package:bsafe_app/features/defect_reporting/data/models/report_model.dart';
 import 'package:bsafe_app/features/defect_reporting/domain/entities/report.dart';
 
-/// Supabase-backed remote data-source for reports.
-/// Only this class knows about Supabase — all other layers are decoupled.
 class ReportRemoteDataSource {
   static final ReportRemoteDataSource instance = ReportRemoteDataSource._init();
   ReportRemoteDataSource._init();
@@ -24,8 +22,6 @@ class ReportRemoteDataSource {
     }
   }
 
-  // ── Fetch ───────────────────────────────────────────────
-
   Future<List<Map<String, dynamic>>> fetchAll() async {
     if (!_isReady) return [];
     try {
@@ -39,8 +35,6 @@ class ReportRemoteDataSource {
       return [];
     }
   }
-
-  // ── Create ──────────────────────────────────────────────
 
   Future<ReportModel?> create(Report report, {String? imageBase64}) async {
     if (!_isReady) return null;
@@ -87,8 +81,6 @@ class ReportRemoteDataSource {
     }
   }
 
-  // ── Update status ───────────────────────────────────────
-
   Future<bool> updateStatus(int id, String newStatus) async {
     if (!_isReady) return false;
     try {
@@ -102,8 +94,6 @@ class ReportRemoteDataSource {
       return false;
     }
   }
-
-  // ── Worker response ─────────────────────────────────────
 
   Future<bool> submitWorkerResponse(
       int reportId, String text, String? imageBase64) async {
@@ -149,8 +139,6 @@ class ReportRemoteDataSource {
     }
   }
 
-  // ── Company message ─────────────────────────────────────
-
   Future<bool> addCompanyMessage(int reportId, String message) async {
     if (!_isReady) return false;
     try {
@@ -182,8 +170,6 @@ class ReportRemoteDataSource {
     }
   }
 
-  // ── Clear unread ────────────────────────────────────────
-
   Future<void> clearUnreadCompany(int reportId) async {
     if (!_isReady) return;
     try {
@@ -194,8 +180,6 @@ class ReportRemoteDataSource {
       debugPrint('❌ ReportRemoteDataSource.clearUnreadCompany: $e');
     }
   }
-
-  // ── Helpers ─────────────────────────────────────────────
 
   Future<String?> _uploadImage(String base64, String name) async {
     try {

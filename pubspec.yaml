@@ -9,6 +9,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   
   # UI Components
   cupertino_icons: ^1.0.6
@@ -39,7 +41,7 @@ dependencies:
   shared_preferences: ^2.2.2
   
   # Utils
-  intl: ^0.18.1
+  intl: ^0.20.2
   uuid: ^4.2.1
   
   # Serial Port (Desktop support)
@@ -51,8 +53,8 @@ dependencies:
   flutter_svg: ^2.2.3
   pdfrx: ^2.2.24
 
-  # YOLO Object Detection (Android/iOS)
-  ultralytics_yolo: ^0.2.0
+  # YOLO Object Detection — tflite_flutter supports all native platforms
+  tflite_flutter: ^0.12.0
   path_provider: ^2.1.1
   archive: ^4.0.9
 
@@ -72,3 +74,4 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
+    - assets/model/

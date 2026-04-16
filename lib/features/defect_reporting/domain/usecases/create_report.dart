@@ -8,7 +8,6 @@ class CreateReportParams {
   const CreateReportParams({required this.report, this.imageBase64});
 }
 
-/// Use-case: persist a new defect report.
 class CreateReport implements UseCase<Report?, CreateReportParams> {
   final ReportRepository repository;
   const CreateReport(this.repository);

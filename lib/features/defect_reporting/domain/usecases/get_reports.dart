@@ -2,7 +2,6 @@ import 'package:bsafe_app/core/usecases/usecase.dart';
 import 'package:bsafe_app/features/defect_reporting/domain/entities/report.dart';
 import 'package:bsafe_app/features/defect_reporting/domain/repositories/report_repository.dart';
 
-/// Use-case: retrieve all reports from remote storage.
 class GetReports implements UseCase<List<Report>, NoParams> {
   final ReportRepository repository;
   const GetReports(this.repository);

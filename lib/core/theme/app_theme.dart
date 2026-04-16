@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:bsafe_app/core/constants/app_colors.dart';
 
-/// Single source of truth for the Material theme used across the app.
-/// Preserves the exact visual design of the original [AppTheme].
 class AppTheme {
   AppTheme._();
 
-  // ── Convenience aliases (keep old call-sites working) ───────
   static const Color primaryColor = AppColors.primary;
   static const Color primaryLight = AppColors.primaryLight;
   static const Color primaryDark = AppColors.primaryDark;
@@ -22,10 +19,8 @@ class AppTheme {
   static const Color textSecondary = AppColors.textSecondary;
   static const Color borderColor = AppColors.border;
 
-  /// Returns the colour for a given risk-level string.
   static Color getRiskColor(String level) => AppColors.forRiskLevel(level);
 
-  /// Returns a Chinese label for a given risk-level string.
   static String getRiskLabel(String level) {
     switch (level.toLowerCase()) {
       case 'high':

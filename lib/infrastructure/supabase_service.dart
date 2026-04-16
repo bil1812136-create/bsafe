@@ -3,76 +3,21 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:bsafe_app/features/defect_reporting/data/models/report_model.dart';
 
-/// Supabase 雲端同步服務
-///
-/// ════════════════════════════════════════════════════════════
-/// 🔧 SETUP — 第一次使用請按以下步驟設定：
-///
-/// 1. 前往 https://supabase.com → 免費註冊 → New Project
-///
-/// 2. 在 Supabase Dashboard → SQL Editor 執行以下 SQL 建立資料表：
-///
-///    -- AI 分析報告表（包含多輪對話支持）
-///    CREATE TABLE reports (
-///      id                    BIGSERIAL PRIMARY KEY,
-///      local_id              INTEGER,
-///      title                 TEXT NOT NULL,
-///      description           TEXT NOT NULL,
-///      category              TEXT NOT NULL,
-///      severity              TEXT NOT NULL,
-///      risk_level            TEXT DEFAULT 'low',
-///      risk_score            INTEGER DEFAULT 0,
-///      is_urgent             BOOLEAN DEFAULT FALSE,
-///      status                TEXT DEFAULT 'pending',
-///      image_url             TEXT,
-///      image_base64          TEXT,
-///      location              TEXT,
-///      latitude              DOUBLE PRECISION,
-///      longitude             DOUBLE PRECISION,
-///      ai_analysis           TEXT,
-///      company_notes         TEXT,
-///      worker_response       TEXT,
-///      worker_response_image TEXT,
-///      conversation          JSONB,
-///      has_unread_company    BOOLEAN DEFAULT FALSE,
-///      created_at            TIMESTAMPTZ DEFAULT NOW(),
-///      updated_at            TIMESTAMPTZ DEFAULT NOW(),
-///      UNIQUE(local_id)
-///    );
-///
-///    -- 啟用 Realtime 監聽（自動同步對話）
-///    ALTER TABLE reports REPLICA IDENTITY FULL;
-///    ALTER PUBLICATION supabase_realtime ADD TABLE reports;
-///
-///    -- 讓匿名用戶可以讀寫（開發用）
-///    ALTER TABLE reports ENABLE ROW LEVEL SECURITY;
-///    CREATE POLICY "allow_all" ON reports FOR ALL USING (true) WITH CHECK (true);
-///
-/// 3. Storage → Create Bucket:
-///    - 名稱: floor-plans   （Public）
-///    - 名稱: report-images （Public）
-///
-/// 4. Settings → API → 複製 Project URL 和 anon public key
-///    填入下方兩個常數即可完成設定。
-/// ════════════════════════════════════════════════════════════
 class SupabaseService {
-  // ── 填入你的 Supabase 專案資料 ──────────────────────────────
+
   static const String supabaseUrl = 'https://mvywylhlmktejvsmcqkk.supabase.co';
   static const String supabaseAnonKey =
       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12eXd5bGhsbWt0ZWp2c21jcWtrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMTk1NzYsImV4cCI6MjA5MDY5NTU3Nn0.qv1mqv8FW83Z_btolYWYEN5fGTXMW8-V08ZphvO3Dv8';
-  // ───────────────────────────────────────────────────────────
 
   static final SupabaseService instance = SupabaseService._init();
   SupabaseService._init();
 
   SupabaseClient get client => Supabase.instance.client;
 
-  /// 檢查是否已設定（未設定時所有方法靜默返回 null）
   static bool get isConfigured =>
       supabaseUrl != 'https://YOUR_PROJECT_ID.supabase.co' &&
       supabaseAnonKey != 'YOUR_ANON_KEY';
 
-  /// Supabase SDK 是否已初始化（測試環境可能未初始化）
   static bool get isInitialized {
     try {
       Supabase.instance.client;
@@ -82,18 +27,12 @@ class SupabaseService {
     }
   }
 
-  /// 同時具備「已設定」與「已初始化」才允許進行雲端操作
   static bool get isReady => isConfigured && isInitialized;
 
-  // ══════════════════════════════════════════════════════════
-  // REPORTS — AI 分析結果雲端同步
-  // ══════════════════════════════════════════════════════════
-
-  /// 上傳單筆報告到 Supabase（包含 AI 分析＋圖片）
   Future<String?> syncReport(ReportModel report) async {
     if (!isReady) return null;
     try {
-      // 先嘗試上傳圖片到 Storage，取得公開 URL
+
       String? imageUrl;
       String? fallbackBase64;
       if (report.imageBase64 != null && report.imageBase64!.isNotEmpty) {
@@ -146,7 +85,6 @@ class SupabaseService {
     }
   }
 
-  /// 批次同步所有未同步的報告
   Future<int> syncBatch(List<ReportModel> reports) async {
     if (!isReady) return 0;
     int count = 0;
@@ -158,7 +96,6 @@ class SupabaseService {
     return count;
   }
 
-  /// 從雲端讀取所有報告
   Future<List<Map<String, dynamic>>> fetchAllReports() async {
     if (!isReady) return [];
     try {
@@ -173,12 +110,11 @@ class SupabaseService {
     }
   }
 
-  /// 直接在 Supabase 建立新報告（不需要 local_id），回傳包含雲端 id 的 ReportModel
   Future<ReportModel?> createReport(ReportModel report,
       {String? imageBase64}) async {
     if (!isReady) return null;
     try {
-      // 先嘗試上傳到 Storage，取得公開 URL
+
       String? imageUrl;
       String? fallbackBase64;
       if (imageBase64 != null && imageBase64.isNotEmpty) {
@@ -187,7 +123,7 @@ class SupabaseService {
           DateTime.now().millisecondsSinceEpoch.toString(),
         );
         if (imageUrl == null) {
-          // Storage 上傳失敗 → 以 base64 存入資料庫欄位作後備
+
           fallbackBase64 = imageBase64;
           debugPrint('⚠️ Storage 上傳失敗，圖片改以 base64 存入 DB');
         } else {
@@ -224,12 +160,11 @@ class SupabaseService {
     }
   }
 
-  /// 提交工人回覆（文字 + 圖片）並將狀態改為「處理中」— 添加到 conversation
   Future<bool> submitWorkerResponse(
       int reportId, String responseText, String? imageBase64) async {
     if (!isReady) return false;
     try {
-      // 嘗試將圖片上傳到 Storage
+
       String? responseImageUrl;
       String? fallbackBase64;
       if (imageBase64 != null && imageBase64.isNotEmpty) {
@@ -245,7 +180,6 @@ class SupabaseService {
         }
       }
 
-      // 取得現有 conversation
       final existing = await client
           .from('reports')
           .select('conversation')
@@ -260,7 +194,6 @@ class SupabaseService {
         } catch (_) {}
       }
 
-      // 添加新訊息
       conv.add({
         'sender': 'worker',
         'text': responseText,
@@ -269,8 +202,8 @@ class SupabaseService {
       });
 
       await client.from('reports').update({
-        'worker_response': responseText, // 向後兼容
-        'worker_response_image': responseImageUrl ?? fallbackBase64, // 向後兼容
+        'worker_response': responseText,
+        'worker_response_image': responseImageUrl ?? fallbackBase64,
         'conversation': jsonEncode(conv),
         'has_unread_company': false,
         'status': 'in_progress',
@@ -285,11 +218,10 @@ class SupabaseService {
     }
   }
 
-  /// 公司端添加對話訊息（跟進任務）
   Future<bool> addCompanyMessage(int reportId, String messageText) async {
     if (!isReady) return false;
     try {
-      // 取得現有 conversation
+
       final existing = await client
           .from('reports')
           .select('conversation')
@@ -304,7 +236,6 @@ class SupabaseService {
         } catch (_) {}
       }
 
-      // 添加新訊息
       conv.add({
         'sender': 'company',
         'text': messageText,
@@ -313,7 +244,7 @@ class SupabaseService {
       });
 
       await client.from('reports').update({
-        'company_notes': messageText, // 向後兼容（最後一條公司訊息）
+        'company_notes': messageText,
         'conversation': jsonEncode(conv),
         'has_unread_company': true,
         'updated_at': DateTime.now().toIso8601String(),
@@ -327,7 +258,6 @@ class SupabaseService {
     }
   }
 
-  /// 清除未讀標記（工人端查看後調用）
   Future<void> clearUnreadCompany(int reportId) async {
     if (!isReady) return;
     try {
@@ -339,7 +269,6 @@ class SupabaseService {
     }
   }
 
-  /// 將 Supabase 原始 Map 轉換為 ReportModel
   static ReportModel mapToReportModel(Map<String, dynamic> data) {
     return ReportModel(
       id: (data['id'] as num?)?.toInt(),
@@ -372,7 +301,6 @@ class SupabaseService {
     );
   }
 
-  /// 刪除雲端報告（by local_id）
   Future<bool> deleteReport(int localId) async {
     if (!isReady) return false;
     try {
@@ -385,11 +313,6 @@ class SupabaseService {
     }
   }
 
-  // ══════════════════════════════════════════════════════════
-  // INSPECTION SESSIONS — 巡檢會話雲端同步
-  // ══════════════════════════════════════════════════════════
-
-  /// 上傳或更新巡檢會話（以 session_id 為唯一鍵）
   Future<bool> upsertInspectionSession(Map<String, dynamic> sessionJson) async {
     if (!isReady) return false;
     try {
@@ -422,7 +345,6 @@ class SupabaseService {
     }
   }
 
-  /// 讀取所有巡檢會話（依 updated_at 由新到舊）
   Future<List<Map<String, dynamic>>> fetchInspectionSessions() async {
     if (!isReady) return [];
     try {
@@ -442,7 +364,6 @@ class SupabaseService {
     }
   }
 
-  /// 刪除單一巡檢會話
   Future<bool> deleteInspectionSession(String sessionId) async {
     if (!isReady) return false;
     try {
@@ -457,16 +378,6 @@ class SupabaseService {
     }
   }
 
-  // ══════════════════════════════════════════════════════════
-  // FLOOR PLANS — 樓層圖雲端儲存
-  // ══════════════════════════════════════════════════════════
-
-  /// 上傳樓層圖到 Supabase Storage，返回公開 URL
-  ///
-  /// [buildingId] 建物識別碼（例如 "building_A"）
-  /// [floor]      樓層號碼（例如 1、2、3）
-  /// [imageBytes] 圖片原始位元組（PNG/JPG）
-  /// [extension]  副檔名，預設 'png'
   Future<String?> uploadFloorPlan({
     required String buildingId,
     required int floor,
@@ -490,7 +401,6 @@ class SupabaseService {
     }
   }
 
-  /// 取得已上傳樓層圖的公開 URL（不重新上傳）
   String? getFloorPlanUrl(String buildingId, int floor,
       [String extension = 'png']) {
     if (!isReady) return null;
@@ -498,7 +408,6 @@ class SupabaseService {
     return client.storage.from('floor-plans').getPublicUrl(path);
   }
 
-  /// 下載樓層圖位元組
   Future<Uint8List?> downloadFloorPlan(String buildingId, int floor,
       [String extension = 'png']) async {
     if (!isReady) return null;
@@ -513,7 +422,6 @@ class SupabaseService {
     }
   }
 
-  /// 列出指定建物的所有樓層圖
   Future<List<FileObject>> listFloorPlans(String buildingId) async {
     if (!isReady) return [];
     try {
@@ -526,11 +434,6 @@ class SupabaseService {
     }
   }
 
-  // ══════════════════════════════════════════════════════════
-  // PRIVATE HELPERS
-  // ══════════════════════════════════════════════════════════
-
-  /// 上傳圖片供 AI 分析用，返回 Supabase 公開 URL（不依附報告 ID）
   Future<String?> uploadImageForAnalysis(String imageBase64) async {
     if (!isReady) return null;
     try {

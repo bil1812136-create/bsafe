@@ -1,4 +1,3 @@
-/// AI analysis result entity
 class AiResult {
   final bool damageDetected;
   final String severity;
@@ -6,7 +5,7 @@ class AiResult {
   final int riskScore;
   final bool isUrgent;
   final String analysis;
-  final String aiMode; // 'online' | 'local_fallback'
+  final String aiMode;
 
   const AiResult({
     required this.damageDetected,

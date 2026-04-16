@@ -3,15 +3,11 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:bsafe_app/core/config/app_config.dart';
 
-/// Remote data source for AI image analysis via Gemini API.
 class AiRemoteDataSource {
-  // Singleton
+
   static final AiRemoteDataSource instance = AiRemoteDataSource._init();
   AiRemoteDataSource._init();
 
-  // ==================== Public API ====================
-
-  /// Analyze image using Gemini API. Falls back to local analysis on error.
   Future<Map<String, dynamic>> analyzeImage(
     String imageBase64, {
     String? additionalContext,
@@ -34,7 +30,6 @@ class AiRemoteDataSource {
     }
   }
 
-  /// Static fallback for when AI is unavailable, based on user-entered severity/category.
   static Map<String, dynamic> localFallback(String severity, String category) {
     int riskScore;
     String riskLevel;
@@ -69,8 +64,6 @@ class AiRemoteDataSource {
       '_ai_mode': 'local_fallback',
     };
   }
-
-  // ==================== Private Helpers ====================
 
   Future<Map<String, dynamic>> _queryGemini(
     String imageBase64, {
@@ -156,7 +149,6 @@ Risk Level: [Risk Level, Short Reason]
 
 Access Control: [Suggesd Action]
 
-
 Image Defect Analysis:
 1. XXX
 2. XXX
@@ -168,8 +160,6 @@ Further Investigation:
 Remedial Measures:
 1. XXX
 2. XXX
-
-
 
 Example:
 

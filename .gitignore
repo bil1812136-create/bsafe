@@ -87,3 +87,10 @@ coverage/
 bsafe/flutter_app/bsafechat.json
 
 bsafechat.json
+
+# Web dashboard (bsafe-webdashboard)
+bsafe-webdashboard/node_modules/
+bsafe-webdashboard/dist/
+bsafe-webdashboard/.env
+bsafe-webdashboard/.env.local
+bsafe-webdashboard/.env.*.local

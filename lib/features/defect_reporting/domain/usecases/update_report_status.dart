@@ -7,7 +7,6 @@ class UpdateReportStatusParams {
   const UpdateReportStatusParams({required this.id, required this.newStatus});
 }
 
-/// Use-case: update the processing status of a report.
 class UpdateReportStatus implements UseCase<bool, UpdateReportStatusParams> {
   final ReportRepository repository;
   const UpdateReportStatus(this.repository);

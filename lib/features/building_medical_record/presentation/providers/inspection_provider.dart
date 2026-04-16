@@ -46,8 +46,6 @@ class InspectionProvider extends ChangeNotifier {
     }
   }
 
-  // ===== 會話管理 =====
-
   Future<InspectionSession> createSession(String name,
       {String? floorPlanPath, String? projectId, int floor = 1}) async {
     await ensureLoaded();
@@ -164,8 +162,6 @@ class InspectionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ===== Pin 管理 =====
-
   void togglePinMode() {
     _isPinMode = !_isPinMode;
     if (_isPinMode) {
@@ -252,8 +248,6 @@ class InspectionProvider extends ChangeNotifier {
     _selectedPin = null;
     notifyListeners();
   }
-
-  // ===== AI 分析 =====
 
   Future<InspectionPin> analyzePin(
     InspectionPin pin, {
@@ -371,8 +365,6 @@ class InspectionProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
-
-  // ===== 內部方法 =====
 
   Map<String, dynamic> _sessionToStorageJson(InspectionSession session) {
     final data = session.toJson();

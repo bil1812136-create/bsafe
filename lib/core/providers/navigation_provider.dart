@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 
 class NavigationProvider extends ChangeNotifier {
   int _currentIndex = 0;
-  String _historyFilterRisk = 'all'; // 'all', 'high', 'medium', 'low'
+  String _historyFilterRisk = 'all';
   String _historyFilterStatus =
-      'all'; // 'all', 'pending', 'in_progress', 'resolved'
+      'all';
 
   int get currentIndex => _currentIndex;
   String get historyFilterRisk => _historyFilterRisk;

@@ -10,6 +10,7 @@ import 'package:bsafe_app/core/providers/navigation_provider.dart';
 import 'package:bsafe_app/core/providers/language_provider.dart';
 import 'package:bsafe_app/core/theme/app_theme.dart';
 import 'package:bsafe_app/shared/widgets/ai_analysis_result.dart';
+import 'package:bsafe_app/infrastructure/yolo_service.dart';
 
 class ReportPage extends StatefulWidget {
   const ReportPage({super.key});
@@ -21,6 +22,8 @@ class ReportPage extends StatefulWidget {
 class _ReportPageState extends State<ReportPage> {
   XFile? _selectedImage;
   String? _imageBase64;
+  Uint8List? _imageBytes;
+  List<YoloDetection> _yoloDetections = [];
   bool _isAnalyzing = false;
   bool _isSubmitting = false;
   bool _isScanning = false;
@@ -33,6 +36,14 @@ class _ReportPageState extends State<ReportPage> {
 
   final ImagePicker _picker = ImagePicker();
 
+  @override
+  void initState() {
+    super.initState();
+    if (YoloService.isSupported) {
+      YoloService.instance.loadModel();
+    }
+  }
+
   Future<void> _pickImage(ImageSource source) async {
     setState(() => _isScanning = true);
     try {
@@ -44,11 +55,19 @@ class _ReportPageState extends State<ReportPage> {
         preferredCameraDevice: CameraDevice.rear,
       );
       if (image != null) {
-        await Future.delayed(const Duration(milliseconds: 1500));
         final bytes = await image.readAsBytes();
+
+        List<YoloDetection> detections = [];
+        if (YoloService.isSupported) {
+          detections = await YoloService.instance.detect(bytes);
+        }
+
+        if (!mounted) return;
         setState(() {
           _selectedImage = image;
           _imageBase64 = base64Encode(bytes);
+          _imageBytes = bytes;
+          _yoloDetections = detections;
           _aiResult = null;
           _aiCategory = null;
           _aiSeverity = null;
@@ -167,6 +186,8 @@ class _ReportPageState extends State<ReportPage> {
     setState(() {
       _selectedImage = null;
       _imageBase64 = null;
+      _imageBytes = null;
+      _yoloDetections = [];
       _aiResult = null;
       _aiCategory = null;
       _aiSeverity = null;
@@ -308,23 +329,76 @@ class _ReportPageState extends State<ReportPage> {
                           borderRadius: BorderRadius.circular(16),
                           child: Stack(
                             children: [
-                              FutureBuilder<Uint8List>(
-                                future: _selectedImage!.readAsBytes(),
-                                builder: (context, snapshot) {
-                                  if (snapshot.hasData) {
-                                    return Image.memory(snapshot.data!,
-                                        width: double.infinity,
-                                        height: 280,
-                                        fit: BoxFit.cover);
-                                  }
-                                  return Container(
-                                      width: double.infinity,
-                                      height: 280,
-                                      color: Colors.grey[300],
-                                      child: const Center(
-                                          child: CircularProgressIndicator()));
-                                },
-                              ),
+
+                              if (_imageBytes != null)
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 280,
+                                  child: LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      return Stack(
+                                        fit: StackFit.expand,
+                                        children: [
+                                          Image.memory(_imageBytes!,
+                                              width: constraints.maxWidth,
+                                              height: 280,
+                                              fit: BoxFit.cover),
+                                          if (_yoloDetections.isNotEmpty)
+                                            CustomPaint(
+                                              painter: _ReportYoloPainter(
+                                                detections: _yoloDetections,
+                                                canvasWidth:
+                                                    constraints.maxWidth,
+                                                canvasHeight: 280,
+                                              ),
+                                            ),
+                                          if (_yoloDetections.isNotEmpty)
+                                            Positioned(
+                                              top: 8,
+                                              left: 8,
+                                              child: Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 8,
+                                                        vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.black87,
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    const Icon(Icons.visibility,
+                                                        color:
+                                                            Colors.greenAccent,
+                                                        size: 14),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                        '${_yoloDetections.length} objects',
+                                                        style: const TextStyle(
+                                                            color: Colors.white,
+                                                            fontSize: 11,
+                                                            fontWeight:
+                                                                FontWeight
+                                                                    .bold)),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      );
+                                    },
+                                  ),
+                                )
+                              else
+                                Container(
+                                    width: double.infinity,
+                                    height: 280,
+                                    color: Colors.grey[300],
+                                    child: const Center(
+                                        child: CircularProgressIndicator())),
                               if (_isAnalyzing)
                                 Positioned.fill(
                                     child: Container(
@@ -538,7 +612,6 @@ class _ReportPageState extends State<ReportPage> {
   }
 }
 
-/// Tiny helper widget used inline in the image overlay.
 class Dec extends StatelessWidget {
   final String text;
   const Dec({super.key, required this.text});
@@ -546,4 +619,77 @@ class Dec extends StatelessWidget {
   Widget build(BuildContext context) => Text(text,
       style: const TextStyle(
           color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600));
+}
+
+class _ReportYoloPainter extends CustomPainter {
+  final List<YoloDetection> detections;
+  final double canvasWidth;
+  final double canvasHeight;
+
+  _ReportYoloPainter({
+    required this.detections,
+    required this.canvasWidth,
+    required this.canvasHeight,
+  });
+
+  static final List<Color> _colors = [
+    Colors.red,
+    Colors.green,
+    Colors.blue,
+    Colors.orange,
+    Colors.purple,
+    Colors.cyan,
+    Colors.pink,
+    Colors.teal,
+    Colors.amber,
+    Colors.indigo,
+  ];
+
+  Color _colorFor(String cls) => _colors[cls.hashCode.abs() % _colors.length];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (final det in detections) {
+      final color = _colorFor(det.className);
+      final left = (det.x - det.width / 2) * size.width;
+      final top = (det.y - det.height / 2) * size.height;
+      final bw = det.width * size.width;
+      final bh = det.height * size.height;
+      final rect = Rect.fromLTWH(left, top, bw, bh);
+
+      canvas.drawRect(
+          rect,
+          Paint()
+            ..color = color
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2.0);
+
+      final label =
+          '${det.className} ${(det.confidence * 100).toStringAsFixed(0)}%';
+      final tp = TextPainter(
+        text: TextSpan(
+            text: label,
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.bold)),
+        textDirection: TextDirection.ltr,
+      )..layout();
+
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+            Rect.fromLTWH(
+                left, top - tp.height - 4, tp.width + 8, tp.height + 4),
+            const Radius.circular(2)),
+        Paint()
+          ..color = color.withValues(alpha: 0.85)
+          ..style = PaintingStyle.fill,
+      );
+      tp.paint(canvas, Offset(left + 4, top - tp.height - 2));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ReportYoloPainter old) =>
+      old.detections != detections;
 }

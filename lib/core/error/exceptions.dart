@@ -1,5 +1,3 @@
-/// Infrastructure-level exceptions – thrown inside data-layer implementations
-/// and caught/mapped to [Failure] objects in repository impls.
 library;
 
 class ServerException implements Exception {

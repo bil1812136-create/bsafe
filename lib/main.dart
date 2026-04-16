@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:bsafe_app/features/defect_reporting/presentation/providers/report_provider.dart';
@@ -20,7 +21,6 @@ import 'package:bsafe_app/infrastructure/supabase_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Set system UI overlay style
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -28,7 +28,6 @@ void main() async {
     ),
   );
 
-  // Initialize Supabase (只有在填入 URL/Key 後才啟用)
   if (SupabaseService.isConfigured) {
     try {
       await Supabase.initialize(
@@ -59,11 +58,20 @@ class BSafeApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => LanguageProvider()),
         ChangeNotifierProvider(create: (_) => NavigationProvider()),
       ],
-      child: MaterialApp(
-        title: 'B-SAFE 建築安全',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.lightTheme,
-        home: const MainNavigationScreen(),
+      child: Consumer<LanguageProvider>(
+        builder: (context, lang, child) => MaterialApp(
+          title: 'B-SAFE',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.lightTheme,
+          locale: lang.isEnglish ? const Locale('en') : const Locale('zh'),
+          supportedLocales: const [Locale('en'), Locale('zh')],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: const MainNavigationScreen(),
+        ),
       ),
     );
   }
@@ -83,7 +91,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     const HistoryPage(),
     const AnalysisScreen(),
     const FollowUpScreen(),
-    const LocationScreen(), // 位置 tab — UWB 定位功能
+    const LocationScreen(),
   ];
 
   @override
@@ -98,7 +106,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
     return Scaffold(
       appBar: currentIndex == 5
-          ? null // 位置頁面（InspectionScreen）有自己的 AppBar
+          ? null
           : AppBar(
               title: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -188,7 +196,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             ),
       body: Column(
         children: [
-          // Offline Banner（位置頁面不顯示，因為它有自己的 UI）
           if (!connectivityProvider.isOnline && currentIndex != 5)
             Container(
               width: double.infinity,
@@ -222,7 +229,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 ],
               ),
             ),
-          // Main Content
           Expanded(child: _screens[currentIndex]),
         ],
       ),

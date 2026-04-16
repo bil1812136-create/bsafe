@@ -5,22 +5,19 @@ import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:bsafe_app/features/building_medical_record/data/models/inspection_model.dart';
 
-/// 產生 .docx (Office Open XML) 格式的巡檢報告
 class WordExportService {
-  /// 匯出 Word 文件，包含專案所有樓層的缺陷與 AI 分析
+
   static Future<void> exportReport({
     required String outputPath,
     required String buildingName,
     required List<InspectionSession> sessions,
   }) async {
-    // 依樓層排序
+
     final sorted = List<InspectionSession>.from(sessions)
       ..sort((a, b) => a.floor.compareTo(b.floor));
 
-    // 建立 document.xml body 內容
     final body = StringBuffer();
 
-    // 標題
     body.writeln(_heading('B-SAFE 巡檢報告', level: 1));
     body.writeln(_paragraph('專案名稱: $buildingName'));
     body.writeln(
@@ -28,7 +25,6 @@ class WordExportService {
     body.writeln(_paragraph('樓層數: ${sorted.length}'));
     body.writeln(_paragraph(''));
 
-    // 收集所有圖片
     final images = <_ImageEntry>[];
 
     for (final session in sorted) {
@@ -55,15 +51,12 @@ class WordExportService {
 
           body.writeln(_heading('缺陷 $defectNum — $riskLabel', level: 4));
 
-          // 風險等級
           body.writeln(_paragraph('風險等級: $riskLabel'));
 
-          // AI 分析描述
           if (defect.description != null && defect.description!.isNotEmpty) {
             body.writeln(_paragraph('AI 分析: ${defect.description}'));
           }
 
-          // 建議
           if (defect.recommendations.isNotEmpty) {
             body.writeln(_paragraph('建議:'));
             for (final rec in defect.recommendations) {
@@ -71,7 +64,6 @@ class WordExportService {
             }
           }
 
-          // AI 對話記錄
           if (defect.chatMessages.isNotEmpty) {
             body.writeln(_paragraph('對話記錄:'));
             for (final msg in defect.chatMessages) {
@@ -80,7 +72,6 @@ class WordExportService {
             }
           }
 
-          // 缺陷圖片
           if (defect.imageBase64 != null && defect.imageBase64!.isNotEmpty) {
             final imgId = 'rId${100 + images.length}';
             final imgFileName = 'image${images.length + 1}.jpg';
@@ -102,27 +93,20 @@ class WordExportService {
       }
     }
 
-    // 組裝 DOCX zip
     final archive = Archive();
 
-    // [Content_Types].xml
     archive.addFile(_textFile('[Content_Types].xml', _contentTypes(images)));
 
-    // _rels/.rels
     archive.addFile(_textFile('_rels/.rels', _rootRels()));
 
-    // word/_rels/document.xml.rels
     archive.addFile(
         _textFile('word/_rels/document.xml.rels', _documentRels(images)));
 
-    // word/document.xml
     archive
         .addFile(_textFile('word/document.xml', _documentXml(body.toString())));
 
-    // word/styles.xml
     archive.addFile(_textFile('word/styles.xml', _stylesXml()));
 
-    // 圖片檔案
     for (final img in images) {
       final bytes = base64Decode(img.base64Data);
       archive.addFile(ArchiveFile(
@@ -132,13 +116,10 @@ class WordExportService {
       ));
     }
 
-    // 寫入檔案
     final encoded = ZipEncoder().encode(archive);
     final file = File(outputPath);
     await file.writeAsBytes(Uint8List.fromList(encoded));
   }
-
-  // ===== XML 建構輔助 =====
 
   static String _xmlEscape(String text) {
     return text
@@ -159,7 +140,7 @@ class WordExportService {
   }
 
   static String _paragraph(String text) {
-    // 支援多行：每行一個 run，用 w:br 換行
+
     final lines = text.split('\n');
     final runs = StringBuffer();
     for (int i = 0; i < lines.length; i++) {
@@ -182,7 +163,7 @@ class WordExportService {
   }
 
   static String _imageBlock(String rId) {
-    // 圖片寬度約 15cm = 5400000 EMU，高度按比例
+
     const cx = 5400000;
     const cy = 3600000;
     return '''
@@ -218,8 +199,6 @@ class WordExportService {
   </w:r>
 </w:p>''';
   }
-
-  // ===== OOXML 結構檔案 =====
 
   static String _contentTypes(List<_ImageEntry> images) {
     final imgOverrides = StringBuffer();

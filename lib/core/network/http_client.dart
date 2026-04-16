@@ -2,8 +2,6 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
-/// Thin HTTP wrapper used by remote data-sources.
-/// All feature-level data-sources depend on this rather than [http] directly.
 class HttpClient {
   final String baseUrl;
   final Duration timeout;

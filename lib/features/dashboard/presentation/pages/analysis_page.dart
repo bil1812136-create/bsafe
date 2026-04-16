@@ -27,7 +27,7 @@ class AnalysisScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Risk Distribution Pie Chart
+
                 Text(
                   language.t('risk_distribution'),
                   style: const TextStyle(
@@ -81,7 +81,6 @@ class AnalysisScreen extends StatelessWidget {
 
                 const SizedBox(height: 24),
 
-                // Trend Line Chart
                 Text(
                   language.t('trend_7days'),
                   style: const TextStyle(
@@ -131,7 +130,6 @@ class AnalysisScreen extends StatelessWidget {
 
                 const SizedBox(height: 24),
 
-                // Status Bar Chart
                 Text(
                   language.t('processing_status'),
                   style: const TextStyle(
@@ -160,7 +158,6 @@ class AnalysisScreen extends StatelessWidget {
 
                 const SizedBox(height: 24),
 
-                // Summary Cards
                 const Text(
                   '📌 重點數據',
                   style: TextStyle(
@@ -360,7 +357,7 @@ class AnalysisScreen extends StatelessWidget {
         ),
         borderData: FlBorderData(show: false),
         lineBarsData: [
-          // High risk line
+
           LineChartBarData(
             spots: trendData.asMap().entries.map((e) {
               return FlSpot(
@@ -374,7 +371,7 @@ class AnalysisScreen extends StatelessWidget {
               color: AppTheme.riskHigh.withValues(alpha: 0.1),
             ),
           ),
-          // Medium risk line
+
           LineChartBarData(
             spots: trendData.asMap().entries.map((e) {
               return FlSpot(
@@ -388,7 +385,7 @@ class AnalysisScreen extends StatelessWidget {
               color: AppTheme.riskMedium.withValues(alpha: 0.1),
             ),
           ),
-          // Low risk line
+
           LineChartBarData(
             spots: trendData.asMap().entries.map((e) {
               return FlSpot(e.key.toDouble(), (e.value['low'] ?? 0).toDouble());

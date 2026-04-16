@@ -10,10 +10,8 @@ import 'package:bsafe_app/features/defect_reporting/domain/usecases/submit_worke
 import 'package:bsafe_app/features/defect_reporting/domain/usecases/update_report_status.dart';
 import 'package:bsafe_app/features/ai_analysis/data/datasources/ai_remote_datasource.dart';
 
-/// Presentation-layer state manager for the defect-reporting feature.
-/// Bridges use-cases with the Flutter widget tree via [ChangeNotifier].
 class ReportProvider extends ChangeNotifier {
-  // ── Use-cases (injected) ────────────────────────────────
+
   late final GetReports _getReports;
   late final CreateReport _createReport;
   late final UpdateReportStatus _updateStatus;
@@ -29,7 +27,6 @@ class ReportProvider extends ChangeNotifier {
     loadReports();
   }
 
-  // ── State ───────────────────────────────────────────────
   List<Report> _reports = [];
   Map<String, dynamic> _statistics = {};
   List<Map<String, dynamic>> _trendData = [];
@@ -44,8 +41,6 @@ class ReportProvider extends ChangeNotifier {
   String? get error => _error;
   ReportModel? get currentReport => _currentReport;
   int get pendingSyncCount => 0;
-
-  // ── Load ────────────────────────────────────────────────
 
   Future<void> loadReports() async {
     _isLoading = true;
@@ -67,8 +62,6 @@ class ReportProvider extends ChangeNotifier {
 
   Future<void> refreshFromCloud() => loadReports();
 
-  // ── AI analysis ─────────────────────────────────────────
-
   Future<Map<String, dynamic>?> analyzeImage(String imageBase64) async {
     try {
       return await _ai.analyzeImage(imageBase64);
@@ -87,8 +80,6 @@ class ReportProvider extends ChangeNotifier {
       };
     }
   }
-
-  // ── Create report ───────────────────────────────────────
 
   Future<Report?> addReport({
     required String title,
@@ -164,8 +155,6 @@ class ReportProvider extends ChangeNotifier {
     }
   }
 
-  // ── Update status ───────────────────────────────────────
-
   Future<bool> updateReportStatus(Report report, String newStatus) async {
     try {
       if (report.id == null) return false;
@@ -188,8 +177,6 @@ class ReportProvider extends ChangeNotifier {
       return false;
     }
   }
-
-  // ── Worker response ─────────────────────────────────────
 
   Future<bool> submitWorkerResponse(
       Report report, String text, String? imageBase64) async {
@@ -233,8 +220,6 @@ class ReportProvider extends ChangeNotifier {
     }
   }
 
-  // ── Company message ─────────────────────────────────────
-
   Future<bool> addCompanyMessage(Report report, String message) async {
     try {
       if (report.id == null) return false;
@@ -267,8 +252,6 @@ class ReportProvider extends ChangeNotifier {
     }
   }
 
-  // ── Clear unread ────────────────────────────────────────
-
   Future<void> clearUnreadCompany(Report report) async {
     if (report.id == null || !report.hasUnreadCompany) return;
     final repo = ReportRepositoryImpl(ReportRemoteDataSource.instance);
@@ -287,13 +270,10 @@ class ReportProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ── Real-time subscription stubs ────────────────────────
-
   void subscribeToReport(ReportModel report) {
     if (report.id == null) return;
     _currentReport = report;
-    // Full realtime wiring is done via RealtimeService (notification feature).
-    // The datasource poll interval keeps data fresh for now.
+
     notifyListeners();
   }
 
@@ -301,8 +281,6 @@ class ReportProvider extends ChangeNotifier {
     _currentReport = null;
     notifyListeners();
   }
-
-  // ── Statistics helpers ──────────────────────────────────
 
   Map<String, dynamic> _computeStatistics(List<Report> reports) => {
         'total': reports.length,

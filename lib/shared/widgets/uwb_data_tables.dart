@@ -3,7 +3,6 @@ import 'package:bsafe_app/features/uwb_positioning/data/models/uwb_model.dart';
 import 'package:bsafe_app/infrastructure/uwb_service.dart';
 import 'package:bsafe_app/core/theme/app_theme.dart';
 
-/// 基站列表组件 - 复制安信可应用的基站表格
 class AnchorListTable extends StatefulWidget {
   final List<UwbAnchor> anchors;
   final Function(int, UwbAnchor)? onAnchorChanged;
@@ -345,7 +344,6 @@ class _AnchorListTableState extends State<AnchorListTable> {
   }
 }
 
-/// 标签列表组件 - 复制安信可应用的标签表格
 class TagListTable extends StatelessWidget {
   final UwbTag? currentTag;
   final List<UwbAnchor> anchors;
@@ -545,7 +543,6 @@ class TagListTable extends StatelessWidget {
   }
 }
 
-/// 完整的数据面板 - 包含基站和标签表格
 class UwbDataPanel extends StatefulWidget {
   final UwbService uwbService;
 

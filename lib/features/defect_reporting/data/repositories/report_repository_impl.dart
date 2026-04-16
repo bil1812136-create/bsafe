@@ -2,7 +2,6 @@ import 'package:bsafe_app/features/defect_reporting/data/datasources/report_remo
 import 'package:bsafe_app/features/defect_reporting/domain/entities/report.dart';
 import 'package:bsafe_app/features/defect_reporting/domain/repositories/report_repository.dart';
 
-/// Concrete implementation wiring [ReportRepository] to [ReportRemoteDataSource].
 class ReportRepositoryImpl implements ReportRepository {
   final ReportRemoteDataSource _remote;
 

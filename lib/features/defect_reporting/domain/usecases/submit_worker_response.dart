@@ -12,7 +12,6 @@ class SubmitWorkerResponseParams {
   });
 }
 
-/// Use-case: submit a worker follow-up response.
 class SubmitWorkerResponse
     implements UseCase<bool, SubmitWorkerResponseParams> {
   final ReportRepository repository;

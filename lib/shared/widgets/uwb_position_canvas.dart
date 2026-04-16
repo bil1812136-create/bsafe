@@ -4,8 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:bsafe_app/features/uwb_positioning/data/models/uwb_model.dart';
 import 'package:bsafe_app/core/theme/app_theme.dart';
 
-/// UWB定位可视化画布
-/// 显示基站、标签和轨迹的2D平面图
 class UwbPositionCanvas extends StatelessWidget {
   final List<UwbAnchor> anchors;
   final UwbTag? currentTag;

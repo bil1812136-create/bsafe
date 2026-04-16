@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:bsafe_app/features/defect_reporting/domain/entities/report.dart';
 
-/// Data-layer model: adds JSON / Map serialisation on top of [Report].
 class ReportModel extends Report {
   const ReportModel({
     super.id,
@@ -29,8 +28,6 @@ class ReportModel extends Report {
     super.updatedAt,
     super.synced = false,
   });
-
-  // ── Serialisation ─────────────────────────────────────────
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -87,8 +84,6 @@ class ReportModel extends Report {
         synced: true,
       );
 
-  // ── Helpers ───────────────────────────────────────────────
-
   static String? _conversationToJson(List<ConversationMessage> list) {
     if (list.isEmpty) return null;
     return jsonEncode(list
@@ -101,7 +96,6 @@ class ReportModel extends Report {
         .toList());
   }
 
-  /// Public accessor for callers that parse raw Supabase maps directly.
   static List<ConversationMessage> conversationFromJson(dynamic raw) =>
       _conversationFromJson(raw);
 
@@ -134,12 +128,8 @@ class ReportModel extends Report {
     }
   }
 
-  // ── Domain mapping ────────────────────────────────────────
-
-  /// Converts back to the base [Report] domain entity.
   Report toEntity() => this;
 
-  /// Promotes a domain [Report] to a [ReportModel].
   factory ReportModel.fromEntity(Report r) => ReportModel(
         id: r.id,
         title: r.title,
@@ -166,8 +156,6 @@ class ReportModel extends Report {
         updatedAt: r.updatedAt,
         synced: r.synced,
       );
-
-  // ── Static metadata ───────────────────────────────────────
 
   static String getCategoryLabel(String category) {
     const map = {

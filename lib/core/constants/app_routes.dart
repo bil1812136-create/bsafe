@@ -1,4 +1,3 @@
-/// App-wide route name constants.
 class AppRoutes {
   AppRoutes._();
 

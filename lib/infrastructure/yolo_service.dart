@@ -1,17 +1,17 @@
-import 'dart:io';
+import 'dart:convert';
+import 'dart:ui' as ui;
+import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:tflite_flutter/tflite_flutter.dart';
 
-// Conditional import: ultralytics_yolo only works on Android/iOS
-import 'package:ultralytics_yolo/yolo.dart';
-
-/// YOLO 物件偵測結果
 class YoloDetection {
   final String className;
   final double confidence;
-  final double x; // center x (normalized 0-1 of image width)
-  final double y; // center y (normalized 0-1 of image height)
-  final double width; // box width (normalized)
-  final double height; // box height (normalized)
+  final double x;
+  final double y;
+  final double width;
+  final double height;
 
   YoloDetection({
     required this.className,
@@ -22,7 +22,6 @@ class YoloDetection {
     required this.height,
   });
 
-  /// 建構 bounding box 在實際圖片上的座標 (pixel values)
   Map<String, double> toPixelBox(double imgWidth, double imgHeight) {
     return {
       'left': (x - width / 2) * imgWidth,
@@ -44,13 +43,12 @@ class YoloDetection {
       };
 }
 
-/// YOLO 偵測服務 - 包裝 ultralytics_yolo 套件
 class YoloService {
   static YoloService? _instance;
-  YOLO? _yolo;
+  Interpreter? _interpreter;
   bool _isLoaded = false;
   bool _isLoading = false;
-  bool _usingGpu = false; // tracks whether the loaded model uses GPU/NPU
+  List<String> _classNames = [];
 
   YoloService._();
 
@@ -59,117 +57,262 @@ class YoloService {
     return _instance!;
   }
 
-  /// 檢查平台是否支援 YOLO (目前僅 Android/iOS)
-  static bool get isSupported {
-    if (kIsWeb) return false;
-    return Platform.isAndroid || Platform.isIOS;
-  }
+  static bool get isSupported => !kIsWeb;
 
   bool get isLoaded => _isLoaded;
   bool get isLoading => _isLoading;
 
-  /// Whether the loaded model is running on GPU/NPU (false = CPU fallback)
-  bool get usingGpu => _usingGpu;
-
-  /// 初始化 YOLO 模型
-  ///
-  /// Strategy:
-  ///   1. Try GPU/NPU delegate first (TFLite GPU on Android, Core ML GPU on iOS)
-  ///   2. On failure, fall back to CPU mode
-  Future<bool> loadModel({String modelPath = 'yolo11n'}) async {
-    if (!isSupported) {
-      debugPrint('YOLO: 不支援此平台 (僅 Android/iOS)');
-      return false;
-    }
-
+  Future<bool> loadModel(
+      {String modelPath = 'assets/model/yolo.tflite'}) async {
+    if (!isSupported) return false;
     if (_isLoaded) return true;
     if (_isLoading) return false;
-
     _isLoading = true;
-
-    // Android 用 .tflite，iOS 用模型名稱
-    final path = Platform.isAndroid ? '$modelPath.tflite' : modelPath;
-
-    // --- Pass 1: GPU / NPU ---
     try {
-      _yolo = YOLO(
-        modelPath: path,
-        task: YOLOTask.detect,
-        useGpu: true,
-      );
-      await _yolo!.loadModel();
+      final options = InterpreterOptions()..threads = 4;
+      _interpreter = await Interpreter.fromAsset(modelPath, options: options);
+      _interpreter!.allocateTensors();
+      _classNames = await _loadClassNames(modelPath);
       _isLoaded = true;
-      _usingGpu = true;
-      debugPrint('YOLO: 模型載入成功 (GPU/NPU)');
-      _isLoading = false;
-      return true;
+      debugPrint('YOLO: 模型載入成功 (tflite_flutter CPU, 4 threads)');
+      debugPrint('YOLO: classes = $_classNames');
     } catch (e) {
-      debugPrint('YOLO: GPU/NPU 載入失敗，切換 CPU 模式: $e');
-      _yolo = null;
-    }
-
-    // --- Pass 2: CPU fallback ---
-    try {
-      _yolo = YOLO(
-        modelPath: path,
-        task: YOLOTask.detect,
-        useGpu: false,
-      );
-      await _yolo!.loadModel();
-      _isLoaded = true;
-      _usingGpu = false;
-      debugPrint('YOLO: 模型載入成功 (CPU)');
-      _isLoading = false;
-      return true;
-    } catch (e) {
-      debugPrint('YOLO: CPU 模式也載入失敗: $e');
-      _yolo = null;
+      debugPrint('YOLO: 模型載入失敗: $e');
+      _interpreter = null;
       _isLoaded = false;
+    } finally {
       _isLoading = false;
-      return false;
     }
+    return _isLoaded;
   }
 
-  /// 對圖片執行物件偵測
   Future<List<YoloDetection>> detect(Uint8List imageBytes,
       {double confidenceThreshold = 0.25}) async {
-    if (!_isLoaded || _yolo == null) {
-      // 嘗試自動載入
+    if (!_isLoaded) {
       final loaded = await loadModel();
       if (!loaded) return [];
     }
-
+    final interp = _interpreter;
+    if (interp == null) return [];
     try {
-      final results = await _yolo!.predict(
-        imageBytes,
-        confidenceThreshold: confidenceThreshold,
-        iouThreshold: 0.45,
-      );
+      final inputTensor = await _preprocessImage(imageBytes);
+      if (inputTensor == null) return [];
 
-      final boxes = results['boxes'] as List<dynamic>? ?? [];
-      final detections = <YoloDetection>[];
-
-      for (final box in boxes) {
-        final map = box as Map<dynamic, dynamic>;
-        detections.add(YoloDetection(
-          className: (map['class'] as String?) ?? 'unknown',
-          confidence: (map['confidence'] as num?)?.toDouble() ?? 0.0,
-          x: (map['x'] as num?)?.toDouble() ?? 0.0,
-          y: (map['y'] as num?)?.toDouble() ?? 0.0,
-          width: (map['width'] as num?)?.toDouble() ?? 0.0,
-          height: (map['height'] as num?)?.toDouble() ?? 0.0,
-        ));
+      final numOutputs = interp.getOutputTensors().length;
+      final outputMap = <int, List>{};
+      for (int i = 0; i < numOutputs; i++) {
+        final shape = interp.getOutputTensor(i).shape;
+        debugPrint('YOLO: output[$i] shape = $shape');
+        outputMap[i] = _buildOutputBuffer(shape);
       }
 
+      interp.runForMultipleInputs([inputTensor], outputMap);
+
+      final detShape = interp.getOutputTensor(0).shape;
+      final detections = _parseDetections(
+          outputMap[0]!, detShape, confidenceThreshold, _classNames);
       debugPrint('YOLO: 偵測到 ${detections.length} 個物件');
       return detections;
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('YOLO: 偵測失敗: $e');
+      debugPrint('YOLO: stack: $stack');
       return [];
     }
   }
 
-  /// 將偵測結果轉換為建築安全風險分析
+  static List _buildOutputBuffer(List<int> shape) {
+    if (shape.length == 4) {
+      return List.generate(
+          shape[0],
+          (_) => List.generate(
+              shape[1],
+              (_) =>
+                  List.generate(shape[2], (_) => List.filled(shape[3], 0.0))));
+    }
+    if (shape.length == 3) {
+      return List.generate(shape[0],
+          (_) => List.generate(shape[1], (_) => List.filled(shape[2], 0.0)));
+    }
+    if (shape.length == 2) {
+      return List.generate(shape[0], (_) => List.filled(shape[1], 0.0));
+    }
+    return List.filled(shape[0], 0.0);
+  }
+
+  static Future<List<String>> _loadClassNames(String modelPath) async {
+    try {
+      final bytes = await rootBundle.load(modelPath);
+      final archive = ZipDecoder().decodeBytes(bytes.buffer.asUint8List());
+      final metaFile = archive.findFile('metadata.json');
+      if (metaFile == null) return [];
+      final json = jsonDecode(utf8.decode(metaFile.content as List<int>));
+      final names = json['names'] as Map<String, dynamic>?;
+      if (names == null) return [];
+      final maxIdx = names.keys.map(int.parse).fold(0, (a, b) => a > b ? a : b);
+      final list = List<String>.filled(maxIdx + 1, 'unknown');
+      names.forEach((k, v) => list[int.parse(k)] = v.toString());
+      return list;
+    } catch (e) {
+      debugPrint('YOLO: 無法載入類別名稱: $e');
+      return [];
+    }
+  }
+
+  static List<YoloDetection> _parseDetections(dynamic buffer, List<int> shape,
+      double threshold, List<String> classNames) {
+    if (shape.length != 3 || shape[0] < 1) return [];
+    final rows = (buffer as List)[0] as List;
+    final numRows = shape[1];
+    final numCols = shape[2];
+    final detections = <YoloDetection>[];
+
+    if (numCols >= 37) {
+      // YOLO26-seg end2end one-to-one head: [x1,y1,x2,y2, cls*nc, mask*32]
+      // nc = numCols - 36 (4 bbox + nc class scores + 32 mask coefficients)
+      final nc = numCols - 36;
+      for (int i = 0; i < numRows; i++) {
+        final row = rows[i] as List;
+        double maxScore = -1;
+        int classId = 0;
+        for (int c = 0; c < nc; c++) {
+          final s = (row[4 + c] as num).toDouble();
+          if (s > maxScore) {
+            maxScore = s;
+            classId = c;
+          }
+        }
+        if (maxScore < threshold) continue;
+        final x1 = (row[0] as num).toDouble();
+        final y1 = (row[1] as num).toDouble();
+        final x2 = (row[2] as num).toDouble();
+        final y2 = (row[3] as num).toDouble();
+        final w = x2 - x1;
+        final h = y2 - y1;
+        if (w <= 0 || h <= 0) continue;
+        detections.add(YoloDetection(
+          className: classId < classNames.length
+              ? classNames[classId]
+              : 'class_$classId',
+          confidence: maxScore,
+          x: (x1 + x2) / 2,
+          y: (y1 + y2) / 2,
+          width: w,
+          height: h,
+        ));
+      }
+    } else if (numCols >= 6) {
+      // Legacy post-processed format: [x1,y1,x2,y2, conf, class_id, ...]
+      for (int i = 0; i < numRows; i++) {
+        final row = rows[i] as List;
+        final conf = (row[4] as num).toDouble();
+        if (conf < threshold) continue;
+        final x1 = (row[0] as num).toDouble();
+        final y1 = (row[1] as num).toDouble();
+        final x2 = (row[2] as num).toDouble();
+        final y2 = (row[3] as num).toDouble();
+        final classId = (row[5] as num).toInt();
+        final w = x2 - x1;
+        final h = y2 - y1;
+        if (w <= 0 || h <= 0) continue;
+        detections.add(YoloDetection(
+          className: classId < classNames.length
+              ? classNames[classId]
+              : 'class_$classId',
+          confidence: conf,
+          x: (x1 + x2) / 2,
+          y: (y1 + y2) / 2,
+          width: w,
+          height: h,
+        ));
+      }
+    } else if (numCols == 5) {
+      for (int i = 0; i < numRows; i++) {
+        final row = rows[i] as List;
+        final conf = (row[4] as num).toDouble();
+        if (conf < threshold) continue;
+        final w = (row[2] as num).toDouble();
+        final h = (row[3] as num).toDouble();
+        if (w <= 0 || h <= 0) continue;
+        detections.add(YoloDetection(
+          className: classNames.isNotEmpty ? classNames[0] : 'class_0',
+          confidence: conf,
+          x: (row[0] as num).toDouble(),
+          y: (row[1] as num).toDouble(),
+          width: w,
+          height: h,
+        ));
+      }
+    } else if (numRows >= 5) {
+      const numMaskCoeffs = 32;
+      final numClasses = numRows - 4 - numMaskCoeffs;
+      final classEnd = (numClasses > 0) ? 4 + numClasses : numRows;
+      for (int i = 0; i < numCols; i++) {
+        double maxScore = 0;
+        int classId = 0;
+        for (int c = 4; c < classEnd; c++) {
+          final s = ((rows[c] as List)[i] as num).toDouble();
+          if (s > maxScore) {
+            maxScore = s;
+            classId = c - 4;
+          }
+        }
+        if (maxScore < threshold) continue;
+        final cx = ((rows[0] as List)[i] as num).toDouble();
+        final cy = ((rows[1] as List)[i] as num).toDouble();
+        final w = ((rows[2] as List)[i] as num).toDouble();
+        final h = ((rows[3] as List)[i] as num).toDouble();
+        if (w <= 0 || h <= 0) continue;
+        detections.add(YoloDetection(
+          className: classId < classNames.length
+              ? classNames[classId]
+              : 'class_$classId',
+          confidence: maxScore,
+          x: cx,
+          y: cy,
+          width: w,
+          height: h,
+        ));
+      }
+    }
+    return detections;
+  }
+
+  Future<dynamic> _preprocessImage(Uint8List imageBytes) async {
+    const int size = 640;
+    try {
+      final codec = await ui.instantiateImageCodec(imageBytes,
+          targetWidth: size, targetHeight: size);
+      final frame = await codec.getNextFrame();
+      final byteData =
+          await frame.image.toByteData(format: ui.ImageByteFormat.rawRgba);
+      frame.image.dispose();
+      codec.dispose();
+      if (byteData == null) return null;
+
+      final pixels = byteData.buffer.asUint8List();
+      return List.generate(
+        1,
+        (_) => List.generate(
+          size,
+          (h) => List.generate(
+            size,
+            (w) {
+              final idx = (h * size + w) * 4;
+              return [
+                pixels[idx + 0] / 255.0,
+                pixels[idx + 1] / 255.0,
+                pixels[idx + 2] / 255.0,
+              ];
+            },
+          ),
+        ),
+      );
+    } catch (e) {
+      debugPrint('YOLO preprocess error: $e');
+      return null;
+    }
+  }
+
   static Map<String, dynamic> toSafetyAnalysis(List<YoloDetection> detections) {
     if (detections.isEmpty) {
       return {
@@ -182,89 +325,29 @@ class YoloService {
       };
     }
 
-    // 分類偵測物件為安全相關類別
-    final safetyHazards = <String>[];
-    final structuralItems = <String>[];
-    final normalItems = <String>[];
+    final detectedItems = detections
+        .map((d) =>
+            '${d.className} (${(d.confidence * 100).toStringAsFixed(0)}%)')
+        .toList();
 
-    // COCO dataset 中與建築安全相關的類別
-    const hazardClasses = {
-      'fire hydrant', 'stop sign', 'traffic light', // 消防/安全設備
-      'scissors', 'knife', // 尖銳物品
-    };
-    const structuralClasses = {
-      'chair', 'couch', 'bed', 'dining table', 'toilet', 'sink', // 家具
-      'tv', 'laptop', 'microwave', 'oven', 'refrigerator', // 電器
-      'door', 'window', // 建築結構
-    };
-    const personClasses = {'person'};
-
-    int personCount = 0;
-
-    for (final det in detections) {
-      final cls = det.className.toLowerCase();
-      if (personClasses.contains(cls)) {
-        personCount++;
-      } else if (hazardClasses.contains(cls)) {
-        safetyHazards.add(
-            '${det.className} (${(det.confidence * 100).toStringAsFixed(0)}%)');
-      } else if (structuralClasses.contains(cls)) {
-        structuralItems.add(
-            '${det.className} (${(det.confidence * 100).toStringAsFixed(0)}%)');
-      } else {
-        normalItems.add(
-            '${det.className} (${(det.confidence * 100).toStringAsFixed(0)}%)');
-      }
-    }
-
-    // 計算風險分數
-    int riskScore = 10; // 基礎分
-    String riskLevel = 'low';
-
-    if (safetyHazards.isNotEmpty) {
-      riskScore += safetyHazards.length * 20;
-    }
-    if (personCount > 3) {
-      riskScore += 15; // 人員密集
-    }
+    int riskScore = 10;
+    riskScore += (detections.length * 5).clamp(0, 60);
     riskScore = riskScore.clamp(0, 100);
 
+    String riskLevel = 'low';
     if (riskScore >= 70) {
       riskLevel = 'high';
     } else if (riskScore >= 40) {
       riskLevel = 'medium';
     }
 
-    // 組合分析說明
     final analysisLines = <String>[];
     analysisLines.add('YOLO 偵測到 ${detections.length} 個物件:');
-    if (personCount > 0) {
-      analysisLines.add('- 人員: $personCount 人');
-    }
-    if (safetyHazards.isNotEmpty) {
-      analysisLines.add('- 安全相關: ${safetyHazards.join(', ')}');
-    }
-    if (structuralItems.isNotEmpty) {
-      analysisLines.add('- 設施/家具: ${structuralItems.join(', ')}');
-    }
-    if (normalItems.isNotEmpty) {
-      analysisLines.add('- 其他物件: ${normalItems.join(', ')}');
+    if (detectedItems.isNotEmpty) {
+      analysisLines.add('- ${detectedItems.join(', ')}');
     }
 
-    // 建議
-    final recommendations = <String>[];
-    if (safetyHazards.isNotEmpty) {
-      recommendations.add('偵測到安全相關物件，請確認消防設備狀態');
-    }
-    if (personCount > 3) {
-      recommendations.add('人員密集，請注意疏散通道暢通');
-    }
-    if (structuralItems.isNotEmpty) {
-      recommendations.add('請檢查設施狀態是否正常');
-    }
-    if (recommendations.isEmpty) {
-      recommendations.add('環境正常，定期巡檢即可');
-    }
+    final recommendations = <String>['建議人工確認偵測結果是否需要處理'];
 
     return {
       'risk_level': riskLevel,
@@ -273,18 +356,12 @@ class YoloService {
       'recommendations': recommendations,
       'detections': detections.map((d) => d.toJson()).toList(),
       'detection_count': detections.length,
-      'person_count': personCount,
     };
   }
 
-  /// 釋放模型資源
   Future<void> dispose() async {
-    try {
-      await _yolo?.dispose();
-    } catch (e) {
-      debugPrint('YOLO dispose error: $e');
-    }
-    _yolo = null;
+    _interpreter?.close();
+    _interpreter = null;
     _isLoaded = false;
     _instance = null;
   }

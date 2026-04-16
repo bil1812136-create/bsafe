@@ -13,6 +13,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
   pdfium_flutter
+  tflite_flutter
 )
 
 set(PLUGIN_BUNDLED_LIBRARIES)

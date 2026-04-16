@@ -1,5 +1,3 @@
-/// Pure domain entity — no Flutter / JSON dependencies.
-/// Represents a single building safety defect report.
 class Report {
   final int? id;
   final String title;
@@ -107,7 +105,6 @@ class Report {
     );
   }
 
-  /// Merged conversation including legacy fields for backwards-compat.
   List<ConversationMessage> get mergedConversation {
     if (conversation.isNotEmpty) {
       final sorted = List<ConversationMessage>.from(conversation)
@@ -135,9 +132,8 @@ class Report {
   }
 }
 
-/// Domain entity for a single message in a report conversation.
 class ConversationMessage {
-  final String sender; // 'worker' | 'company'
+  final String sender;
   final String text;
   final String? image;
   final DateTime timestamp;

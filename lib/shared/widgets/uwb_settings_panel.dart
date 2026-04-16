@@ -4,7 +4,6 @@ import 'package:bsafe_app/features/uwb_positioning/data/models/uwb_model.dart';
 import 'package:bsafe_app/infrastructure/uwb_service.dart';
 import 'package:bsafe_app/core/theme/app_theme.dart';
 
-/// UWB 设置面板 - 复制安信可 UWB TWR 应用的设置功能
 class UwbSettingsPanel extends StatefulWidget {
   final UwbService uwbService;
   final VoidCallback? onClose;
@@ -157,7 +156,6 @@ class _UwbSettingsPanelState extends State<UwbSettingsPanel>
     );
   }
 
-  // 功能设置 Tab
   Widget _buildFunctionSettings() {
     final config = widget.uwbService.config;
     return SingleChildScrollView(
@@ -184,7 +182,7 @@ class _UwbSettingsPanelState extends State<UwbSettingsPanel>
               (v) => _updateConfig(config.copyWith(areaRadius1: v))),
           _buildNumberInputRow('區域2 (m)', _area2Controller,
               (v) => _updateConfig(config.copyWith(areaRadius2: v))),
-          // Inline radio buttons for fence alarm mode
+
           RadioGroup<bool>(
             groupValue: config.innerFenceAlarm,
             onChanged: (v) {
@@ -315,7 +313,6 @@ class _UwbSettingsPanelState extends State<UwbSettingsPanel>
     );
   }
 
-  // 平面图设置 Tab
   Widget _buildMapSettings() {
     final config = widget.uwbService.config;
     return SingleChildScrollView(
@@ -558,7 +555,6 @@ class _UwbSettingsPanelState extends State<UwbSettingsPanel>
     }
   }
 
-  // 网格设置 Tab
   Widget _buildGridSettings() {
     final config = widget.uwbService.config;
     return SingleChildScrollView(
@@ -603,7 +599,6 @@ class _UwbSettingsPanelState extends State<UwbSettingsPanel>
     );
   }
 
-  // 串口配置 Tab
   Widget _buildSerialSettings() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -664,7 +659,7 @@ class _UwbSettingsPanelState extends State<UwbSettingsPanel>
                     DropdownMenuItem(value: rate, child: Text('$rate')))
                 .toList(),
             onChanged: (value) {
-              // TODO: update baud rate in UwbService
+
             },
           ),
           const SizedBox(height: 16),
@@ -732,8 +727,6 @@ class _UwbSettingsPanelState extends State<UwbSettingsPanel>
       ),
     );
   }
-
-  // ==================== Helper Widgets ====================
 
   Widget _buildSectionTitle(String title) {
     return Padding(
