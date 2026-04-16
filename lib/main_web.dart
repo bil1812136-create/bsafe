@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:bsafe_app/services/supabase_service.dart';
-import 'package:bsafe_app/theme/app_theme.dart';
-import 'package:bsafe_app/screens/web/web_dashboard_screen.dart';
+import 'package:bsafe_app/infrastructure/supabase_service.dart';
+import 'package:bsafe_app/core/theme/app_theme.dart';
+import 'package:bsafe_app/features/surveyor_web/presentation/pages/web_dashboard_page.dart';
 
 /// ══════════════════════════════════════════════════════════
 /// B-SAFE Web Dashboard — 公司管理後台

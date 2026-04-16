@@ -1,259 +1,163 @@
-# B-SAFE Flutter App
+# B-SAFE — Smart City Building Safety App
 
-B-SAFE is a smart building safety platform built with Flutter. It includes:
+Flutter application for building safety inspection, defect reporting, AI-powered analysis, and UWB indoor positioning.
 
-- A mobile app for on-site workers to report issues with AI-assisted risk assessment.
-- A web dashboard for company staff to review reports, update status, and send follow-up messages.
+---
 
-Both clients share data through Supabase.
+## Architecture
 
-## Key Features
+This project follows **Feature-First Clean Architecture**.
 
-### Mobile App (lib/main.dart)
-- Create safety reports with title, description, category, severity, and optional image.
-- AI analysis (online) with local fallback logic (offline/unavailable AI).
-- Risk classification (`low`, `medium`, `high`) with risk score and urgent flag.
-- GPS location capture.
-- Report history and detail view.
-- Worker follow-up response flow (text + optional image).
-- Status update (typically `pending` / `in_progress` on worker side).
-- Manual offline mode toggle and connectivity indicator.
-- Building inspection module (UWB-related workflow, projects, floor plans, defects).
+```
+lib/
+├── core/                          # App-wide infrastructure
+│   ├── config/app_config.dart     # API keys, Supabase URL, Gemini model
+│   ├── constants/                 # AppColors, AppRoutes
+│   ├── di/service_locator.dart    # Dependency injection setup
+│   ├── error/                     # Failures, Exceptions
+│   ├── network/http_client.dart   # Shared HTTP client
+│   ├── providers/                 # ConnectivityProvider, LanguageProvider, NavigationProvider
+│   ├── theme/app_theme.dart       # Colors, getRiskColor(), getRiskLabel()
+│   ├── usecases/usecase.dart      # Abstract UseCase<T,P> + NoParams
+│   └── utils/extensions.dart     # Dart extension methods
+│
+├── features/
+│   ├── ai_analysis/               # Gemini AI image analysis
+│   │   ├── data/datasources/ai_remote_datasource.dart
+│   │   ├── data/repositories/
+│   │   ├── domain/entities/ai_result.dart
+│   │   ├── domain/repositories/
+│   │   └── domain/usecases/analyze_image.dart
+│   │
+│   ├── building_medical_record/   # Floor-plan inspection + UWB pin placement
+│   │   ├── data/models/           # InspectionModel, ProjectModel
+│   │   ├── presentation/pages/    # ProjectListPage, InspectionPage
+│   │   └── presentation/providers/inspection_provider.dart
+│   │
+│   ├── dashboard/                 # Risk statistics & charts
+│   │   └── presentation/pages/analysis_page.dart
+│   │
+│   ├── defect_reporting/          # Full CRUD defect reports + AI analysis
+│   │   ├── data/datasources/report_remote_datasource.dart
+│   │   ├── data/models/report_model.dart
+│   │   ├── data/repositories/
+│   │   ├── domain/entities/report.dart      # ConversationMessage defined here
+│   │   ├── domain/repositories/
+│   │   ├── domain/usecases/                 # GetReports, CreateReport, UpdateStatus, SubmitWorkerResponse
+│   │   ├── presentation/pages/              # ReportPage, HistoryPage, ReportDetailPage
+│   │   └── presentation/providers/report_provider.dart
+│   │
+│   ├── home/                      # Quick-report dashboard with AI + floor-plan pin
+│   │   └── presentation/pages/home_page.dart
+│   │
+│   ├── location/                  # UWB indoor positioning
+│   │   └── presentation/pages/   # LocationPage, CalibrationPage
+│   │
+│   ├── notification/              # Worker follow-up messages
+│   │   └── presentation/pages/followup_page.dart
+│   │
+│   ├── surveyor_web/              # Web portal for company surveyors
+│   │   └── presentation/pages/   # WebDashboardPage, WebReportDetailPage
+│   │
+│   └── uwb_positioning/
+│       └── data/models/uwb_model.dart  # UwbAnchor, UwbTag, UwbConfig, TrajectoryPoint
+│
+├── services/                      # Platform / hardware infrastructure services
+│   ├── supabase_service.dart       # Cloud sync, real-time, storage
+│   ├── uwb_service.dart            # UWB TWR hardware driver
+│   ├── desktop_serial_service.dart # PC serial port (flutter_libserialport)
+│   ├── mobile_serial_service.dart  # Android serial port (usb_serial)
+│   ├── yolo_service.dart           # On-device YOLO crack detection
+│   └── word_export_service.dart    # Generate .docx inspection reports
+│
+├── shared/
+│   └── widgets/                   # Reusable UI components used across features
+│       ├── ai_analysis_result.dart
+│       ├── animated_counter.dart
+│       ├── category_selector.dart
+│       ├── recent_report_card.dart
+│       ├── report_detail_card.dart
+│       ├── severity_selector.dart
+│       ├── shimmer_loading.dart
+│       ├── stat_card.dart
+│       ├── uwb_data_tables.dart
+│       ├── uwb_position_canvas.dart
+│       └── uwb_settings_panel.dart
+│
+├── main.dart                      # App entry point (mobile)
+└── main_web.dart                  # App entry point (web portal)
+```
 
-### Web Dashboard (lib/main_web.dart)
-- Report list and dashboard-style management view.
-- Detailed report view with status updates.
-- Company-to-worker follow-up messaging.
-- Shared cloud data with the mobile app through Supabase.
+---
 
-### Synchronization
-- Reports are persisted in Supabase (`reports` table).
-- Report detail updates are auto-refreshed using polling in `RealtimeService` (every 5 seconds).
+## Are `services/` and `shared/widgets/` valid in Feature-First Architecture?
+
+### `lib/shared/widgets/` ✅ Correct placement
+
+Cross-feature UI primitives belong in `shared/`. A widget should only move into a feature folder when it is used by that feature alone and is tightly coupled to its domain logic.
+
+### `lib/services/` ✅ Justified as shared infrastructure
+
+In strict Clean Architecture, datasources live inside each feature's `data/` layer (e.g., `AiRemoteDataSource`). The files in `lib/services/` are kept here because they are **hardware/platform drivers**, not business logic:
+
+| Service | Why it stays in `services/` |
+|---|---|
+| `supabase_service.dart` | Used by 3+ features; wraps raw Supabase SDK |
+| `uwb_service.dart` | Hardware driver used by `location` + `building_medical_record` + shared widgets |
+| `desktop_serial_service.dart` | Platform I/O; used by UWB service + 2 features |
+| `mobile_serial_service.dart` | Platform I/O for Android |
+| `yolo_service.dart` | On-device ML inference, single entry point |
+| `word_export_service.dart` | File generation, no business logic |
+
+This is a common and accepted pragmatic decision in Flutter projects with hardware integrations.
+
+---
 
 ## Tech Stack
 
-- Flutter
-- Provider (state management)
-- Supabase (database + storage)
-- HTTP APIs for AI analysis
-- `ultralytics_yolo` for object detection integration
-- `sqflite` is present in the project for legacy/offline support patterns
+| Concern | Package |
+|---|---|
+| State management | `provider ^6.1.1` |
+| Cloud backend | `supabase_flutter ^2.3.4` |
+| AI analysis | Gemini 2.5 Flash (via HTTP) |
+| Charts | `fl_chart ^0.66.0` |
+| UWB/Serial (desktop) | `flutter_libserialport ^0.6.0` |
+| UWB/Serial (mobile) | `usb_serial ^0.5.2` |
+| Object detection | `ultralytics_yolo ^0.2.0` |
+| Image picker | `image_picker ^1.0.7` |
+| File picker | `file_picker ^10.3.10` |
+| PDF view | `pdfrx ^2.2.24` |
+| Word export | `archive ^4.0.9` |
+| Location | `geolocator ^10.1.0` + `geocoding ^2.1.1` |
+| Local storage | `shared_preferences ^2.2.2` |
+| SVG | `flutter_svg ^2.3.3` |
 
-## Project Structure
+---
 
-```text
-flutter_app/
-├── lib/
-│   ├── main.dart                    # Mobile entry point
-│   ├── main_web.dart                # Web dashboard entry point
-│   ├── models/                      # Domain models (report, inspection, project, uwb)
-│   ├── providers/                   # App state and business flow
-│   ├── services/                    # Supabase, AI API, realtime polling, UWB, export
-│   ├── screens/                     # Mobile screens + web screens
-│   ├── widgets/                     # Reusable UI components
-│   └── theme/                       # App theme
-├── assets/
-├── android/
-├── web/
-└── pubspec.yaml
+## Key Patterns
+
+**Use-cases** — every business operation goes through a typed use-case:
+```dart
+// domain/usecases/analyze_image.dart
+class AnalyzeImage extends UseCase<Map<String,dynamic>, AnalyzeImageParams> {...}
 ```
 
-## Prerequisites
+**Providers** — `ChangeNotifier` providers live in `features/<name>/presentation/providers/`. Core app state (connectivity, language, navigation) lives in `core/providers/`.
 
-- Flutter SDK (stable channel)
-- Dart SDK (compatible with the Flutter version)
-- Android Studio / Android SDK for Android builds
-- Chrome for web development
-- A Supabase project
+**Single model source** — `ConversationMessage` is defined in `features/defect_reporting/domain/entities/report.dart`. `ReportModel` is the data-layer extension of `Report`. All services import from feature paths directly.
 
-Check your environment:
+**AI fallback** — `AiRemoteDataSource.localFallback(severity, category)` provides offline scores when Gemini is unreachable.
+
+---
+
+## Running
 
 ```bash
-flutter doctor
+# Mobile (Android/Linux)
+flutter run
+
+# Web (surveyor portal)
+flutter run -t lib/main_web.dart -d chrome
 ```
 
-## Setup
-
-### 1) Install dependencies
-
-```bash
-flutter pub get
-```
-
-### 2) Configure Supabase
-
-This project reads Supabase constants from:
-
-- `lib/services/supabase_service.dart`
-
-Update these values if you are using your own project:
-
-- `supabaseUrl`
-- `supabaseAnonKey`
-
-### 3) Database schema (minimum required)
-
-Run the following SQL in Supabase SQL Editor:
-
-```sql
-CREATE TABLE IF NOT EXISTS reports (
-  id                    BIGSERIAL PRIMARY KEY,
-  local_id              INTEGER,
-  title                 TEXT NOT NULL,
-  description           TEXT NOT NULL,
-  category              TEXT NOT NULL,
-  severity              TEXT NOT NULL,
-  risk_level            TEXT DEFAULT 'low',
-  risk_score            INTEGER DEFAULT 0,
-  is_urgent             BOOLEAN DEFAULT FALSE,
-  status                TEXT DEFAULT 'pending',
-  image_url             TEXT,
-  image_base64          TEXT,
-  location              TEXT,
-  latitude              DOUBLE PRECISION,
-  longitude             DOUBLE PRECISION,
-  ai_analysis           TEXT,
-  company_notes         TEXT,
-  worker_response       TEXT,
-  worker_response_image TEXT,
-  conversation          JSONB,
-  has_unread_company    BOOLEAN DEFAULT FALSE,
-  created_at            TIMESTAMPTZ DEFAULT NOW(),
-  updated_at            TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(local_id)
-);
-
-ALTER TABLE reports ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS allow_all ON reports;
-CREATE POLICY allow_all
-ON reports
-FOR ALL
-USING (true)
-WITH CHECK (true);
-```
-
-### 4) Storage buckets
-
-Create these Supabase Storage buckets as `Public`:
-
-- `report-images`
-- `floor-plans`
-
-### 5) Optional inspection table
-
-If you use the inspection module, create this table:
-
-```sql
-CREATE TABLE IF NOT EXISTS inspection_sessions (
-  session_id      TEXT PRIMARY KEY,
-  name            TEXT NOT NULL,
-  project_id      TEXT,
-  floor           INTEGER DEFAULT 1,
-  floor_plan_path TEXT,
-  status          TEXT DEFAULT 'active',
-  payload         JSONB NOT NULL,
-  created_at      TIMESTAMPTZ DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ DEFAULT NOW()
-);
-
-ALTER TABLE inspection_sessions ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS inspection_sessions_allow_all ON inspection_sessions;
-CREATE POLICY inspection_sessions_allow_all
-ON inspection_sessions
-FOR ALL
-USING (true)
-WITH CHECK (true);
-```
-
-## Run the App
-
-### Mobile app (Android)
-
-```bash
-flutter run -d android
-```
-
-Or specify a device ID:
-
-```bash
-flutter devices
-flutter run -d <device_id>
-```
-
-### Web dashboard
-
-```bash
-flutter run -d chrome --target lib/main_web.dart
-```
-
-### Build web
-
-```bash
-flutter build web --target lib/main_web.dart
-```
-
-## Main Workflows
-
-### Worker report flow
-1. Create report in the mobile app.
-2. Optional AI analysis enriches category/risk result.
-3. Report is saved to Supabase.
-4. Company reviews and updates status in web dashboard.
-5. Worker and company exchange follow-up messages in report detail.
-
-### Follow-up updates
-- Company messages are saved in `conversation` and mark unread flags.
-- Worker views details and can clear unread state.
-- UI refresh is driven by periodic polling in `RealtimeService`.
-
-## Important Notes
-
-- `ReportProvider` currently loads report data from Supabase.
-- If Supabase config is missing/invalid, cloud features are unavailable.
-- The app includes both modern cloud flows and some legacy service files.
-
-## Common Commands
-
-```bash
-# Get packages
-flutter pub get
-
-# Analyze code
-flutter analyze
-
-# Run tests
-flutter test
-
-# Clean build artifacts
-flutter clean
-```
-
-## Troubleshooting
-
-### Push rejected (non-fast-forward)
-If Git push is rejected because your branch is behind remote:
-
-```bash
-git pull --rebase origin <branch>
-git push origin <branch>
-```
-
-If you intentionally want to discard local changes and match remote:
-
-```bash
-git fetch origin
-git reset --hard origin/<branch>
-git clean -fd
-```
-
-### Supabase errors
-- Confirm URL/key in `lib/services/supabase_service.dart`.
-- Verify the `reports` table exists.
-- Verify RLS policy allows required operations.
-- Verify storage buckets are created.
-
-## License
-
-This project currently has no explicit license file in this directory. Add a `LICENSE` file if you plan to distribute it.
+Configure `lib/core/config/app_config.dart` with your Supabase URL, anon key, and Gemini API key before running.

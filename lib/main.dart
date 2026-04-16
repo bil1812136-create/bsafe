@@ -3,19 +3,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:bsafe_app/providers/report_provider.dart';
-import 'package:bsafe_app/providers/connectivity_provider.dart';
-import 'package:bsafe_app/providers/inspection_provider.dart';
-import 'package:bsafe_app/providers/language_provider.dart';
-import 'package:bsafe_app/providers/navigation_provider.dart';
-import 'package:bsafe_app/screens/home_screen.dart';
-import 'package:bsafe_app/screens/report_screen.dart';
-import 'package:bsafe_app/screens/history_screen.dart';
-import 'package:bsafe_app/screens/analysis_screen.dart';
-import 'package:bsafe_app/screens/inspection_screen.dart';
-import 'package:bsafe_app/screens/followup_screen.dart';
-import 'package:bsafe_app/theme/app_theme.dart';
-import 'package:bsafe_app/services/supabase_service.dart';
+import 'package:bsafe_app/features/defect_reporting/presentation/providers/report_provider.dart';
+import 'package:bsafe_app/core/providers/connectivity_provider.dart';
+import 'package:bsafe_app/features/building_medical_record/presentation/providers/inspection_provider.dart';
+import 'package:bsafe_app/core/providers/language_provider.dart';
+import 'package:bsafe_app/core/providers/navigation_provider.dart';
+import 'package:bsafe_app/features/home/presentation/pages/home_page.dart';
+import 'package:bsafe_app/features/defect_reporting/presentation/pages/report_page.dart';
+import 'package:bsafe_app/features/defect_reporting/presentation/pages/history_page.dart';
+import 'package:bsafe_app/features/dashboard/presentation/pages/analysis_page.dart';
+import 'package:bsafe_app/features/location/presentation/pages/location_page.dart';
+import 'package:bsafe_app/features/notification/presentation/pages/followup_page.dart';
+import 'package:bsafe_app/core/theme/app_theme.dart';
+import 'package:bsafe_app/infrastructure/supabase_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -79,11 +79,11 @@ class MainNavigationScreen extends StatefulWidget {
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   final List<Widget> _screens = [
     const HomeScreen(),
-    const ReportScreen(),
-    const HistoryScreen(),
+    const ReportPage(),
+    const HistoryPage(),
     const AnalysisScreen(),
     const FollowUpScreen(),
-    const InspectionScreen(), // 位置 tab — 使用現有 UWB 定位功能
+    const LocationScreen(), // 位置 tab — UWB 定位功能
   ];
 
   @override
@@ -105,7 +105,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 children: [
                   const Icon(Icons.shield, size: 24),
                   const SizedBox(width: 8),
-                  const Text('B-SAFE'),
+                  const Text('B-SAFE 建築安全'),
                   const SizedBox(width: 12),
                   Consumer<ConnectivityProvider>(
                     builder: (context, connectivity, _) {
