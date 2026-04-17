@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:io' show Platform;
 import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart'
+    hide Consumer, ChangeNotifierProvider;
 import 'package:bsafe_app/features/uwb_positioning/data/models/uwb_model.dart';
 import 'package:bsafe_app/infrastructure/uwb_service.dart';
 import 'package:bsafe_app/infrastructure/desktop_serial_service.dart';
@@ -11,14 +13,14 @@ import 'package:bsafe_app/shared/widgets/uwb_data_tables.dart';
 import 'package:bsafe_app/core/providers/language_provider.dart';
 import 'package:bsafe_app/core/theme/app_theme.dart';
 
-class LocationScreen extends StatefulWidget {
+class LocationScreen extends ConsumerStatefulWidget {
   const LocationScreen({super.key});
 
   @override
-  State<LocationScreen> createState() => _LocationScreenState();
+  ConsumerState<LocationScreen> createState() => _LocationScreenState();
 }
 
-class _LocationScreenState extends State<LocationScreen>
+class _LocationScreenState extends ConsumerState<LocationScreen>
     with SingleTickerProviderStateMixin {
   late UwbService _uwbService;
   late TabController _tabController;
@@ -42,7 +44,7 @@ class _LocationScreenState extends State<LocationScreen>
 
   @override
   Widget build(BuildContext context) {
-    final language = context.watch<LanguageProvider>();
+    final language = ref.watch(languageNotifierProvider);
 
     return ChangeNotifierProvider.value(
       value: _uwbService,
@@ -52,9 +54,7 @@ class _LocationScreenState extends State<LocationScreen>
             children: [
               Column(
                 children: [
-
                   _buildHeader(),
-
                   Container(
                     margin: const EdgeInsets.symmetric(horizontal: 16),
                     decoration: BoxDecoration(
@@ -79,7 +79,6 @@ class _LocationScreenState extends State<LocationScreen>
                     ),
                   ),
                   const SizedBox(height: 16),
-
                   Expanded(
                     child: TabBarView(
                       controller: _tabController,
@@ -91,7 +90,6 @@ class _LocationScreenState extends State<LocationScreen>
                   ),
                 ],
               ),
-
               Consumer<UwbService>(
                 builder: (context, uwbService, _) {
                   if (uwbService.lastError == null) return const SizedBox();
@@ -220,7 +218,6 @@ class _LocationScreenState extends State<LocationScreen>
                                 fontSize: 14,
                               ),
                             ),
-
                             if (uwbService.isConnected &&
                                 uwbService.lastDataTime != null)
                               Padding(
@@ -248,7 +245,6 @@ class _LocationScreenState extends State<LocationScreen>
                 ],
               ),
               const SizedBox(height: 12),
-
               Row(
                 children: [
                   Expanded(
@@ -359,14 +355,11 @@ class _LocationScreenState extends State<LocationScreen>
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-
               Expanded(
                 child: Column(
                   children: [
-
                     Row(
                       children: [
-
                         IconButton(
                           onPressed: () {
                             setState(() {
@@ -381,7 +374,6 @@ class _LocationScreenState extends State<LocationScreen>
                           ),
                           tooltip: '快捷設置',
                         ),
-
                         IconButton(
                           onPressed: () {
                             setState(() {
@@ -397,7 +389,6 @@ class _LocationScreenState extends State<LocationScreen>
                           ),
                           tooltip: '完整設置',
                         ),
-
                         IconButton(
                           onPressed: () {
                             uwbService.clearTrajectory();
@@ -407,7 +398,6 @@ class _LocationScreenState extends State<LocationScreen>
                           tooltip: '清除軌跡',
                         ),
                         const Spacer(),
-
                         Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 12, vertical: 6),
@@ -434,11 +424,8 @@ class _LocationScreenState extends State<LocationScreen>
                         ),
                       ],
                     ),
-
                     if (_showSettings) _buildSettingsPanel(uwbService),
-
                     const SizedBox(height: 8),
-
                     Expanded(
                       child: UwbPositionCanvas(
                         anchors: uwbService.anchors,
@@ -452,7 +439,6 @@ class _LocationScreenState extends State<LocationScreen>
                   ],
                 ),
               ),
-
               if (_showFullSettings) ...[
                 const SizedBox(width: 16),
                 UwbSettingsPanel(
@@ -526,7 +512,6 @@ class _LocationScreenState extends State<LocationScreen>
             ],
           ),
           const SizedBox(height: 12),
-
           if (uwbService.config.showFence) ...[
             Row(
               children: [
@@ -640,11 +625,8 @@ class _LocationScreenState extends State<LocationScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-
               UwbDataPanel(uwbService: uwbService),
-
               const SizedBox(height: 24),
-
               _buildInfoCard(
                 title: '標籤數據',
                 icon: Icons.person_pin_circle,
@@ -675,7 +657,6 @@ class _LocationScreenState extends State<LocationScreen>
                       ),
               ),
               const SizedBox(height: 16),
-
               _buildInfoCard(
                 title: '基站距離',
                 icon: Icons.radar,
@@ -707,13 +688,11 @@ class _LocationScreenState extends State<LocationScreen>
                       ),
               ),
               const SizedBox(height: 16),
-
               _buildInfoCard(
                 title: '基站配置',
                 icon: Icons.settings_input_antenna,
                 child: Column(
                   children: [
-
                     ...uwbService.anchors.asMap().entries.map((entry) {
                       final index = entry.key;
                       final anchor = entry.value;
@@ -729,7 +708,6 @@ class _LocationScreenState extends State<LocationScreen>
                 ),
               ),
               const SizedBox(height: 16),
-
               _buildInfoCard(
                 title: '操作',
                 icon: Icons.tune,
@@ -762,7 +740,6 @@ class _LocationScreenState extends State<LocationScreen>
                 ),
               ),
               const SizedBox(height: 16),
-
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -1019,7 +996,6 @@ class _LocationScreenState extends State<LocationScreen>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-
             Row(
               children: [
                 const Icon(Icons.usb, color: AppTheme.primaryColor),
@@ -1040,7 +1016,6 @@ class _LocationScreenState extends State<LocationScreen>
             ),
             const Divider(),
             const SizedBox(height: 8),
-
             _buildConnectOption(
               icon: Icons.wifi_tethering,
               title: '自動連接 BU04',
@@ -1052,7 +1027,6 @@ class _LocationScreenState extends State<LocationScreen>
               },
             ),
             const SizedBox(height: 12),
-
             _buildConnectOption(
               icon: Icons.edit_location_alt,
               title: '手動輸入坐標',
@@ -1064,7 +1038,6 @@ class _LocationScreenState extends State<LocationScreen>
               },
             ),
             const SizedBox(height: 12),
-
             _buildConnectOption(
               icon: Icons.play_circle_outline,
               title: '模擬演示模式',
@@ -1075,9 +1048,7 @@ class _LocationScreenState extends State<LocationScreen>
                 uwbService.connect(simulate: true);
               },
             ),
-
             const SizedBox(height: 20),
-
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -1166,7 +1137,6 @@ class _LocationScreenState extends State<LocationScreen>
   }
 
   void _showSerialConnectDialog(BuildContext context, UwbService uwbService) {
-
     if (kIsWeb) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1240,7 +1210,6 @@ class _LocationScreenState extends State<LocationScreen>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-
             Row(
               children: [
                 const Icon(Icons.usb, color: AppTheme.primaryColor),
@@ -1253,7 +1222,6 @@ class _LocationScreenState extends State<LocationScreen>
                   ),
                 ),
                 const Spacer(),
-
                 IconButton(
                   onPressed: () {
                     Navigator.pop(context);
@@ -1269,7 +1237,6 @@ class _LocationScreenState extends State<LocationScreen>
               ],
             ),
             const Divider(),
-
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Text(
@@ -1280,15 +1247,12 @@ class _LocationScreenState extends State<LocationScreen>
                 ),
               ),
             ),
-
             ...ports.map((port) => _buildPortItem(
                   context,
                   port: port,
                   uwbService: uwbService,
                 )),
-
             const SizedBox(height: 16),
-
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -1324,7 +1288,6 @@ class _LocationScreenState extends State<LocationScreen>
     required String port,
     required UwbService uwbService,
   }) {
-
     final String portName = port;
     String portDescription = '串口設備';
 
@@ -1404,7 +1367,6 @@ class _LocationScreenState extends State<LocationScreen>
     UwbService uwbService,
     String portName,
   ) async {
-
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1542,7 +1504,6 @@ class _LocationScreenState extends State<LocationScreen>
               final z = double.tryParse(zController.text) ?? 0.0;
 
               if (x != null && y != null) {
-
                 final dataStr = '$x,$y,$z';
                 uwbService.processSerialData(dataStr);
 

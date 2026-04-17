@@ -4,7 +4,6 @@ import 'package:http/http.dart' as http;
 import 'package:bsafe_app/core/config/app_config.dart';
 
 class AiRemoteDataSource {
-
   static final AiRemoteDataSource instance = AiRemoteDataSource._init();
   AiRemoteDataSource._init();
 
@@ -12,11 +11,13 @@ class AiRemoteDataSource {
     String imageBase64, {
     String? additionalContext,
   }) async {
+    if (AppConfig.geminiApiKey.isEmpty) {
+      debugPrint('ℹ️ Gemini key not configured — using local YOLO analysis');
+      final fallback = _buildLocalFallback(additionalContext);
+      fallback['_ai_mode'] = 'local_fallback';
+      return fallback;
+    }
     try {
-      if (AppConfig.geminiApiKey.isEmpty) {
-        throw Exception(
-            'GEMINI_API_KEY is empty. Run with --dart-define=GEMINI_API_KEY=YOUR_KEY');
-      }
       debugPrint('📸 Sending image to Gemini ${AppConfig.geminiModel}...');
       final result =
           await _queryGemini(imageBase64, additionalContext: additionalContext);
@@ -24,10 +25,33 @@ class AiRemoteDataSource {
       return result;
     } catch (e) {
       debugPrint('❌ AI Analysis Error: $e');
-      final fallback = _localImageAnalysisFallback();
+      final fallback = _buildLocalFallback(additionalContext);
       fallback['_ai_mode'] = 'local_fallback';
       return fallback;
     }
+  }
+
+  /// Builds a local fallback result. If [yoloContext] contains YOLO detection
+  /// data, it is used directly; otherwise returns the generic offline message.
+  Map<String, dynamic> _buildLocalFallback(String? yoloContext) {
+    if (yoloContext != null && yoloContext.contains('[YOLO')) {
+      return {
+        'damage_detected': true,
+        'category': 'structural',
+        'severity': 'moderate',
+        'risk_level': 'medium',
+        'risk_score': 55,
+        'is_urgent': false,
+        'title': '建築安全問題 (本地偵測)',
+        'analysis': yoloContext.replaceFirst('[YOLO Local Detection]\n', ''),
+        'recommendations': [
+          '建議安排專業人員確認偵測結果',
+          '若問題緊急，立即聯絡相關部門',
+          '可設定 Gemini API 金鑰以獲取更詳細分析',
+        ],
+      };
+    }
+    return _localImageAnalysisFallback();
   }
 
   static Map<String, dynamic> localFallback(String severity, String category) {

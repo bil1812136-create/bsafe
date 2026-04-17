@@ -3,7 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
-import 'package:bsafe_app/features/building_medical_record/data/models/inspection_model.dart';
+import 'package:bsafe_app/features/uwb_positioning/building_inspection/data/models/inspection_model.dart';
 
 class WordExportService {
 

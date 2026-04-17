@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
-import 'package:bsafe_app/features/building_medical_record/data/models/project_model.dart';
-import 'package:bsafe_app/features/building_medical_record/presentation/providers/inspection_provider.dart';
-import 'package:bsafe_app/features/building_medical_record/presentation/pages/inspection_page.dart';
+import 'package:bsafe_app/features/uwb_positioning/building_inspection/data/models/project_model.dart';
+import 'package:bsafe_app/features/uwb_positioning/building_inspection/presentation/providers/inspection_provider.dart';
+import 'package:bsafe_app/features/uwb_positioning/building_inspection/presentation/pages/inspection_page.dart';
 import 'package:bsafe_app/core/theme/app_theme.dart';
 
 class ProjectListScreen extends StatefulWidget {

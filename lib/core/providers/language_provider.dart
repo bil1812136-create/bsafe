@@ -1,23 +1,29 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 enum AppLanguage { zh, en }
 
-class LanguageProvider extends ChangeNotifier {
-  AppLanguage _language = AppLanguage.zh;
+// Injected via ProviderScope.overrides in main()
+final sharedPreferencesProvider = Provider<SharedPreferences>(
+  (_) => throw UnimplementedError('Override sharedPreferencesProvider'),
+);
 
-  AppLanguage get language => _language;
-  bool get isEnglish => _language == AppLanguage.en;
+const _kLangKey = 'app_language';
 
-  void setLanguage(AppLanguage language) {
-    if (_language == language) return;
-    _language = language;
-    notifyListeners();
-  }
+/// Immutable value that holds locale + translation helper.
+/// Consumers call [t] directly: `final lang = ref.watch(languageNotifierProvider); lang.t('key')`.
+class LanguageState {
+  const LanguageState({this.language = AppLanguage.zh});
 
-  String t(String key) {
-    final table = isEnglish ? _en : _zh;
-    return table[key] ?? key;
-  }
+  final AppLanguage language;
+
+  Locale get locale =>
+      language == AppLanguage.en ? const Locale('en') : const Locale('zh');
+
+  bool get isEnglish => language == AppLanguage.en;
+
+  String t(String key) => isEnglish ? (_en[key] ?? key) : (_zh[key] ?? key);
 
   static const Map<String, String> _zh = {
     'settings': '設定',
@@ -184,3 +190,29 @@ class LanguageProvider extends ChangeNotifier {
     'dismiss': 'Dismiss',
   };
 }
+
+class LanguageNotifier extends Notifier<LanguageState> {
+  @override
+  LanguageState build() {
+    final prefs = ref.read(sharedPreferencesProvider);
+    final saved = prefs.getString(_kLangKey);
+    final lang = saved == 'en' ? AppLanguage.en : AppLanguage.zh;
+    return LanguageState(language: lang);
+  }
+
+  void setLanguage(AppLanguage language) {
+    if (state.language == language) return;
+    state = LanguageState(language: language);
+    ref
+        .read(sharedPreferencesProvider)
+        .setString(_kLangKey, language == AppLanguage.en ? 'en' : 'zh');
+  }
+
+  void toggleLanguage() {
+    setLanguage(
+        state.isEnglish ? AppLanguage.zh : AppLanguage.en);
+  }
+}
+
+final languageNotifierProvider =
+    NotifierProvider<LanguageNotifier, LanguageState>(LanguageNotifier.new);

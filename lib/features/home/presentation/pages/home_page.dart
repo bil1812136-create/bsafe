@@ -7,21 +7,23 @@ import 'package:bsafe_app/features/defect_reporting/presentation/providers/repor
 import 'package:bsafe_app/core/theme/app_theme.dart';
 import 'package:bsafe_app/shared/widgets/shimmer_loading.dart';
 import 'package:bsafe_app/shared/widgets/stat_card.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final language = context.watch<LanguageProvider>();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final language = ref.watch(languageNotifierProvider);
+    final report = ref.watch(reportNotifierProvider);
     return Scaffold(
-      body: Consumer<ReportProvider>(
-        builder: (context, reportProvider, _) {
-          if (reportProvider.isLoading && reportProvider.reports.isEmpty) {
+      body: Builder(
+        builder: (context) {
+          if (report.isLoading && report.reports.isEmpty) {
             return SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -67,10 +69,12 @@ class HomeScreen extends StatelessWidget {
             );
           }
 
-          final stats = reportProvider.statistics;
+          final stats = report.statistics;
+          final trendData = report.trendData;
 
           return RefreshIndicator(
-            onRefresh: () => reportProvider.loadReports(),
+            onRefresh: () =>
+                ref.read(reportNotifierProvider.notifier).loadReports(),
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(16),
@@ -114,7 +118,7 @@ class HomeScreen extends StatelessWidget {
                             fontSize: 16,
                           ),
                         ),
-                        if (reportProvider.pendingSyncCount > 0) ...[
+                        if (report.pendingSyncCount > 0) ...[
                           const SizedBox(height: 12),
                           Container(
                             padding: const EdgeInsets.symmetric(
@@ -132,7 +136,7 @@ class HomeScreen extends StatelessWidget {
                                     color: Colors.white, size: 16),
                                 const SizedBox(width: 6),
                                 Text(
-                                  '${reportProvider.pendingSyncCount} ${language.t('pending_sync_suffix')}',
+                                  '${report.pendingSyncCount} ${language.t('pending_sync_suffix')}',
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w600,
@@ -153,92 +157,258 @@ class HomeScreen extends StatelessWidget {
                         fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
-                  Consumer<NavigationProvider>(
-                    builder: (context, navProvider, _) {
-                      return Row(
-                        children: [
-                          Expanded(
-                            child: StatCard(
-                              title: language.t('high_risk'),
-                              value: '${stats['highRisk'] ?? 0}',
-                              icon: Icons.warning_amber_rounded,
-                              color: AppTheme.riskHigh,
-                              isClickable: true,
-                              onTap: () =>
-                                  navProvider.goToHistory(filterRisk: 'high'),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: StatCard(
-                              title: language.t('medium_risk'),
-                              value: '${stats['mediumRisk'] ?? 0}',
-                              icon: Icons.error_outline,
-                              color: AppTheme.riskMedium,
-                              isClickable: true,
-                              onTap: () =>
-                                  navProvider.goToHistory(filterRisk: 'medium'),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: StatCard(
-                              title: language.t('low_risk'),
-                              value: '${stats['lowRisk'] ?? 0}',
-                              icon: Icons.check_circle_outline,
-                              color: AppTheme.riskLow,
-                              isClickable: true,
-                              onTap: () =>
-                                  navProvider.goToHistory(filterRisk: 'low'),
-                            ),
-                          ),
-                        ],
-                      );
-                    },
+                  Row(
+                    children: [
+                      Expanded(
+                        child: StatCard(
+                          title: language.t('high_risk'),
+                          value: '${stats['highRisk'] ?? 0}',
+                          icon: Icons.warning_amber_rounded,
+                          color: AppTheme.riskHigh,
+                          isClickable: true,
+                          onTap: () => ref
+                              .read(navigationNotifierProvider.notifier)
+                              .goToHistory(filterRisk: 'high'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: StatCard(
+                          title: language.t('medium_risk'),
+                          value: '${stats['mediumRisk'] ?? 0}',
+                          icon: Icons.error_outline,
+                          color: AppTheme.riskMedium,
+                          isClickable: true,
+                          onTap: () => ref
+                              .read(navigationNotifierProvider.notifier)
+                              .goToHistory(filterRisk: 'medium'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: StatCard(
+                          title: language.t('low_risk'),
+                          value: '${stats['lowRisk'] ?? 0}',
+                          icon: Icons.check_circle_outline,
+                          color: AppTheme.riskLow,
+                          isClickable: true,
+                          onTap: () => ref
+                              .read(navigationNotifierProvider.notifier)
+                              .goToHistory(filterRisk: 'low'),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 16),
-                  Consumer<NavigationProvider>(
-                    builder: (context, navProvider, _) {
-                      return Row(
-                        children: [
-                          Expanded(
-                            child: StatCard(
-                              title: language.t('pending'),
-                              value: '${stats['pending'] ?? 0}',
-                              icon: Icons.pending_actions,
-                              color: Colors.blue,
-                              isClickable: true,
-                              onTap: () =>
-                                  navProvider.goToHistoryByStatus('pending'),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: StatCard(
+                          title: language.t('pending'),
+                          value: '${stats['pending'] ?? 0}',
+                          icon: Icons.pending_actions,
+                          color: Colors.blue,
+                          isClickable: true,
+                          onTap: () => ref
+                              .read(navigationNotifierProvider.notifier)
+                              .goToHistoryByStatus('pending'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: StatCard(
+                          title: language.t('in_progress'),
+                          value: '${stats['in_progress'] ?? 0}',
+                          icon: Icons.work_history,
+                          color: Colors.orange,
+                          isClickable: true,
+                          onTap: () => ref
+                              .read(navigationNotifierProvider.notifier)
+                              .goToHistoryByStatus('in_progress'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: StatCard(
+                          title: language.t('resolved'),
+                          value: '${stats['resolved'] ?? 0}',
+                          icon: Icons.task_alt,
+                          color: Colors.green,
+                          isClickable: true,
+                          onTap: () => ref
+                              .read(navigationNotifierProvider.notifier)
+                              .goToHistoryByStatus('resolved'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    language.t('risk_distribution'),
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.05),
+                          blurRadius: 10,
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        SizedBox(
+                          height: 200,
+                          child: _buildPieChart(stats),
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: [
+                            _LegendItem(
+                              color: AppTheme.riskHigh,
+                              label: language.t('high_risk'),
+                              value: stats['highRisk'] ?? 0,
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: StatCard(
-                              title: language.t('in_progress'),
-                              value: '${stats['in_progress'] ?? 0}',
-                              icon: Icons.work_history,
-                              color: Colors.orange,
-                              isClickable: true,
-                              onTap: () => navProvider
-                                  .goToHistoryByStatus('in_progress'),
+                            _LegendItem(
+                              color: AppTheme.riskMedium,
+                              label: language.t('medium_risk'),
+                              value: stats['mediumRisk'] ?? 0,
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: StatCard(
-                              title: language.t('resolved'),
-                              value: '${stats['resolved'] ?? 0}',
-                              icon: Icons.task_alt,
-                              color: Colors.green,
-                              isClickable: true,
-                              onTap: () =>
-                                  navProvider.goToHistoryByStatus('resolved'),
+                            _LegendItem(
+                              color: AppTheme.riskLow,
+                              label: language.t('low_risk'),
+                              value: stats['lowRisk'] ?? 0,
                             ),
-                          ),
-                        ],
-                      );
-                    },
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    language.t('trend_7days'),
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.05),
+                          blurRadius: 10,
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        SizedBox(
+                          height: 220,
+                          child: _buildLineChart(trendData),
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            _ChartLegend(
+                                color: AppTheme.riskHigh,
+                                label: language.t('high_abbr')),
+                            const SizedBox(width: 20),
+                            _ChartLegend(
+                                color: AppTheme.riskMedium,
+                                label: language.t('medium_abbr')),
+                            const SizedBox(width: 20),
+                            _ChartLegend(
+                                color: AppTheme.riskLow,
+                                label: language.t('low_abbr')),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    language.t('processing_status'),
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.05),
+                          blurRadius: 10,
+                        ),
+                      ],
+                    ),
+                    child: SizedBox(
+                      height: 200,
+                      child: _buildBarChart(stats),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    '📌 重點數據',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _SummaryCard(
+                          title: '需緊急處理',
+                          value: '${stats['urgent'] ?? 0}',
+                          icon: Icons.warning_amber_rounded,
+                          color: AppTheme.riskHigh,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _SummaryCard(
+                          title: '本月新增',
+                          value: '${stats['total'] ?? 0}',
+                          icon: Icons.add_chart,
+                          color: AppTheme.primaryColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _SummaryCard(
+                          title: '處理中',
+                          value:
+                              '${(stats['total'] ?? 0) - (stats['pending'] ?? 0) - (stats['resolved'] ?? 0)}',
+                          icon: Icons.autorenew,
+                          color: Colors.blue,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _SummaryCard(
+                          title: '完成率',
+                          value: _calculateCompletionRate(stats),
+                          icon: Icons.check_circle,
+                          color: AppTheme.riskLow,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 24),
                   Text(
@@ -259,14 +429,15 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class _HomeQuickReportPanel extends StatefulWidget {
+class _HomeQuickReportPanel extends ConsumerStatefulWidget {
   const _HomeQuickReportPanel();
 
   @override
-  State<_HomeQuickReportPanel> createState() => _HomeQuickReportPanelState();
+  ConsumerState<_HomeQuickReportPanel> createState() =>
+      _HomeQuickReportPanelState();
 }
 
-class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
+class _HomeQuickReportPanelState extends ConsumerState<_HomeQuickReportPanel> {
   final ImagePicker _picker = ImagePicker();
   final TextEditingController _locationTextController = TextEditingController();
 
@@ -361,7 +532,7 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
 
     setState(() => _isAnalyzing = true);
     try {
-      final reportProvider = context.read<ReportProvider>();
+      final reportProvider = ref.read(reportNotifierProvider.notifier);
       final result = await reportProvider.analyzeImage(_imageBase64!);
       if (!mounted) return;
 
@@ -519,16 +690,16 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
 
     setState(() => _isSubmitting = true);
     try {
-      final reportProvider = context.read<ReportProvider>();
-      final connectivity = context.read<ConnectivityProvider>();
-      final navigation = context.read<NavigationProvider>();
+      final reportNotifier = ref.read(reportNotifierProvider.notifier);
+      final connectivity = ref.read(connectivityNotifierProvider);
+      final navigation = ref.read(navigationNotifierProvider.notifier);
 
       final title = (_aiResult?['title'] as String?)?.trim();
       final description = _extractAiText().trim();
       final category = (_aiResult?['category'] as String?) ?? 'structural';
       final severity = (_aiResult?['severity'] as String?) ?? 'moderate';
 
-      final saved = await reportProvider.addReport(
+      final saved = await reportNotifier.addReport(
         title: (title?.isNotEmpty ?? false) ? title! : '建築安全問題',
         description: description.isNotEmpty ? description : 'AI 分析結果',
         category: category,
@@ -556,7 +727,8 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
         });
         navigation.goToHistory();
       } else {
-        _showMessage(reportProvider.error ?? '提交失敗', isError: true);
+        _showMessage(ref.read(reportNotifierProvider).error ?? '提交失敗',
+            isError: true);
       }
     } catch (e) {
       _showMessage('提交失敗: $e', isError: true);
@@ -909,6 +1081,359 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Chart helpers ───────────────────────────────────────────────────────────
+
+String _calculateCompletionRate(Map<String, dynamic> stats) {
+  final total = stats['total'] ?? 0;
+  final resolved = stats['resolved'] ?? 0;
+  if (total == 0) return '0%';
+  return '${((resolved / total) * 100).toStringAsFixed(1)}%';
+}
+
+Widget _buildPieChart(Map<String, dynamic> stats) {
+  final high = (stats['highRisk'] ?? 0).toDouble();
+  final medium = (stats['mediumRisk'] ?? 0).toDouble();
+  final low = (stats['lowRisk'] ?? 0).toDouble();
+  final total = high + medium + low;
+
+  if (total == 0) {
+    return const Center(
+      child: Text('暫無數據', style: TextStyle(color: Colors.grey)),
+    );
+  }
+
+  return PieChart(
+    PieChartData(
+      sectionsSpace: 2,
+      centerSpaceRadius: 40,
+      sections: [
+        PieChartSectionData(
+          value: high,
+          color: AppTheme.riskHigh,
+          title: high > 0 ? '${(high / total * 100).toStringAsFixed(0)}%' : '',
+          titleStyle: const TextStyle(
+              color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+          radius: 60,
+        ),
+        PieChartSectionData(
+          value: medium,
+          color: AppTheme.riskMedium,
+          title:
+              medium > 0 ? '${(medium / total * 100).toStringAsFixed(0)}%' : '',
+          titleStyle: const TextStyle(
+              color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+          radius: 60,
+        ),
+        PieChartSectionData(
+          value: low,
+          color: AppTheme.riskLow,
+          title: low > 0 ? '${(low / total * 100).toStringAsFixed(0)}%' : '',
+          titleStyle: const TextStyle(
+              color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+          radius: 60,
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _buildLineChart(List<Map<String, dynamic>> trendData) {
+  if (trendData.isEmpty) {
+    return const Center(
+      child: Text('暫無數據', style: TextStyle(color: Colors.grey)),
+    );
+  }
+
+  return LineChart(
+    LineChartData(
+      gridData: FlGridData(
+        show: true,
+        drawVerticalLine: false,
+        horizontalInterval: 1,
+        getDrawingHorizontalLine: (value) =>
+            FlLine(color: Colors.grey.shade200, strokeWidth: 1),
+      ),
+      titlesData: FlTitlesData(
+        leftTitles: AxisTitles(
+          sideTitles: SideTitles(
+            showTitles: true,
+            reservedSize: 30,
+            getTitlesWidget: (value, meta) => Text(
+              value.toInt().toString(),
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+            ),
+          ),
+        ),
+        bottomTitles: AxisTitles(
+          sideTitles: SideTitles(
+            showTitles: true,
+            getTitlesWidget: (value, meta) {
+              final index = value.toInt();
+              if (index >= 0 && index < trendData.length) {
+                return Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    trendData[index]['date'] ?? '',
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 10),
+                  ),
+                );
+              }
+              return const SizedBox();
+            },
+          ),
+        ),
+        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        rightTitles:
+            const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+      ),
+      borderData: FlBorderData(show: false),
+      lineBarsData: [
+        LineChartBarData(
+          spots: trendData
+              .asMap()
+              .entries
+              .map((e) =>
+                  FlSpot(e.key.toDouble(), (e.value['high'] ?? 0).toDouble()))
+              .toList(),
+          color: AppTheme.riskHigh,
+          barWidth: 3,
+          dotData: const FlDotData(show: true),
+          belowBarData: BarAreaData(
+              show: true, color: AppTheme.riskHigh.withValues(alpha: 0.1)),
+        ),
+        LineChartBarData(
+          spots: trendData
+              .asMap()
+              .entries
+              .map((e) =>
+                  FlSpot(e.key.toDouble(), (e.value['medium'] ?? 0).toDouble()))
+              .toList(),
+          color: AppTheme.riskMedium,
+          barWidth: 3,
+          dotData: const FlDotData(show: true),
+          belowBarData: BarAreaData(
+              show: true, color: AppTheme.riskMedium.withValues(alpha: 0.1)),
+        ),
+        LineChartBarData(
+          spots: trendData
+              .asMap()
+              .entries
+              .map((e) =>
+                  FlSpot(e.key.toDouble(), (e.value['low'] ?? 0).toDouble()))
+              .toList(),
+          color: AppTheme.riskLow,
+          barWidth: 3,
+          dotData: const FlDotData(show: true),
+          belowBarData: BarAreaData(
+              show: true, color: AppTheme.riskLow.withValues(alpha: 0.1)),
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _buildBarChart(Map<String, dynamic> stats) {
+  final pending = (stats['pending'] ?? 0).toDouble();
+  final inProgress =
+      ((stats['total'] ?? 0) - pending - (stats['resolved'] ?? 0)).toDouble();
+  final resolved = (stats['resolved'] ?? 0).toDouble();
+
+  return BarChart(
+    BarChartData(
+      alignment: BarChartAlignment.spaceAround,
+      maxY: [pending, inProgress, resolved].reduce((a, b) => a > b ? a : b) + 2,
+      barGroups: [
+        BarChartGroupData(x: 0, barRods: [
+          BarChartRodData(
+              toY: pending,
+              color: Colors.orange,
+              width: 40,
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(6))),
+        ]),
+        BarChartGroupData(x: 1, barRods: [
+          BarChartRodData(
+              toY: inProgress,
+              color: Colors.blue,
+              width: 40,
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(6))),
+        ]),
+        BarChartGroupData(x: 2, barRods: [
+          BarChartRodData(
+              toY: resolved,
+              color: AppTheme.riskLow,
+              width: 40,
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(6))),
+        ]),
+      ],
+      titlesData: FlTitlesData(
+        leftTitles: AxisTitles(
+          sideTitles: SideTitles(
+            showTitles: true,
+            reservedSize: 30,
+            getTitlesWidget: (value, meta) => Text(
+              value.toInt().toString(),
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+            ),
+          ),
+        ),
+        bottomTitles: AxisTitles(
+          sideTitles: SideTitles(
+            showTitles: true,
+            getTitlesWidget: (value, meta) {
+              const titles = ['待處理', '處理中', '已解決'];
+              return Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  titles[value.toInt()],
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w600, fontSize: 12),
+                ),
+              );
+            },
+          ),
+        ),
+        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        rightTitles:
+            const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+      ),
+      gridData: FlGridData(
+        show: true,
+        drawVerticalLine: false,
+        horizontalInterval: 1,
+        getDrawingHorizontalLine: (value) =>
+            FlLine(color: Colors.grey.shade200, strokeWidth: 1),
+      ),
+      borderData: FlBorderData(show: false),
+    ),
+  );
+}
+
+// ─── Legend / summary widgets ─────────────────────────────────────────────────
+
+class _LegendItem extends StatelessWidget {
+  final Color color;
+  final String label;
+  final int value;
+
+  const _LegendItem({
+    required this.color,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          width: 16,
+          height: 16,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(label, style: const TextStyle(fontSize: 12)),
+        Text(
+          '$value',
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+      ],
+    );
+  }
+}
+
+class _ChartLegend extends StatelessWidget {
+  final Color color;
+  final String label;
+
+  const _ChartLegend({required this.color, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+        ),
+      ],
+    );
+  }
+}
+
+class _SummaryCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  const _SummaryCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: color, size: 20),
+              ),
+              const Spacer(),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            value,
+            style: TextStyle(
+                fontSize: 28, fontWeight: FontWeight.bold, color: color),
+          ),
+          Text(
+            title,
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+          ),
         ],
       ),
     );

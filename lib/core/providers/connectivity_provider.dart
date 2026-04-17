@@ -1,51 +1,50 @@
-import 'dart:async';
-import 'package:flutter/material.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class ConnectivityProvider extends ChangeNotifier {
-  bool _isOnline = true;
-  bool _manualOfflineMode = false;
-  late StreamSubscription<ConnectivityResult> _subscription;
+class ConnectivityState {
+  const ConnectivityState({
+    this.isOnline = true,
+    this.isManualOfflineMode = false,
+  });
 
-  bool get isOnline => _manualOfflineMode ? false : _isOnline;
-  bool get isManualOfflineMode => _manualOfflineMode;
+  final bool isOnline;
+  final bool isManualOfflineMode;
 
-  ConnectivityProvider() {
-    _initConnectivity();
-  }
+  /// Effective online status respecting manual override.
+  bool get effectivelyOnline => !isManualOfflineMode && isOnline;
 
-  void _initConnectivity() {
-    Connectivity().checkConnectivity().then((result) {
-      _updateConnectionStatus([result]);
-    });
-
-    _subscription = Connectivity().onConnectivityChanged.listen((result) {
-      _updateConnectionStatus([result]);
-    });
-  }
-
-  void _updateConnectionStatus(List<ConnectivityResult> results) {
-    final wasOnline = _isOnline;
-    _isOnline =
-        results.isNotEmpty && !results.contains(ConnectivityResult.none);
-    if (wasOnline != _isOnline) {
-      notifyListeners();
-    }
-  }
-
-  void toggleManualOfflineMode() {
-    _manualOfflineMode = !_manualOfflineMode;
-    notifyListeners();
-  }
-
-  void setManualOfflineMode(bool offline) {
-    _manualOfflineMode = offline;
-    notifyListeners();
-  }
-
-  @override
-  void dispose() {
-    _subscription.cancel();
-    super.dispose();
-  }
+  ConnectivityState copyWith({bool? isOnline, bool? isManualOfflineMode}) =>
+      ConnectivityState(
+        isOnline: isOnline ?? this.isOnline,
+        isManualOfflineMode: isManualOfflineMode ?? this.isManualOfflineMode,
+      );
 }
+
+class ConnectivityNotifier extends Notifier<ConnectivityState> {
+  @override
+  ConnectivityState build() {
+    final connectivity = Connectivity();
+
+    connectivity.checkConnectivity().then((result) {
+      state = state.copyWith(isOnline: result != ConnectivityResult.none);
+    });
+
+    final sub = connectivity.onConnectivityChanged.listen((result) {
+      state = state.copyWith(isOnline: result != ConnectivityResult.none);
+    });
+
+    ref.onDispose(sub.cancel);
+
+    return const ConnectivityState();
+  }
+
+  void toggleManualOfflineMode() =>
+      state = state.copyWith(isManualOfflineMode: !state.isManualOfflineMode);
+
+  void setManualOfflineMode(bool offline) =>
+      state = state.copyWith(isManualOfflineMode: offline);
+}
+
+final connectivityNotifierProvider =
+    NotifierProvider<ConnectivityNotifier, ConnectivityState>(
+        ConnectivityNotifier.new);

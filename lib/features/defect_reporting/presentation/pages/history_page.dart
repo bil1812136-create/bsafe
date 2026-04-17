@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bsafe_app/features/defect_reporting/data/models/report_model.dart';
 import 'package:bsafe_app/features/defect_reporting/presentation/providers/report_provider.dart';
 import 'package:bsafe_app/features/defect_reporting/presentation/pages/report_detail_page.dart';
@@ -8,14 +8,14 @@ import 'package:bsafe_app/core/providers/language_provider.dart';
 import 'package:bsafe_app/core/theme/app_theme.dart';
 import 'package:bsafe_app/shared/widgets/report_detail_card.dart';
 
-class HistoryPage extends StatefulWidget {
+class HistoryPage extends ConsumerStatefulWidget {
   const HistoryPage({super.key});
 
   @override
-  State<HistoryPage> createState() => _HistoryPageState();
+  ConsumerState<HistoryPage> createState() => _HistoryPageState();
 }
 
-class _HistoryPageState extends State<HistoryPage> {
+class _HistoryPageState extends ConsumerState<HistoryPage> {
   String _searchQuery = '';
   bool _isSyncing = false;
 
@@ -39,9 +39,9 @@ class _HistoryPageState extends State<HistoryPage> {
 
   Future<void> _syncToCloud() async {
     setState(() => _isSyncing = true);
-    final provider = context.read<ReportProvider>();
-    final language = context.read<LanguageProvider>();
-    final count = await provider.syncAllToCloud();
+    final count =
+        await ref.read(reportNotifierProvider.notifier).syncAllToCloud();
+    final language = ref.read(languageNotifierProvider);
     if (mounted) {
       setState(() => _isSyncing = false);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -59,14 +59,16 @@ class _HistoryPageState extends State<HistoryPage> {
 
   @override
   Widget build(BuildContext context) {
-    final language = context.watch<LanguageProvider>();
+    final language = ref.watch(languageNotifierProvider);
+    final reportState = ref.watch(reportNotifierProvider);
+    final navigation = ref.watch(navigationNotifierProvider);
     return Scaffold(
       appBar: AppBar(
         title: Text(language.t('history')),
         actions: [
-          Consumer<ReportProvider>(builder: (context, provider, _) {
+          Builder(builder: (context) {
             final unsyncedCount =
-                provider.reports.where((r) => !r.synced).length;
+                reportState.reports.where((r) => !r.synced).length;
             return Stack(alignment: Alignment.center, children: [
               IconButton(
                 icon: _isSyncing
@@ -118,8 +120,8 @@ class _HistoryPageState extends State<HistoryPage> {
               onChanged: (value) => setState(() => _searchQuery = value),
             ),
           ),
-          Consumer<NavigationProvider>(builder: (context, navProvider, _) {
-            final filterRisk = navProvider.historyFilterRisk;
+          Builder(builder: (context) {
+            final filterRisk = navigation.historyFilterRisk;
             return SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -127,44 +129,47 @@ class _HistoryPageState extends State<HistoryPage> {
                 _FilterChip(
                     label: language.t('all'),
                     isSelected: filterRisk == 'all',
-                    onSelected: () =>
-                        navProvider.setHistoryFilters(risk: 'all')),
+                    onSelected: () => ref
+                        .read(navigationNotifierProvider.notifier)
+                        .setHistoryFilters(risk: 'all')),
                 const SizedBox(width: 8),
                 _FilterChip(
                     label: language.t('high_risk'),
                     isSelected: filterRisk == 'high',
                     color: AppTheme.riskHigh,
-                    onSelected: () =>
-                        navProvider.setHistoryFilters(risk: 'high')),
+                    onSelected: () => ref
+                        .read(navigationNotifierProvider.notifier)
+                        .setHistoryFilters(risk: 'high')),
                 const SizedBox(width: 8),
                 _FilterChip(
                     label: language.t('medium_risk'),
                     isSelected: filterRisk == 'medium',
                     color: AppTheme.riskMedium,
-                    onSelected: () =>
-                        navProvider.setHistoryFilters(risk: 'medium')),
+                    onSelected: () => ref
+                        .read(navigationNotifierProvider.notifier)
+                        .setHistoryFilters(risk: 'medium')),
                 const SizedBox(width: 8),
                 _FilterChip(
                     label: language.t('low_risk'),
                     isSelected: filterRisk == 'low',
                     color: AppTheme.riskLow,
-                    onSelected: () =>
-                        navProvider.setHistoryFilters(risk: 'low')),
+                    onSelected: () => ref
+                        .read(navigationNotifierProvider.notifier)
+                        .setHistoryFilters(risk: 'low')),
               ]),
             );
           }),
           const SizedBox(height: 8),
           Expanded(
-            child: Consumer2<ReportProvider, NavigationProvider>(
-              builder: (context, reportProvider, navProvider, _) {
-                if (reportProvider.isLoading &&
-                    reportProvider.reports.isEmpty) {
+            child: Builder(
+              builder: (context) {
+                if (reportState.isLoading && reportState.reports.isEmpty) {
                   return const Center(child: CircularProgressIndicator());
                 }
                 final filtered = _getFilteredReports(
-                    reportProvider.reports,
-                    navProvider.historyFilterRisk,
-                    navProvider.historyFilterStatus);
+                    reportState.reports,
+                    navigation.historyFilterRisk,
+                    navigation.historyFilterStatus);
                 if (filtered.isEmpty) {
                   return Center(
                       child: Column(
@@ -175,7 +180,7 @@ class _HistoryPageState extends State<HistoryPage> {
                         const SizedBox(height: 16),
                         Text(
                           _searchQuery.isNotEmpty ||
-                                  navProvider.historyFilterRisk != 'all'
+                                  navigation.historyFilterRisk != 'all'
                               ? language.t('no_matching_report')
                               : language.t('no_report_yet'),
                           style: TextStyle(
@@ -184,7 +189,8 @@ class _HistoryPageState extends State<HistoryPage> {
                       ]));
                 }
                 return RefreshIndicator(
-                  onRefresh: () => reportProvider.loadReports(),
+                  onRefresh: () =>
+                      ref.read(reportNotifierProvider.notifier).loadReports(),
                   child: ListView.builder(
                     padding: const EdgeInsets.all(16),
                     itemCount: filtered.length,

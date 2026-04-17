@@ -1,31 +1,44 @@
-import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class NavigationProvider extends ChangeNotifier {
-  int _currentIndex = 0;
-  String _historyFilterRisk = 'all';
-  String _historyFilterStatus =
-      'all';
+class NavigationState {
+  const NavigationState({
+    this.currentIndex = 0,
+    this.historyFilterRisk = 'all',
+    this.historyFilterStatus = 'all',
+  });
 
-  int get currentIndex => _currentIndex;
-  String get historyFilterRisk => _historyFilterRisk;
-  String get historyFilterStatus => _historyFilterStatus;
+  final int currentIndex;
+  final String historyFilterRisk;
+  final String historyFilterStatus;
 
-  void setIndex(int index) {
-    _currentIndex = index;
-    notifyListeners();
-  }
+  NavigationState copyWith({
+    int? currentIndex,
+    String? historyFilterRisk,
+    String? historyFilterStatus,
+  }) =>
+      NavigationState(
+        currentIndex: currentIndex ?? this.currentIndex,
+        historyFilterRisk: historyFilterRisk ?? this.historyFilterRisk,
+        historyFilterStatus: historyFilterStatus ?? this.historyFilterStatus,
+      );
+}
 
-  void setHistoryFilters({String? risk, String? status}) {
-    if (risk != null) _historyFilterRisk = risk;
-    if (status != null) _historyFilterStatus = status;
-    notifyListeners();
-  }
+class NavigationNotifier extends Notifier<NavigationState> {
+  @override
+  NavigationState build() => const NavigationState();
 
-  void clearHistoryFilters() {
-    _historyFilterRisk = 'all';
-    _historyFilterStatus = 'all';
-    notifyListeners();
-  }
+  void setIndex(int index) => state = state.copyWith(currentIndex: index);
+
+  void setHistoryFilters({String? risk, String? status}) =>
+      state = state.copyWith(
+        historyFilterRisk: risk ?? state.historyFilterRisk,
+        historyFilterStatus: status ?? state.historyFilterStatus,
+      );
+
+  void clearHistoryFilters() => state = state.copyWith(
+        historyFilterRisk: 'all',
+        historyFilterStatus: 'all',
+      );
 
   void goToHome() => setIndex(0);
   void goToReport() => setIndex(1);
@@ -35,7 +48,6 @@ class NavigationProvider extends ChangeNotifier {
     setIndex(2);
   }
 
-  void goToAnalysis() => setIndex(3);
   void goToLocation() => setIndex(4);
 
   void goToHistoryByStatus(String status) {
@@ -43,3 +55,7 @@ class NavigationProvider extends ChangeNotifier {
     setIndex(2);
   }
 }
+
+final navigationNotifierProvider =
+    NotifierProvider<NavigationNotifier, NavigationState>(
+        NavigationNotifier.new);

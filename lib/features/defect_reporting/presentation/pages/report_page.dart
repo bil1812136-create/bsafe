@@ -1,8 +1,9 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:async';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:bsafe_app/features/defect_reporting/presentation/providers/report_provider.dart';
 import 'package:bsafe_app/core/providers/connectivity_provider.dart';
@@ -10,20 +11,21 @@ import 'package:bsafe_app/core/providers/navigation_provider.dart';
 import 'package:bsafe_app/core/providers/language_provider.dart';
 import 'package:bsafe_app/core/theme/app_theme.dart';
 import 'package:bsafe_app/shared/widgets/ai_analysis_result.dart';
-import 'package:bsafe_app/infrastructure/yolo_service.dart';
+import 'package:bsafe_app/features/ai/yolo/yolo_service.dart';
 
-class ReportPage extends StatefulWidget {
+class ReportPage extends ConsumerStatefulWidget {
   const ReportPage({super.key});
 
   @override
-  State<ReportPage> createState() => _ReportPageState();
+  ConsumerState<ReportPage> createState() => _ReportPageState();
 }
 
-class _ReportPageState extends State<ReportPage> {
+class _ReportPageState extends ConsumerState<ReportPage> {
   XFile? _selectedImage;
   String? _imageBase64;
   Uint8List? _imageBytes;
   List<YoloDetection> _yoloDetections = [];
+  List<ui.Image?> _maskImages = [];
   bool _isAnalyzing = false;
   bool _isSubmitting = false;
   bool _isScanning = false;
@@ -68,6 +70,7 @@ class _ReportPageState extends State<ReportPage> {
           _imageBase64 = base64Encode(bytes);
           _imageBytes = bytes;
           _yoloDetections = detections;
+          _maskImages = [];
           _aiResult = null;
           _aiCategory = null;
           _aiSeverity = null;
@@ -75,6 +78,7 @@ class _ReportPageState extends State<ReportPage> {
           _aiDescription = null;
           _isScanning = false;
         });
+        _buildMaskImages(detections);
         _analyzeWithAI();
         if (mounted) _showSuccess('✨ AI 分析完成！');
       } else {
@@ -89,17 +93,70 @@ class _ReportPageState extends State<ReportPage> {
   void _openCamera() => _pickImage(ImageSource.camera);
   void _openGallery() => _pickImage(ImageSource.gallery);
 
+  Future<void> _buildMaskImages(List<YoloDetection> detections) async {
+    const colors = [
+      Colors.red,
+      Colors.green,
+      Colors.blue,
+      Colors.orange,
+      Colors.purple,
+      Colors.cyan,
+      Colors.pink,
+      Colors.teal,
+      Colors.amber,
+      Colors.indigo,
+    ];
+    final imgs = <ui.Image?>[];
+    for (final det in detections) {
+      if (det.mask == null) {
+        imgs.add(null);
+        continue;
+      }
+      final color = colors[det.className.hashCode.abs() % colors.length];
+      imgs.add(await _maskToUiImage(det.mask!, color));
+    }
+    if (mounted) setState(() => _maskImages = imgs);
+  }
+
+  static Future<ui.Image> _maskToUiImage(List<List<double>> mask, Color color) {
+    final h = mask.length;
+    final w = h > 0 ? mask[0].length : 0;
+    final pixels = Uint8List(w * h * 4);
+    final r = (color.r * 255.0).round().clamp(0, 255);
+    final g = (color.g * 255.0).round().clamp(0, 255);
+    final b = (color.b * 255.0).round().clamp(0, 255);
+    for (int row = 0; row < h; row++) {
+      for (int col = 0; col < w; col++) {
+        final alpha = (mask[row][col] * 179).round().clamp(0, 255);
+        final idx = (row * w + col) * 4;
+        pixels[idx] = r;
+        pixels[idx + 1] = g;
+        pixels[idx + 2] = b;
+        pixels[idx + 3] = alpha;
+      }
+    }
+    final completer = Completer<ui.Image>();
+    ui.decodeImageFromPixels(
+        pixels, w, h, ui.PixelFormat.rgba8888, completer.complete);
+    return completer.future;
+  }
+
   Future<void> _analyzeWithAI() async {
     if (_imageBase64 == null) {
-      _showError(context.read<LanguageProvider>().t('upload_photo'));
+      _showError(ref.read(languageNotifierProvider).t('upload_photo'));
       return;
     }
     setState(() => _isAnalyzing = true);
     try {
-      final reportProvider =
-          Provider.of<ReportProvider>(context, listen: false);
-      final language = Provider.of<LanguageProvider>(context, listen: false);
-      final result = await reportProvider.analyzeImage(_imageBase64!);
+      final reportProvider = ref.read(reportNotifierProvider.notifier);
+      final language = ref.read(languageNotifierProvider);
+      String? yoloContext;
+      if (_yoloDetections.isNotEmpty) {
+        final yoloMap = YoloService.toSafetyAnalysis(_yoloDetections);
+        yoloContext = '[YOLO Local Detection]\n${yoloMap['analysis']}';
+      }
+      final result = await reportProvider.analyzeImage(_imageBase64!,
+          yoloContext: yoloContext);
       if (!mounted) return;
       if (result != null) {
         final damageDetected = result['damage_detected'] == true;
@@ -127,14 +184,14 @@ class _ReportPageState extends State<ReportPage> {
     } catch (e) {
       if (!mounted) return;
       _showError(
-          '${context.read<LanguageProvider>().t('ai_analysis_failed')}$e');
+          '${ref.read(languageNotifierProvider).t('ai_analysis_failed')}$e');
     } finally {
       if (mounted) setState(() => _isAnalyzing = false);
     }
   }
 
   Future<void> _submitReport() async {
-    final language = context.read<LanguageProvider>();
+    final language = ref.read(languageNotifierProvider);
     if (_selectedImage == null) {
       _showError(language.t('upload_photo'));
       return;
@@ -150,12 +207,9 @@ class _ReportPageState extends State<ReportPage> {
 
     setState(() => _isSubmitting = true);
     try {
-      final connectivity =
-          Provider.of<ConnectivityProvider>(context, listen: false);
-      final reportProvider =
-          Provider.of<ReportProvider>(context, listen: false);
-      final navigationProvider =
-          Provider.of<NavigationProvider>(context, listen: false);
+      final connectivity = ref.read(connectivityNotifierProvider);
+      final reportProvider = ref.read(reportNotifierProvider.notifier);
+      final navigationProvider = ref.read(navigationNotifierProvider.notifier);
 
       final report = await reportProvider.addReport(
         title: _aiTitle ?? language.t('building_safety_issue'),
@@ -222,7 +276,7 @@ class _ReportPageState extends State<ReportPage> {
 
   @override
   Widget build(BuildContext context) {
-    final language = context.watch<LanguageProvider>();
+    final language = ref.watch(languageNotifierProvider);
     return Scaffold(
       body: SingleChildScrollView(
         child: Column(
@@ -329,7 +383,6 @@ class _ReportPageState extends State<ReportPage> {
                           borderRadius: BorderRadius.circular(16),
                           child: Stack(
                             children: [
-
                               if (_imageBytes != null)
                                 SizedBox(
                                   width: double.infinity,
@@ -347,6 +400,7 @@ class _ReportPageState extends State<ReportPage> {
                                             CustomPaint(
                                               painter: _ReportYoloPainter(
                                                 detections: _yoloDetections,
+                                                maskImages: _maskImages,
                                                 canvasWidth:
                                                     constraints.maxWidth,
                                                 canvasHeight: 280,
@@ -558,7 +612,7 @@ class _ReportPageState extends State<ReportPage> {
   }
 
   Widget _imageSourceTile(
-      {required LanguageProvider lang,
+      {required LanguageState lang,
       required IconData icon,
       required Color color,
       required String title,
@@ -623,11 +677,13 @@ class Dec extends StatelessWidget {
 
 class _ReportYoloPainter extends CustomPainter {
   final List<YoloDetection> detections;
+  final List<ui.Image?> maskImages;
   final double canvasWidth;
   final double canvasHeight;
 
   _ReportYoloPainter({
     required this.detections,
+    required this.maskImages,
     required this.canvasWidth,
     required this.canvasHeight,
   });
@@ -649,47 +705,58 @@ class _ReportYoloPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    for (final det in detections) {
+    for (int idx = 0; idx < detections.length; idx++) {
+      final det = detections[idx];
       final color = _colorFor(det.className);
       final left = (det.x - det.width / 2) * size.width;
       final top = (det.y - det.height / 2) * size.height;
       final bw = det.width * size.width;
       final bh = det.height * size.height;
-      final rect = Rect.fromLTWH(left, top, bw, bh);
+      final maskImg = idx < maskImages.length ? maskImages[idx] : null;
 
-      canvas.drawRect(
-          rect,
-          Paint()
-            ..color = color
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2.0);
+      if (maskImg != null) {
+        canvas.drawImageRect(
+          maskImg,
+          Rect.fromLTWH(
+              0, 0, maskImg.width.toDouble(), maskImg.height.toDouble()),
+          Rect.fromLTWH(0, 0, size.width, size.height),
+          Paint()..filterQuality = FilterQuality.low,
+        );
+      } else {
+        // Fallback while mask is loading: semi-transparent fill, no border
+        canvas.drawRect(
+          Rect.fromLTWH(left, top, bw, bh),
+          Paint()..color = color.withValues(alpha: 0.35),
+        );
+      }
 
-      final label =
-          '${det.className} ${(det.confidence * 100).toStringAsFixed(0)}%';
+      // Label chip at top-left of bbox
+      final conf = det.confidence.clamp(0.0, 1.0);
+      final label = '${det.className} ${(conf * 100).toStringAsFixed(0)}%';
       final tp = TextPainter(
         text: TextSpan(
             text: label,
             style: const TextStyle(
                 color: Colors.white,
-                fontSize: 10,
+                fontSize: 11,
                 fontWeight: FontWeight.bold)),
         textDirection: TextDirection.ltr,
       )..layout();
-
+      final chipW = tp.width + 8;
+      final chipH = tp.height + 4;
+      final labelTop = top >= chipH ? top - chipH : top;
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-            Rect.fromLTWH(
-                left, top - tp.height - 4, tp.width + 8, tp.height + 4),
-            const Radius.circular(2)),
-        Paint()
-          ..color = color.withValues(alpha: 0.85)
-          ..style = PaintingStyle.fill,
+          Rect.fromLTWH(left, labelTop, chipW, chipH),
+          const Radius.circular(3),
+        ),
+        Paint()..color = color.withValues(alpha: 0.90),
       );
-      tp.paint(canvas, Offset(left + 4, top - tp.height - 2));
+      tp.paint(canvas, Offset(left + 4, labelTop + 2));
     }
   }
 
   @override
   bool shouldRepaint(covariant _ReportYoloPainter old) =>
-      old.detections != detections;
+      old.detections != detections || old.maskImages != maskImages;
 }

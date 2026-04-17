@@ -1,29 +1,21 @@
-import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:bsafe_app/features/uwb_positioning/data/models/uwb_model.dart';
-import 'package:bsafe_app/features/building_medical_record/data/models/inspection_model.dart';
-import 'package:bsafe_app/features/building_medical_record/data/models/project_model.dart';
-import 'package:bsafe_app/features/defect_reporting/data/models/report_model.dart';
+import 'package:bsafe_app/features/uwb_positioning/building_inspection/data/models/inspection_model.dart';
+import 'package:bsafe_app/features/uwb_positioning/building_inspection/data/models/project_model.dart';
 import 'package:bsafe_app/infrastructure/uwb_service.dart';
 import 'package:bsafe_app/infrastructure/desktop_serial_service.dart';
 import 'package:bsafe_app/infrastructure/mobile_serial_service.dart';
-import 'package:bsafe_app/infrastructure/yolo_service.dart';
-import 'package:bsafe_app/features/building_medical_record/presentation/providers/inspection_provider.dart';
-import 'package:bsafe_app/features/defect_reporting/presentation/providers/report_provider.dart';
-import 'package:bsafe_app/infrastructure/supabase_service.dart';
+import 'package:bsafe_app/features/uwb_positioning/building_inspection/presentation/providers/inspection_provider.dart';
 import 'package:bsafe_app/core/theme/app_theme.dart';
-import 'package:bsafe_app/features/location/presentation/pages/calibration_page.dart';
-import 'package:bsafe_app/features/ai_analysis/data/datasources/ai_remote_datasource.dart';
+import 'package:bsafe_app/features/uwb_positioning/presentation/pages/calibration_page.dart';
 import 'package:bsafe_app/infrastructure/word_export_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:uuid/uuid.dart';
 
 class InspectionScreen extends StatefulWidget {
   final Project? project;
@@ -35,9 +27,7 @@ class InspectionScreen extends StatefulWidget {
 
 class _InspectionScreenState extends State<InspectionScreen> {
   late UwbService _uwbService;
-  final ImagePicker _imagePicker = ImagePicker();
   bool _showSettings = false;
-  bool _showPinList = true;
   bool _showFullSettings = false;
   int _currentFloor = 1;
 
@@ -131,11 +121,9 @@ class _InspectionScreenState extends State<InspectionScreen> {
             body: SafeArea(
               child: Column(
                 children: [
-
                   isMobile
                       ? _buildMobileTopBar(uwbService, inspection)
                       : _buildTopBar(uwbService, inspection),
-
                   Expanded(
                     child: isMobile
                         ? _buildMapArea(uwbService, inspection)
@@ -145,11 +133,6 @@ class _InspectionScreenState extends State<InspectionScreen> {
                                 flex: 3,
                                 child: _buildMapArea(uwbService, inspection),
                               ),
-                              if (_showPinList)
-                                SizedBox(
-                                  width: 320,
-                                  child: _buildPinListPanel(inspection),
-                                ),
                               if (_showFullSettings) ...[
                                 const SizedBox(width: 8),
                                 SizedBox(
@@ -163,8 +146,6 @@ class _InspectionScreenState extends State<InspectionScreen> {
                 ],
               ),
             ),
-            floatingActionButton: _buildFAB(uwbService, inspection),
-
             bottomNavigationBar:
                 isMobile ? _buildMobileBottomBar(uwbService, inspection) : null,
           );
@@ -189,7 +170,6 @@ class _InspectionScreenState extends State<InspectionScreen> {
       ),
       child: Row(
         children: [
-
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
@@ -237,13 +217,9 @@ class _InspectionScreenState extends State<InspectionScreen> {
             ),
           ],
           const SizedBox(width: 8),
-
           _buildConnectionChip(uwbService),
-
           const Spacer(),
-
           _buildConnectButton(uwbService),
-
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert, size: 20),
             onSelected: (value) => _handleMenuAction(value, inspection),
@@ -280,8 +256,6 @@ class _InspectionScreenState extends State<InspectionScreen> {
                 ),
               ),
               const PopupMenuItem(value: 'export_word', child: Text('匯出 Word')),
-              const PopupMenuDivider(),
-              const PopupMenuItem(value: 'clear_pins', child: Text('清除所有 Pin')),
             ],
           ),
         ],
@@ -308,19 +282,11 @@ class _InspectionScreenState extends State<InspectionScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-
-              _buildBottomBarItem(
-                icon: Icons.push_pin,
-                label: '巡檢點(${inspection.currentPins.length})',
-                onTap: () => _showMobilePinListSheet(inspection),
-              ),
-
               _buildBottomBarItem(
                 icon: Icons.tune,
                 label: '設置',
                 onTap: () => _showMobileSettingsSheet(uwbService),
               ),
-
               _buildBottomBarItem(
                 icon: Icons.my_location,
                 label: uwbService.currentTag != null
@@ -330,7 +296,6 @@ class _InspectionScreenState extends State<InspectionScreen> {
                 color:
                     uwbService.currentTag != null ? Colors.indigo : Colors.grey,
               ),
-
               _buildBottomBarItem(
                 icon: Icons.straighten,
                 label: '校正',
@@ -374,83 +339,6 @@ class _InspectionScreenState extends State<InspectionScreen> {
               overflow: TextOverflow.ellipsis,
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  void _showMobilePinListSheet(InspectionProvider inspection) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => DraggableScrollableSheet(
-        initialChildSize: 0.6,
-        minChildSize: 0.3,
-        maxChildSize: 0.9,
-        builder: (context, scrollController) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: Column(
-            children: [
-
-              Container(
-                margin: const EdgeInsets.symmetric(vertical: 8),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-
-              Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  children: [
-                    const Icon(Icons.push_pin, color: AppTheme.primaryColor),
-                    const SizedBox(width: 8),
-                    const Text('巡檢點',
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 18)),
-                    const Spacer(),
-                    Text(
-                      '${inspection.currentPins.length}',
-                      style: const TextStyle(
-                        color: AppTheme.primaryColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.pop(ctx),
-                    ),
-                  ],
-                ),
-              ),
-              if (inspection.currentPins.isNotEmpty)
-                _buildPinSummary(inspection),
-
-              Expanded(
-                child: inspection.currentPins.isEmpty
-                    ? _buildEmptyPinState()
-                    : ListView.builder(
-                        controller: scrollController,
-                        padding: const EdgeInsets.all(8),
-                        itemCount: inspection.currentPins.length,
-                        itemBuilder: (context, index) {
-                          final pin = inspection.currentPins[index];
-                          return _buildPinCard(pin, index, inspection);
-                        },
-                      ),
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -508,7 +396,6 @@ class _InspectionScreenState extends State<InspectionScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
@@ -532,7 +419,6 @@ class _InspectionScreenState extends State<InspectionScreen> {
                           ],
                         ),
                         const SizedBox(height: 16),
-
                         Row(
                           children: [
                             Expanded(
@@ -566,7 +452,6 @@ class _InspectionScreenState extends State<InspectionScreen> {
                           ],
                         ),
                         const SizedBox(height: 16),
-
                         _buildSectionHeader('基站管理', Icons.cell_tower),
                         const SizedBox(height: 8),
                         ...uwbService.anchors.asMap().entries.map((entry) {
@@ -583,9 +468,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
                             label: const Text('添加基站'),
                           ),
                         ),
-
                         const SizedBox(height: 20),
-
                         _buildSectionHeader('距離索引映射', Icons.swap_horiz),
                         const SizedBox(height: 8),
                         Container(
@@ -669,7 +552,6 @@ class _InspectionScreenState extends State<InspectionScreen> {
       ),
       child: Row(
         children: [
-
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
@@ -698,15 +580,11 @@ class _InspectionScreenState extends State<InspectionScreen> {
             ),
           ),
           const SizedBox(width: 16),
-
           _buildConnectionChip(uwbService),
           const SizedBox(width: 8),
-
           if (uwbService.isConnected && uwbService.currentTag != null)
             _buildCoordinateChip(uwbService),
-
           const Spacer(),
-
           if (inspection.currentSession != null)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -729,20 +607,10 @@ class _InspectionScreenState extends State<InspectionScreen> {
                       fontSize: 13,
                     ),
                   ),
-                  const SizedBox(width: 4),
-                  Text(
-                    '(${inspection.currentPins.length} pins)',
-                    style: TextStyle(
-                      color: Colors.blue.shade400,
-                      fontSize: 12,
-                    ),
-                  ),
                 ],
               ),
             ),
-
           const SizedBox(width: 8),
-
           IconButton(
             onPressed: () => setState(() => _showSettings = !_showSettings),
             icon: Icon(
@@ -761,20 +629,9 @@ class _InspectionScreenState extends State<InspectionScreen> {
             ),
             tooltip: '完整設置',
           ),
-          IconButton(
-            onPressed: () => setState(() => _showPinList = !_showPinList),
-            icon: Icon(
-              _showPinList ? Icons.view_sidebar : Icons.view_sidebar_outlined,
-              color:
-                  _showPinList ? AppTheme.primaryColor : Colors.grey.shade600,
-            ),
-            tooltip: '巡檢點列表',
-          ),
           const SizedBox(width: 4),
-
           _buildConnectButton(uwbService),
           const SizedBox(width: 4),
-
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
             onSelected: (value) => _handleMenuAction(value, inspection),
@@ -811,8 +668,6 @@ class _InspectionScreenState extends State<InspectionScreen> {
                 ),
               ),
               const PopupMenuItem(value: 'export_word', child: Text('匯出 Word')),
-              const PopupMenuDivider(),
-              const PopupMenuItem(value: 'clear_pins', child: Text('清除所有 Pin')),
             ],
           ),
         ],
@@ -913,59 +768,14 @@ class _InspectionScreenState extends State<InspectionScreen> {
   Widget _buildMapArea(UwbService uwbService, InspectionProvider inspection) {
     return Column(
       children: [
-
         _buildFloorSelector(uwbService, inspection),
-
         if (_showSettings) _buildQuickSettings(uwbService),
-
         Expanded(
           child: Padding(
             padding: const EdgeInsets.all(8),
             child: Stack(
               children: [
-
                 _buildInspectionCanvas(uwbService, inspection),
-
-                if (inspection.isPinMode)
-                  Positioned(
-                    top: 8,
-                    left: 0,
-                    right: 0,
-                    child: Center(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.shade700,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.orange.withValues(alpha: 0.3),
-                              blurRadius: 8,
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.push_pin,
-                                color: Colors.white, size: 18),
-                            const SizedBox(width: 8),
-                            Text(
-                              MediaQuery.of(context).size.width < 600
-                                  ? '點擊畫布放置 Pin'
-                                  : '點擊畫布放置 Pin，或按「使用當前位置」',
-                              style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-
                 if (uwbService.floorPlanImage == null)
                   Positioned(
                     bottom: 16,
@@ -981,7 +791,6 @@ class _InspectionScreenState extends State<InspectionScreen> {
                       ),
                     ),
                   ),
-
                 if (uwbService.floorPlanImage != null)
                   Positioned(
                     bottom: 16,
@@ -997,7 +806,6 @@ class _InspectionScreenState extends State<InspectionScreen> {
                       ),
                     ),
                   ),
-
                 if (uwbService.isConnected && uwbService.currentTag != null)
                   Positioned(
                     top: 8,
@@ -1060,38 +868,14 @@ class _InspectionScreenState extends State<InspectionScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         return GestureDetector(
-          onTapDown: (details) {
-            if (inspection.isPinMode) {
-
-              final uwbCoord = _canvasToUwb(
-                details.localPosition,
-                Size(constraints.maxWidth, constraints.maxHeight),
-                uwbService,
-              );
-              if (uwbCoord != null) {
-                final pin = inspection.addPin(uwbCoord.dx, uwbCoord.dy);
-
-                _showPhotoCaptureDialog(pin);
-              }
-            } else {
-
-              _checkPinTap(
-                details.localPosition,
-                Size(constraints.maxWidth, constraints.maxHeight),
-                uwbService,
-                inspection,
-              );
-            }
-          },
+          onTapDown: (_) {},
           child: Container(
             decoration: BoxDecoration(
               color: Colors.grey.shade100,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: inspection.isPinMode
-                    ? Colors.orange.shade400
-                    : Colors.grey.shade300,
-                width: inspection.isPinMode ? 2 : 1,
+                color: Colors.grey.shade300,
+                width: 1,
               ),
             ),
             child: ClipRRect(
@@ -1106,8 +890,6 @@ class _InspectionScreenState extends State<InspectionScreen> {
                   trajectory: uwbService.trajectory,
                   config: uwbService.config,
                   floorPlanImage: uwbService.floorPlanImage,
-                  pins: inspection.currentPins,
-                  selectedPinId: inspection.selectedPin?.id,
                   padding: 40.0,
                 ),
               ),
@@ -1116,77 +898,6 @@ class _InspectionScreenState extends State<InspectionScreen> {
         );
       },
     );
-  }
-
-  Offset? _canvasToUwb(
-      Offset canvasPos, Size canvasSize, UwbService uwbService) {
-    if (uwbService.anchors.isEmpty) return null;
-
-    final anchors = uwbService.anchors;
-    const double padding = 40.0;
-    final double minX = anchors.map((a) => a.x).reduce(min) - 1;
-    final double maxX = anchors.map((a) => a.x).reduce(max) + 1;
-    final double minY = anchors.map((a) => a.y).reduce(min) - 1;
-    final double maxY = anchors.map((a) => a.y).reduce(max) + 1;
-
-    final double rangeX = maxX - minX;
-    final double rangeY = maxY - minY;
-
-    final double scaleX = (canvasSize.width - padding * 2) / rangeX;
-    final double scaleY = (canvasSize.height - padding * 2) / rangeY;
-    final double scale = min(scaleX, scaleY);
-
-    final double offsetX = (canvasSize.width - rangeX * scale) / 2;
-    final double offsetY = (canvasSize.height - rangeY * scale) / 2;
-
-    final double uwbX = (canvasPos.dx - offsetX) / scale + minX;
-    final double uwbY =
-        (canvasSize.height - canvasPos.dy - offsetY) / scale + minY;
-
-    return Offset(uwbX, uwbY);
-  }
-
-  void _checkPinTap(Offset tapPos, Size canvasSize, UwbService uwbService,
-      InspectionProvider inspection) {
-    if (uwbService.anchors.isEmpty) return;
-
-    final anchors = uwbService.anchors;
-    const double padding = 40.0;
-    final double minX = anchors.map((a) => a.x).reduce(min) - 1;
-    final double maxX = anchors.map((a) => a.x).reduce(max) + 1;
-    final double minY = anchors.map((a) => a.y).reduce(min) - 1;
-    final double maxY = anchors.map((a) => a.y).reduce(max) + 1;
-
-    final double rangeX = maxX - minX;
-    final double rangeY = maxY - minY;
-
-    final double scaleX = (canvasSize.width - padding * 2) / rangeX;
-    final double scaleY = (canvasSize.height - padding * 2) / rangeY;
-    final double scale = min(scaleX, scaleY);
-
-    final double offsetXCanvas = (canvasSize.width - rangeX * scale) / 2;
-    final double offsetYCanvas = (canvasSize.height - rangeY * scale) / 2;
-
-    for (final pin in inspection.currentPins) {
-      final pinCanvasX = offsetXCanvas + (pin.x - minX) * scale;
-      final pinCanvasY =
-          canvasSize.height - offsetYCanvas - (pin.y - minY) * scale;
-      final dist = (tapPos - Offset(pinCanvasX, pinCanvasY)).distance;
-      if (dist < 20) {
-
-        if (inspection.selectedPin?.id == pin.id) {
-          if (pin.isAnalyzed || pin.imageBase64 != null) {
-            _showPinDetailDialog(pin);
-          } else {
-            _showPhotoCaptureDialog(pin);
-          }
-        } else {
-          inspection.selectPin(pin);
-        }
-        return;
-      }
-    }
-    inspection.deselectPin();
   }
 
   Widget _buildQuickSettings(UwbService uwbService) {
@@ -1290,404 +1001,6 @@ class _InspectionScreenState extends State<InspectionScreen> {
         backgroundColor: Colors.grey.shade100,
         showCheckmark: false,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      ),
-    );
-  }
-
-  Widget _buildPinListPanel(InspectionProvider inspection) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(left: BorderSide(color: Colors.grey.shade300)),
-      ),
-      child: Column(
-        children: [
-
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade50,
-              border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.push_pin,
-                    size: 20, color: AppTheme.primaryColor),
-                const SizedBox(width: 8),
-                const Text(
-                  '巡檢點',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-                const Spacer(),
-                Text(
-                  '${inspection.currentPins.length}',
-                  style: const TextStyle(
-                    color: AppTheme.primaryColor,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          if (inspection.currentPins.isNotEmpty) _buildPinSummary(inspection),
-
-          Expanded(
-            child: inspection.currentPins.isEmpty
-                ? _buildEmptyPinState()
-                : ListView.builder(
-                    padding: const EdgeInsets.all(8),
-                    itemCount: inspection.currentPins.length,
-                    itemBuilder: (context, index) {
-                      final pin = inspection.currentPins[index];
-                      return _buildPinCard(pin, index, inspection);
-                    },
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPinSummary(InspectionProvider inspection) {
-    final session = inspection.currentSession;
-    if (session == null) return const SizedBox();
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
-      ),
-      child: Row(
-        children: [
-          _buildStatBadge(
-              '低風險', session.lowRiskDefects.toString(), Colors.blue),
-          const SizedBox(width: 8),
-          _buildStatBadge(
-              '中風險', session.mediumRiskDefects.toString(), Colors.orange),
-          const SizedBox(width: 8),
-          _buildStatBadge(
-              '高風險', session.highRiskDefects.toString(), Colors.red),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatBadge(String label, String value, Color color) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          children: [
-            Text(
-              value,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-                color: color,
-              ),
-            ),
-            Text(
-              label,
-              style:
-                  TextStyle(fontSize: 11, color: color.withValues(alpha: 0.8)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmptyPinState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.push_pin_outlined, size: 48, color: Colors.grey.shade300),
-          const SizedBox(height: 12),
-          Text(
-            '尚無巡檢點',
-            style: TextStyle(color: Colors.grey.shade500, fontSize: 16),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '點擊下方「+」按鈕\n在當前位置添加巡檢點',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPinCard(
-      InspectionPin pin, int index, InspectionProvider inspection) {
-    final isSelected = inspection.selectedPin?.id == pin.id;
-    final defectCount = pin.defects.length;
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      elevation: isSelected ? 4 : 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: isSelected ? AppTheme.primaryColor : Colors.transparent,
-          width: 2,
-        ),
-      ),
-      child: InkWell(
-        onTap: () {
-          inspection.selectPin(pin);
-          if (pin.isAnalyzed || pin.imageBase64 != null) {
-            _showPinDetailDialog(pin);
-          } else {
-            _showPhotoCaptureDialog(pin);
-          }
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: pin.isAnalyzed
-                          ? AppTheme.primaryColor.withValues(alpha: 0.15)
-                          : Colors.grey.shade200,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Center(
-                      child: Text(
-                        '${index + 1}',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: pin.isAnalyzed
-                              ? AppTheme.primaryColor
-                              : Colors.grey,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '(${pin.x.toStringAsFixed(2)}, ${pin.y.toStringAsFixed(2)})',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
-                            fontFamily: 'monospace',
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: pin.isAnalyzed
-                                    ? Colors.green.withValues(alpha: 0.1)
-                                    : Colors.grey.shade100,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                pin.isAnalyzed ? '已分析' : pin.statusLabel,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: pin.isAnalyzed
-                                      ? Colors.green
-                                      : Colors.grey,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                            if (defectCount > 0) ...[
-                              const SizedBox(width: 6),
-                              Text(
-                                '缺陷: $defectCount',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.grey.shade600,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  if (pin.imageBase64 == null)
-                    IconButton(
-                      icon: const Icon(Icons.camera_alt, size: 20),
-                      color: Colors.grey,
-                      onPressed: () => _showPhotoCaptureDialog(pin),
-                      tooltip: '拍照分析',
-                    ),
-
-                  IconButton(
-                    icon: const Icon(Icons.close, size: 16),
-                    color: Colors.grey.shade400,
-                    onPressed: () => _confirmDeletePin(pin, inspection),
-                    tooltip: '刪除',
-                    padding: EdgeInsets.zero,
-                    constraints:
-                        const BoxConstraints(minWidth: 28, minHeight: 28),
-                  ),
-                ],
-              ),
-
-              if (pin.isAnalyzed && pin.description != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  pin.description!,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                ),
-              ],
-
-              if (pin.note != null && pin.note!.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(Icons.note, size: 12, color: Colors.amber.shade600),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        pin.note!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            fontSize: 11, color: Colors.amber.shade700),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFAB(UwbService uwbService, InspectionProvider inspection) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-
-        if (!inspection.isPinMode)
-          FloatingActionButton.small(
-            heroTag: 'pin_mode',
-            onPressed: () => inspection.togglePinMode(),
-            backgroundColor: Colors.orange,
-            tooltip: '點擊地圖放置 Pin',
-            child: const Icon(Icons.touch_app, color: Colors.white),
-          ),
-        if (inspection.isPinMode)
-          FloatingActionButton.small(
-            heroTag: 'cancel_pin',
-            onPressed: () => inspection.disablePinMode(),
-            backgroundColor: Colors.grey,
-            tooltip: '取消放置模式',
-            child: const Icon(Icons.close, color: Colors.white),
-          ),
-        const SizedBox(height: 8),
-
-        FloatingActionButton(
-          heroTag: 'add_pin',
-          onPressed: uwbService.isConnected && uwbService.currentTag != null
-              ? () {
-                  final tag = uwbService.currentTag!;
-                  final pin = inspection.addPin(tag.x, tag.y);
-                  _showPhotoCaptureDialog(pin);
-                }
-              : null,
-          backgroundColor:
-              uwbService.isConnected && uwbService.currentTag != null
-                  ? AppTheme.primaryColor
-                  : Colors.grey,
-          tooltip: '在當前位置添加 Pin',
-          child: const Icon(Icons.add_location_alt, color: Colors.white),
-        ),
-      ],
-    );
-  }
-
-  void _showPhotoCaptureDialog(InspectionPin pin) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        return _PhotoAnalysisDialog(
-          pin: pin,
-          imagePicker: _imagePicker,
-          onComplete: (updatedPin) {
-            context.read<InspectionProvider>().updatePin(updatedPin);
-          },
-        );
-      },
-    );
-  }
-
-  void _showPinDetailDialog(InspectionPin pin) {
-    showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return _PinDetailDialog(
-          pin: pin,
-          imagePicker: _imagePicker,
-          onUpdate: (updatedPin) {
-            context.read<InspectionProvider>().updatePin(updatedPin);
-          },
-          onRetakePhoto: () {
-            Navigator.pop(dialogContext);
-            _showPhotoCaptureDialog(pin);
-          },
-          onDelete: () {
-            Navigator.pop(dialogContext);
-            context.read<InspectionProvider>().removePin(pin.id);
-          },
-        );
-      },
-    );
-  }
-
-  void _confirmDeletePin(InspectionPin pin, InspectionProvider inspection) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('刪除巡檢點'),
-        content: Text(
-            '確定要刪除座標 (${pin.x.toStringAsFixed(2)}, ${pin.y.toStringAsFixed(2)}) 的巡檢點嗎？'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context), child: const Text('取消')),
-          ElevatedButton(
-            onPressed: () {
-              inspection.removePin(pin.id);
-              Navigator.pop(context);
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('刪除', style: TextStyle(color: Colors.white)),
-          ),
-        ],
       ),
     );
   }
@@ -1809,7 +1122,6 @@ class _InspectionScreenState extends State<InspectionScreen> {
       ),
       child: Row(
         children: [
-
           Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
@@ -1820,7 +1132,6 @@ class _InspectionScreenState extends State<InspectionScreen> {
                 size: 18, color: AppTheme.primaryColor),
           ),
           const SizedBox(width: 8),
-
           Expanded(
             child: SizedBox(
               height: 32,
@@ -1892,9 +1203,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
                     ),
             ),
           ),
-
           const SizedBox(width: 4),
-
           IconButton(
             onPressed: () => _loadFloorPlan(uwbService, inspection),
             icon: const Icon(Icons.map, size: 20),
@@ -1903,7 +1212,6 @@ class _InspectionScreenState extends State<InspectionScreen> {
             constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
             color: AppTheme.primaryColor,
           ),
-
           IconButton(
             onPressed: () => _showFloorSettingsDialog(uwbService),
             icon: const Icon(Icons.settings, size: 20),
@@ -2320,7 +1628,6 @@ class _InspectionScreenState extends State<InspectionScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-
                   _buildSectionHeader('基站管理', Icons.cell_tower),
                   const SizedBox(height: 8),
                   ...uwbService.anchors.asMap().entries.map((entry) {
@@ -2358,12 +1665,9 @@ class _InspectionScreenState extends State<InspectionScreen> {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 20),
-
                   _buildSectionHeader('平面圖設置', Icons.map),
                   const SizedBox(height: 8),
-
                   Row(
                     children: [
                       Expanded(
@@ -2396,7 +1700,6 @@ class _InspectionScreenState extends State<InspectionScreen> {
                       ],
                     ],
                   ),
-
                   SwitchListTile(
                     dense: true,
                     contentPadding: EdgeInsets.zero,
@@ -2408,7 +1711,6 @@ class _InspectionScreenState extends State<InspectionScreen> {
                     },
                     title: const Text('顯示平面圖', style: TextStyle(fontSize: 13)),
                   ),
-
                   if (uwbService.config.floorPlanImagePath != null) ...[
                     Row(
                       children: [
@@ -2439,9 +1741,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
                         ),
                       ],
                     ),
-
                     const Divider(),
-
                     const Text('偏移設置',
                         style: TextStyle(
                             fontWeight: FontWeight.bold, fontSize: 13)),
@@ -2457,7 +1757,6 @@ class _InspectionScreenState extends State<InspectionScreen> {
                           .updateConfig(uwbService.config.copyWith(yOffset: v));
                     }),
                     const SizedBox(height: 8),
-
                     const Text('比例設置',
                         style: TextStyle(
                             fontWeight: FontWeight.bold, fontSize: 13)),
@@ -2473,7 +1772,6 @@ class _InspectionScreenState extends State<InspectionScreen> {
                           .updateConfig(uwbService.config.copyWith(yScale: v));
                     }),
                     const SizedBox(height: 8),
-
                     const Text('翻轉設置',
                         style: TextStyle(
                             fontWeight: FontWeight.bold, fontSize: 13)),
@@ -2511,7 +1809,6 @@ class _InspectionScreenState extends State<InspectionScreen> {
                         ),
                       ],
                     ),
-
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
@@ -2525,9 +1822,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
                       ),
                     ),
                   ],
-
                   const SizedBox(height: 20),
-
                   _buildSectionHeader('顯示設置', Icons.visibility),
                   SwitchListTile(
                     dense: true,
@@ -2545,9 +1840,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
                         .updateConfig(uwbService.config.copyWith(showFence: v)),
                     title: const Text('顯示圍欄', style: TextStyle(fontSize: 13)),
                   ),
-
                   const SizedBox(height: 20),
-
                   _buildSectionHeader('距離索引映射', Icons.swap_horiz),
                   const SizedBox(height: 8),
                   Container(
@@ -2664,11 +1957,9 @@ class _InspectionScreenState extends State<InspectionScreen> {
   void _toggleSwap(UwbService uwbService, int a, int b) {
     final current = List<int>.from(uwbService.config.distanceIndexMap);
     if (_isSwapActive(current, a, b)) {
-
       current[a] = a;
       current[b] = b;
     } else {
-
       for (int i = 0; i < 4; i++) {
         if (current[i] == a && i != a) {
           current[i] = i;
@@ -3008,7 +2299,6 @@ class _InspectionScreenState extends State<InspectionScreen> {
                   }
                 },
                 onChanged: (text) {
-
                   if (text.isEmpty || text == '-' || text.endsWith('.')) {
                     return;
                   }
@@ -3038,33 +2328,6 @@ class _InspectionScreenState extends State<InspectionScreen> {
         break;
       case 'export_word':
         _exportWord(inspection);
-        break;
-      case 'clear_pins':
-        if (inspection.currentPins.isNotEmpty) {
-          showDialog(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: const Text('清除所有巡檢點'),
-              content: const Text('確定要清除所有巡檢點嗎？此操作無法撤銷。'),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    child: const Text('取消')),
-                ElevatedButton(
-                  onPressed: () {
-                    for (final pin in List.from(inspection.currentPins)) {
-                      inspection.removePin(pin.id);
-                    }
-                    Navigator.pop(ctx);
-                  },
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                  child:
-                      const Text('清除', style: TextStyle(color: Colors.white)),
-                ),
-              ],
-            ),
-          );
-        }
         break;
     }
   }
@@ -3097,7 +2360,6 @@ class _InspectionScreenState extends State<InspectionScreen> {
                 ],
               ),
               const SizedBox(height: 12),
-
               Row(
                 children: [
                   Expanded(
@@ -3156,17 +2418,10 @@ class _InspectionScreenState extends State<InspectionScreen> {
                     final floor = index + 1;
                     final isActive = floor == _currentFloor;
 
-                    final hasPins = inspection.sessions.any((s) =>
-                        s.projectId == project.id &&
-                        s.floor == floor &&
-                        s.pins.isNotEmpty);
-
                     return Material(
                       color: isActive
                           ? AppTheme.primaryColor
-                          : hasPins
-                              ? Colors.green.shade50
-                              : Colors.grey.shade100,
+                          : Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(8),
                       child: InkWell(
                         borderRadius: BorderRadius.circular(8),
@@ -3284,7 +2539,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
                     return ListTile(
                       title: Text(session.name),
                       subtitle: Text(
-                          '${session.floor}F  ·  ${session.totalPins} 個巡檢點  ·  ${session.createdAt.toString().substring(0, 16)}'),
+                          '${session.floor}F  ·  ${session.createdAt.toString().substring(0, 16)}'),
                       leading: CircleAvatar(
                         backgroundColor:
                             AppTheme.primaryColor.withValues(alpha: 0.15),
@@ -3319,21 +2574,10 @@ class _InspectionScreenState extends State<InspectionScreen> {
   }
 
   Future<void> _exportWord(InspectionProvider inspection) async {
-
     final projectId = widget.project?.id;
     final projectSessions = projectId != null
         ? inspection.sessions.where((s) => s.projectId == projectId).toList()
         : [if (inspection.currentSession != null) inspection.currentSession!];
-
-    final allPinsCount =
-        projectSessions.fold<int>(0, (sum, s) => sum + s.pins.length);
-    if (allPinsCount == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('沒有巡檢點可以匯出'), backgroundColor: Colors.orange),
-      );
-      return;
-    }
 
     final buildingName = widget.project?.buildingName ?? '未命名建築';
 
@@ -3374,1959 +2618,6 @@ class _InspectionScreenState extends State<InspectionScreen> {
         );
       }
     }
-  }
-}
-
-class _PinDetailDialog extends StatefulWidget {
-  final InspectionPin pin;
-  final ImagePicker imagePicker;
-  final ValueChanged<InspectionPin> onUpdate;
-  final VoidCallback onRetakePhoto;
-  final VoidCallback onDelete;
-
-  const _PinDetailDialog({
-    required this.pin,
-    required this.imagePicker,
-    required this.onUpdate,
-    required this.onRetakePhoto,
-    required this.onDelete,
-  });
-
-  @override
-  State<_PinDetailDialog> createState() => _PinDetailDialogState();
-}
-
-class _PinDetailDialogState extends State<_PinDetailDialog> {
-  late TextEditingController _noteController;
-  late String _riskLevel;
-  late int _riskScore;
-  late String? _description;
-  late List<String> _recommendations;
-  late Map<String, dynamic>? _aiResult;
-  late String _status;
-  late InspectionPin _currentPin;
-  bool _isEditing = false;
-  bool _hasChanges = false;
-  bool _isAnalyzing = false;
-  int? _expandedDefectIndex;
-  final _defectChatController = TextEditingController();
-  final _defectChatScrollController = ScrollController();
-
-  @override
-  void initState() {
-    super.initState();
-    _currentPin = widget.pin;
-    _noteController = TextEditingController(text: widget.pin.note ?? '');
-    _riskLevel = widget.pin.riskLevel;
-    _riskScore = widget.pin.riskScore;
-    _description = widget.pin.description;
-    _recommendations = List<String>.from(widget.pin.recommendations);
-    _aiResult = widget.pin.aiResult != null
-        ? Map<String, dynamic>.from(widget.pin.aiResult!)
-        : null;
-    _status = widget.pin.status;
-  }
-
-  @override
-  void dispose() {
-    _noteController.dispose();
-    _defectChatController.dispose();
-    _defectChatScrollController.dispose();
-    super.dispose();
-  }
-
-  Defect? get _selectedDefect {
-    if (_expandedDefectIndex != null &&
-        _expandedDefectIndex! < _currentPin.defects.length) {
-      return _currentPin.defects[_expandedDefectIndex!];
-    }
-    return null;
-  }
-
-  String get _displayRiskLevel => _selectedDefect?.riskLevel ?? 'none';
-
-  Color get _riskColor {
-    switch (_displayRiskLevel) {
-      case 'high':
-        return Colors.red;
-      case 'medium':
-        return Colors.orange;
-      default:
-        return Colors.green;
-    }
-  }
-
-  String get _riskLevelLabel {
-    switch (_displayRiskLevel) {
-      case 'high':
-        return '高風險';
-      case 'medium':
-        return '中風險';
-      case 'low':
-        return '低風險';
-      default:
-        return '未評估';
-    }
-  }
-
-  String _formatDefectCategoryLabel(String? category) {
-    final value = (category ?? '').trim();
-    if (value.isEmpty) return '未分類';
-    switch (value.toLowerCase()) {
-      case 'structural':
-        return '結構性問題';
-      case 'exterior':
-        return '外牆問題';
-      case 'public_area':
-        return '公共區域';
-      case 'electrical':
-        return '電氣問題';
-      case 'plumbing':
-        return '水管問題';
-      case 'other':
-        return '其他';
-      default:
-        return value;
-    }
-  }
-
-  String _formatDefectSeverityLabel(String? severity, String riskLevel) {
-    final value = (severity ?? '').trim().toLowerCase();
-    switch (value) {
-      case 'mild':
-        return '輕微';
-      case 'moderate':
-        return '中度';
-      case 'severe':
-        return '嚴重';
-    }
-
-    switch (riskLevel.toLowerCase()) {
-      case 'high':
-        return '嚴重';
-      case 'medium':
-        return '中度';
-      case 'low':
-        return '輕微';
-      default:
-        return '未標註';
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final pin = _currentPin;
-    final hasPhoto = pin.imageBase64 != null;
-
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Container(
-        width: 520,
-        constraints: const BoxConstraints(maxHeight: 700),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: _riskColor.withValues(alpha: 0.9),
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(16)),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    pin.isAnalyzed ? Icons.analytics : Icons.location_on,
-                    color: Colors.white,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          '巡檢點詳情',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 17,
-                          ),
-                        ),
-                        Text(
-                          '座標: (${pin.x.toStringAsFixed(2)}, ${pin.y.toStringAsFixed(2)})  |  ${pin.createdAt.toString().substring(0, 16)}',
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  IconButton(
-                    icon: Icon(
-                      _isEditing ? Icons.check_circle : Icons.edit,
-                      color: Colors.white,
-                    ),
-                    tooltip: _isEditing ? '完成編輯' : '編輯',
-                    onPressed: () {
-                      if (_isEditing && _hasChanges) {
-                        _saveChanges();
-                      }
-                      setState(() => _isEditing = !_isEditing);
-                    },
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white),
-                    onPressed: () {
-                      if (_hasChanges) {
-                        _saveChanges();
-                      }
-                      Navigator.pop(context);
-                    },
-                  ),
-                ],
-              ),
-            ),
-
-            Flexible(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-
-                    _buildPhotoSection(hasPhoto, pin),
-
-                    const SizedBox(height: 16),
-
-                    if (hasPhoto &&
-                        !_isAnalyzing &&
-                        _status != 'analyzed' &&
-                        _expandedDefectIndex == null)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: ElevatedButton.icon(
-                          onPressed: _runAiAnalysis,
-                          icon: const Icon(Icons.auto_awesome, size: 18),
-                          label: const Text('AI 分析此照片'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.orange,
-                            foregroundColor: Colors.white,
-                            minimumSize: const Size(double.infinity, 44),
-                          ),
-                        ),
-                      ),
-
-                    if (_isAnalyzing)
-                      const Padding(
-                        padding: EdgeInsets.only(bottom: 12),
-                        child: Center(
-                          child: Column(
-                            children: [
-                              CircularProgressIndicator(),
-                              SizedBox(height: 8),
-                              Text('AI 正在分析...',
-                                  style: TextStyle(color: Colors.grey)),
-                            ],
-                          ),
-                        ),
-                      ),
-
-                    if (_expandedDefectIndex != null) _buildRiskSection(),
-
-                    if (_expandedDefectIndex != null)
-                      const SizedBox(height: 16),
-
-                    if (_expandedDefectIndex != null)
-                      _buildExpandedDefectChat(),
-
-                    _buildDefectsSection(),
-                  ],
-                ),
-              ),
-            ),
-
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: Colors.grey.shade200)),
-              ),
-              child: Row(
-                children: [
-
-                  TextButton.icon(
-                    onPressed: () => _confirmDelete(),
-                    icon: const Icon(Icons.delete_outline,
-                        size: 18, color: Colors.red),
-                    label:
-                        const Text('刪除', style: TextStyle(color: Colors.red)),
-                  ),
-                  const Spacer(),
-
-                  if (hasPhoto && _status != 'analyzed' && !_isAnalyzing)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: ElevatedButton.icon(
-                        onPressed: _runAiAnalysis,
-                        icon: const Icon(Icons.auto_awesome, size: 18),
-                        label: const Text('AI 分析'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange,
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
-                    ),
-
-                  OutlinedButton.icon(
-                    onPressed: _isAnalyzing ? null : widget.onRetakePhoto,
-                    icon: const Icon(Icons.camera_alt, size: 18),
-                    label: const Text('重新拍照'),
-                  ),
-                  const SizedBox(width: 8),
-
-                  ElevatedButton(
-                    onPressed: _isAnalyzing
-                        ? null
-                        : () {
-                            if (_hasChanges) {
-                              _saveChanges();
-                            }
-                            Navigator.pop(context);
-                          },
-                    child: const Text('確定'),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPhotoSection(bool hasPhoto, InspectionPin pin) {
-
-    final defect = _selectedDefect;
-    final displayBase64 = defect?.imageBase64 ?? pin.imageBase64;
-    final hasDisplayPhoto = displayBase64 != null;
-
-    if (hasDisplayPhoto) {
-      return Stack(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Image.memory(
-              base64Decode(displayBase64),
-              width: double.infinity,
-              height: 220,
-              fit: BoxFit.contain,
-            ),
-          ),
-
-          if (defect != null)
-            Positioned(
-              top: 8,
-              left: 8,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.black54,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '缺陷 #${_expandedDefectIndex! + 1}',
-                  style: const TextStyle(color: Colors.white, fontSize: 11),
-                ),
-              ),
-            ),
-
-          Positioned(
-            bottom: 8,
-            right: 8,
-            child: Material(
-              color: Colors.black54,
-              borderRadius: BorderRadius.circular(20),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(20),
-                onTap: defect != null
-                    ? () => _retakeDefectPhoto(_expandedDefectIndex!)
-                    : widget.onRetakePhoto,
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.camera_alt, color: Colors.white, size: 16),
-                      SizedBox(width: 4),
-                      Text('重新拍照',
-                          style: TextStyle(color: Colors.white, fontSize: 12)),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      );
-    } else {
-      return GestureDetector(
-        onTap: widget.onRetakePhoto,
-        child: Container(
-          height: 120,
-          decoration: BoxDecoration(
-            color: Colors.grey.shade100,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.shade300),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.add_a_photo, size: 36, color: Colors.grey.shade400),
-              const SizedBox(height: 6),
-              Text('點擊拍照', style: TextStyle(color: Colors.grey.shade500)),
-            ],
-          ),
-        ),
-      );
-    }
-  }
-
-  Future<void> _retakeDefectPhoto(int defectIndex) async {
-    try {
-      final XFile? image =
-          await widget.imagePicker.pickImage(source: ImageSource.camera);
-      if (image == null || !mounted) return;
-
-      final bytes = await image.readAsBytes();
-      final base64 = base64Encode(bytes);
-
-      final defect = _currentPin.defects[defectIndex];
-      final updatedDefect = defect.copyWith(
-        imageBase64: base64,
-        status: 'pending',
-      );
-      _updateDefectInPin(updatedDefect, defectIndex);
-      setState(() {});
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('拍照失敗: $e')),
-        );
-      }
-    }
-  }
-
-  Widget _buildExpandedDefectChat() {
-    final defect = _selectedDefect;
-    if (defect == null) return const SizedBox.shrink();
-    final index = _expandedDefectIndex!;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-
-        if (defect.chatMessages.isNotEmpty) ...[
-          const Row(
-            children: [
-              Icon(Icons.chat_bubble_outline, size: 16, color: Colors.grey),
-              SizedBox(width: 6),
-              Text('對話記錄',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Container(
-            constraints: const BoxConstraints(maxHeight: 200),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey.shade200),
-            ),
-            child: ListView.builder(
-              controller: _defectChatScrollController,
-              shrinkWrap: true,
-              padding: const EdgeInsets.all(8),
-              itemCount: defect.chatMessages.length,
-              itemBuilder: (context, i) {
-                final msg = defect.chatMessages[i];
-                final isUser = msg.role == 'user';
-                return Align(
-                  alignment:
-                      isUser ? Alignment.centerRight : Alignment.centerLeft,
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 6),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    constraints: BoxConstraints(
-                        maxWidth: MediaQuery.of(context).size.width * 0.55),
-                    decoration: BoxDecoration(
-                      color:
-                          isUser ? AppTheme.primaryColor : Colors.green.shade50,
-                      borderRadius: BorderRadius.circular(10),
-                      border: isUser
-                          ? null
-                          : Border.all(color: Colors.green.shade200),
-                    ),
-                    child: Text(
-                      msg.content,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: isUser ? Colors.white : Colors.black87,
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 8),
-        ],
-
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _defectChatController,
-                decoration: InputDecoration(
-                  hintText: '輸入補充資訊讓 AI 重新分析...',
-                  hintStyle: const TextStyle(fontSize: 12),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20)),
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  isDense: true,
-                ),
-                style: const TextStyle(fontSize: 13),
-                maxLines: 2,
-                minLines: 1,
-              ),
-            ),
-            const SizedBox(width: 6),
-            IconButton(
-              onPressed: _isAnalyzing
-                  ? null
-                  : () => _sendDefectChatMessage(defect, index),
-              icon: const Icon(Icons.send, size: 20),
-              color: AppTheme.primaryColor,
-              tooltip: '發送',
-            ),
-          ],
-        ),
-
-        if (_isAnalyzing) ...[
-          const SizedBox(height: 8),
-          const Center(
-            child: SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          ),
-        ],
-
-        const SizedBox(height: 16),
-      ],
-    );
-  }
-
-  Widget _buildRiskSection() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: _riskColor.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _riskColor.withValues(alpha: 0.25)),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.shield, color: _riskColor, size: 20),
-          const SizedBox(width: 8),
-          const Text('風險等級',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-          const Spacer(),
-          if (_isEditing) ...[
-            _buildRiskChip('low', '低', Colors.green),
-            const SizedBox(width: 6),
-            _buildRiskChip('medium', '中', Colors.orange),
-            const SizedBox(width: 6),
-            _buildRiskChip('high', '高', Colors.red),
-          ] else
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              decoration: BoxDecoration(
-                color: _riskColor.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                _riskLevelLabel,
-                style: TextStyle(
-                  color: _riskColor,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRiskChip(String level, String label, Color color) {
-    final selected = _displayRiskLevel == level;
-    return ChoiceChip(
-      label: Text(label,
-          style: TextStyle(
-            fontSize: 12,
-            color: selected ? Colors.white : color,
-            fontWeight: FontWeight.w600,
-          )),
-      selected: selected,
-      selectedColor: color,
-      backgroundColor: color.withValues(alpha: 0.1),
-      onSelected: (val) {
-        if (val) {
-          final defect = _selectedDefect;
-          if (defect != null && _expandedDefectIndex != null) {
-
-            final updated = defect.copyWith(riskLevel: level);
-            _updateDefectInPin(updated, _expandedDefectIndex!);
-          } else {
-
-            _riskLevel = level;
-          }
-          setState(() => _hasChanges = true);
-        }
-      },
-      visualDensity: VisualDensity.compact,
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    );
-  }
-
-  Widget _buildDefectsSection() {
-    final defects = _currentPin.defects;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            const Icon(Icons.report_problem, size: 18, color: Colors.orange),
-            const SizedBox(width: 6),
-            Text('缺陷記錄 (${defects.length})',
-                style:
-                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-            const Spacer(),
-            TextButton.icon(
-              onPressed: widget.onRetakePhoto,
-              icon: const Icon(Icons.add_a_photo, size: 16),
-              label: const Text('新增缺陷'),
-            ),
-          ],
-        ),
-        if (defects.isEmpty)
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey.shade200),
-            ),
-            child: const Center(
-              child: Text('尚無缺陷記錄，點擊「新增缺陷」拍照分析',
-                  style: TextStyle(color: Colors.grey, fontSize: 13)),
-            ),
-          ),
-        ...defects.asMap().entries.map((entry) {
-          final idx = entry.key;
-          final defect = entry.value;
-          return _buildDefectCard(defect, idx);
-        }),
-      ],
-    );
-  }
-
-  Widget _buildDefectCard(Defect defect, int index) {
-    Color riskColor;
-    switch (defect.riskLevel) {
-      case 'high':
-        riskColor = Colors.red;
-        break;
-      case 'medium':
-        riskColor = Colors.orange;
-        break;
-      default:
-        riskColor = Colors.green;
-    }
-
-    final isSelected = _expandedDefectIndex == index;
-    final categoryRaw =
-        defect.category ?? defect.aiResult?['category']?.toString();
-    final severityRaw =
-        defect.severity ?? defect.aiResult?['severity']?.toString();
-    final categoryLabel = _formatDefectCategoryLabel(categoryRaw);
-    final severityLabel =
-        _formatDefectSeverityLabel(severityRaw, defect.riskLevel);
-
-    return Card(
-      margin: const EdgeInsets.only(top: 8),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-        side: isSelected
-            ? const BorderSide(color: AppTheme.primaryColor, width: 2)
-            : BorderSide.none,
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () {
-          setState(() {
-            _expandedDefectIndex = isSelected ? null : index;
-            _defectChatController.clear();
-          });
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Row(
-            children: [
-              if (defect.imageBase64 != null)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: Image.memory(
-                    base64Decode(defect.imageBase64!),
-                    width: 48,
-                    height: 48,
-                    fit: BoxFit.cover,
-                  ),
-                )
-              else
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Icon(Icons.image, color: Colors.grey, size: 20),
-                ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text('缺陷 #${index + 1}',
-                            style: const TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 13)),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            categoryLabel,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey.shade700,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: riskColor.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            defect.riskLevelLabel,
-                            style: TextStyle(
-                                color: riskColor,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.withValues(alpha: 0.10),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            '問題類別: $categoryLabel',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: Colors.blue,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.purple.withValues(alpha: 0.10),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            '嚴重程度: $severityLabel',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: Colors.purple,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (defect.description != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text(
-                          defect.description!,
-                          style: TextStyle(
-                              fontSize: 12, color: Colors.grey.shade700),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    if (defect.chatMessages.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Text(
-                          '💬 ${defect.chatMessages.length} 條對話',
-                          style: TextStyle(
-                              fontSize: 11, color: Colors.blue.shade400),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              Icon(
-                isSelected ? Icons.check_circle : Icons.chevron_right,
-                color: isSelected ? AppTheme.primaryColor : Colors.grey,
-                size: 20,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _sendDefectChatMessage(Defect defect, int defectIndex) async {
-    final text = _defectChatController.text.trim();
-    if (text.isEmpty || defect.imageBase64 == null) return;
-
-    final userMsg = ChatMessage(
-      id: const Uuid().v4(),
-      role: 'user',
-      content: text,
-      timestamp: DateTime.now(),
-    );
-
-    final updatedMessages = [...defect.chatMessages, userMsg];
-    final updatedDefect = defect.copyWith(chatMessages: updatedMessages);
-    _updateDefectInPin(updatedDefect, defectIndex);
-
-    setState(() {
-      _defectChatController.clear();
-      _isAnalyzing = true;
-    });
-    _scrollDefectChat();
-
-    try {
-
-      final chatContext = updatedMessages
-          .where((m) => m.role == 'user')
-          .map((m) => m.content)
-          .join('\n');
-
-      final result = await AiRemoteDataSource.instance.analyzeImage(
-        defect.imageBase64!,
-        additionalContext: chatContext,
-      );
-
-      if (!mounted) return;
-
-      final analysisText = result['analysis'] as String? ?? '分析完成';
-      final recs =
-          (result['recommendations'] as List<dynamic>?)?.join('\n• ') ?? '';
-      final riskScore = result['risk_score'] ?? 0;
-      final riskLevel = result['risk_level'] ?? 'low';
-      final fullMsg =
-          '【AI 重新分析】\n風險等級: $riskLevel ($riskScore)\n\n$analysisText'
-          '${recs.isNotEmpty ? '\n\n建議:\n• $recs' : ''}';
-
-      final aiMsg = ChatMessage(
-        id: const Uuid().v4(),
-        role: 'ai',
-        content: fullMsg,
-        timestamp: DateTime.now(),
-      );
-
-      final finalMessages = [...updatedMessages, aiMsg];
-      final finalDefect = defect.copyWith(
-        chatMessages: finalMessages,
-        aiResult: result,
-        riskLevel: result['risk_level'] as String? ?? defect.riskLevel,
-        riskScore: result['risk_score'] as int? ?? defect.riskScore,
-        description: result['analysis'] as String? ?? defect.description,
-        recommendations: (result['recommendations'] as List<dynamic>?)
-                ?.map((e) => e.toString())
-                .toList() ??
-            defect.recommendations,
-        status: 'analyzed',
-      );
-      _updateDefectInPin(finalDefect, defectIndex);
-
-      setState(() => _isAnalyzing = false);
-      _scrollDefectChat();
-    } catch (e) {
-      if (!mounted) return;
-
-      final errMsg = ChatMessage(
-        id: const Uuid().v4(),
-        role: 'ai',
-        content: '分析失敗: $e',
-        timestamp: DateTime.now(),
-      );
-      final errMessages = [...updatedMessages, errMsg];
-      final errDefect = defect.copyWith(chatMessages: errMessages);
-      _updateDefectInPin(errDefect, defectIndex);
-
-      setState(() => _isAnalyzing = false);
-    }
-  }
-
-  void _updateDefectInPin(Defect updatedDefect, int defectIndex) {
-    final newDefects = List<Defect>.from(_currentPin.defects);
-    newDefects[defectIndex] = updatedDefect;
-    final updatedPin = _currentPin.copyWith(defects: newDefects);
-    setState(() {
-      _currentPin = updatedPin;
-      _hasChanges = true;
-    });
-    widget.onUpdate(updatedPin);
-  }
-
-  void _scrollDefectChat() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_defectChatScrollController.hasClients) {
-        _defectChatScrollController.animateTo(
-          _defectChatScrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
-  }
-
-  void _saveChanges() {
-    final updatedPin = _currentPin.copyWith(
-      note: _noteController.text.isEmpty ? null : _noteController.text,
-      riskLevel: _riskLevel,
-      riskScore: _riskScore,
-      description: _description,
-      recommendations: _recommendations,
-      aiResult: _aiResult,
-      status: _status,
-    );
-    setState(() => _currentPin = updatedPin);
-    widget.onUpdate(updatedPin);
-    _hasChanges = false;
-  }
-
-  Future<void> _runAiAnalysis() async {
-    if (_currentPin.imageBase64 == null) return;
-
-    setState(() => _isAnalyzing = true);
-    final provider = context.read<InspectionProvider>();
-
-    try {
-
-      String? yoloContext;
-      if (YoloService.isSupported) {
-        final imageBytes = base64Decode(_currentPin.imageBase64!);
-        final detections = await YoloService.instance.detect(imageBytes);
-        if (detections.isNotEmpty) {
-          final yoloMap = YoloService.toSafetyAnalysis(detections);
-          yoloContext = '[YOLO Local Detection]\n${yoloMap['analysis']}';
-        }
-      }
-
-      final updatedPin = await provider.analyzePin(
-        _currentPin,
-        imageBase64: _currentPin.imageBase64!,
-        imagePath: _currentPin.imagePath,
-        yoloContext: yoloContext,
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        _aiResult = updatedPin.aiResult ??
-            {
-              'risk_level': updatedPin.riskLevel,
-              'risk_score': updatedPin.riskScore,
-              'analysis': updatedPin.description,
-              'recommendations': updatedPin.recommendations,
-            };
-        _riskLevel = updatedPin.riskLevel;
-        _riskScore = updatedPin.riskScore;
-        _description = updatedPin.description;
-        _recommendations = updatedPin.recommendations;
-        _status = 'analyzed';
-        _isAnalyzing = false;
-        _hasChanges = true;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isAnalyzing = false);
-      debugPrint('AI 分析錯誤: $e');
-    }
-  }
-
-  void _confirmDelete() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('刪除巡檢點'),
-        content: Text(
-          '確定要刪除座標 (${_currentPin.x.toStringAsFixed(2)}, ${_currentPin.y.toStringAsFixed(2)}) 的巡檢點嗎？',
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              widget.onDelete();
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('刪除', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PhotoAnalysisDialog extends StatefulWidget {
-  final InspectionPin pin;
-  final ImagePicker imagePicker;
-  final ValueChanged<InspectionPin> onComplete;
-
-  const _PhotoAnalysisDialog({
-    required this.pin,
-    required this.imagePicker,
-    required this.onComplete,
-  });
-
-  @override
-  State<_PhotoAnalysisDialog> createState() => _PhotoAnalysisDialogState();
-}
-
-class _PhotoAnalysisDialogState extends State<_PhotoAnalysisDialog> {
-  String? _imageBase64;
-  String? _imagePath;
-  bool _isAnalyzing = false;
-  Map<String, dynamic>? _analysisResult;
-  final _chatController = TextEditingController();
-  bool _photoTaken = false;
-
-  final List<ChatMessage> _chatMessages = [];
-  final ScrollController _chatScrollController = ScrollController();
-
-  List<YoloDetection> _yoloDetections = [];
-  final bool _showBoundingBoxes = true;
-
-  @override
-  void initState() {
-    super.initState();
-
-    if (widget.pin.imageBase64 != null) {
-      _imageBase64 = widget.pin.imageBase64;
-      _imagePath = widget.pin.imagePath;
-      _photoTaken = true;
-    }
-    _initYolo();
-  }
-
-  Future<void> _initYolo() async {
-    if (YoloService.isSupported) {
-      await YoloService.instance.loadModel();
-    }
-  }
-
-  @override
-  void dispose() {
-    _chatController.dispose();
-    _chatScrollController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Container(
-        width: 500,
-        constraints: const BoxConstraints(maxHeight: 600),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: const BoxDecoration(
-                color: AppTheme.primaryColor,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.camera_alt, color: Colors.white),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          '拍照 & AI 分析',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18),
-                        ),
-                        Text(
-                          '位置: (${widget.pin.x.toStringAsFixed(2)}, ${widget.pin.y.toStringAsFixed(2)})',
-                          style: const TextStyle(
-                              color: Colors.white70, fontSize: 13),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-            ),
-
-            Flexible(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-
-                    if (_imageBase64 != null)
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Stack(
-                          children: [
-                            Image.memory(
-                              base64Decode(_imageBase64!),
-                              height: 200,
-                              width: double.infinity,
-                              fit: BoxFit.contain,
-                            ),
-
-                            if (_showBoundingBoxes &&
-                                _yoloDetections.isNotEmpty)
-                              Positioned.fill(
-                                child: LayoutBuilder(
-                                  builder: (context, constraints) {
-                                    return CustomPaint(
-                                      painter: _YoloBoundingBoxPainter(
-                                        detections: _yoloDetections,
-                                        imageBytes: base64Decode(_imageBase64!),
-                                        canvasWidth: constraints.maxWidth,
-                                        canvasHeight: 200,
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-
-                            if (_yoloDetections.isNotEmpty)
-                              Positioned(
-                                top: 8,
-                                right: 8,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black87,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.visibility,
-                                          color: Colors.greenAccent, size: 14),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        '${_yoloDetections.length} 物件',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      )
-                    else
-                      Container(
-                        height: 150,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                              color: Colors.grey.shade300,
-                              style: BorderStyle.solid),
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.add_a_photo,
-                                size: 48, color: Colors.grey.shade400),
-                            const SizedBox(height: 8),
-                            Text('選擇或拍攝照片',
-                                style: TextStyle(color: Colors.grey.shade500)),
-                          ],
-                        ),
-                      ),
-
-                    const SizedBox(height: 12),
-
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _isAnalyzing
-                                ? null
-                                : () => _pickImage(ImageSource.camera),
-                            icon: const Icon(Icons.camera_alt),
-                            label: const Text('拍照'),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _isAnalyzing
-                                ? null
-                                : () => _pickImage(ImageSource.gallery),
-                            icon: const Icon(Icons.photo_library),
-                            label: const Text('從檔案'),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 12),
-                    const SizedBox(height: 12),
-
-                    if (_chatMessages.isNotEmpty) ...[
-                      Container(
-                        constraints: const BoxConstraints(maxHeight: 150),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.grey.shade300),
-                        ),
-                        child: ListView.builder(
-                          controller: _chatScrollController,
-                          padding: const EdgeInsets.all(8),
-                          itemCount: _chatMessages.length,
-                          itemBuilder: (context, index) {
-                            final msg = _chatMessages[index];
-                            final isUser = msg.role == 'user';
-                            return Align(
-                              alignment: isUser
-                                  ? Alignment.centerRight
-                                  : Alignment.centerLeft,
-                              child: Container(
-                                margin: const EdgeInsets.only(bottom: 6),
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 6),
-                                constraints: BoxConstraints(
-                                    maxWidth:
-                                        MediaQuery.of(context).size.width *
-                                            0.65),
-                                decoration: BoxDecoration(
-                                  color: isUser
-                                      ? AppTheme.primaryColor
-                                      : Colors.white,
-                                  borderRadius: BorderRadius.circular(12),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color:
-                                          Colors.black.withValues(alpha: 0.05),
-                                      blurRadius: 2,
-                                    ),
-                                  ],
-                                ),
-                                child: Text(
-                                  msg.content,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color:
-                                        isUser ? Colors.white : Colors.black87,
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _chatController,
-                            decoration: InputDecoration(
-                              hintText: '輸入補充資訊讓 AI 重新分析...',
-                              hintStyle: const TextStyle(fontSize: 12),
-                              border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(20)),
-                              contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 8),
-                              isDense: true,
-                            ),
-                            style: const TextStyle(fontSize: 13),
-                            maxLines: 2,
-                            minLines: 1,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        IconButton(
-                          onPressed: (_isAnalyzing ||
-                                  _chatController.text.trim().isEmpty)
-                              ? null
-                              : _sendChatMessage,
-                          icon: const Icon(Icons.send, size: 20),
-                          color: AppTheme.primaryColor,
-                          tooltip: '發送',
-                        ),
-                      ],
-                    ),
-
-                    if (_isAnalyzing) ...[
-                      const SizedBox(height: 16),
-                      const Center(
-                        child: Column(
-                          children: [
-                            CircularProgressIndicator(),
-                            SizedBox(height: 12),
-                            Text('AI 正在分析...',
-                                style: TextStyle(color: Colors.grey)),
-                          ],
-                        ),
-                      ),
-                    ],
-
-                    if (_analysisResult != null) ...[
-                      const SizedBox(height: 16),
-                      _buildAnalysisResultCard(),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: Colors.grey.shade200)),
-              ),
-              child: Row(
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('跳過'),
-                  ),
-                  const Spacer(),
-                  if (_photoTaken && !_isAnalyzing)
-                    ElevatedButton.icon(
-                      onPressed: _analyzeImage,
-                      icon: const Icon(Icons.auto_awesome, size: 18),
-                      label: const Text('AI 分析'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: _isAnalyzing ? null : _saveAndClose,
-                    child: const Text('保存'),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _pickImage(ImageSource source) async {
-    try {
-      XFile? image;
-      if (source == ImageSource.camera) {
-
-        if (!kIsWeb &&
-            (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
-          final result = await FilePicker.platform.pickFiles(
-            type: FileType.image,
-            dialogTitle: '選擇照片',
-          );
-          if (result != null && result.files.single.path != null) {
-            image = XFile(result.files.single.path!);
-          }
-        } else {
-          image = await widget.imagePicker.pickImage(
-            source: ImageSource.camera,
-            maxWidth: 1024,
-            maxHeight: 1024,
-            imageQuality: 85,
-          );
-        }
-      } else {
-
-        if (!kIsWeb &&
-            (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
-          final result = await FilePicker.platform.pickFiles(
-            type: FileType.image,
-            dialogTitle: '選擇照片',
-          );
-          if (result != null && result.files.single.path != null) {
-            image = XFile(result.files.single.path!);
-          }
-        } else {
-          image = await widget.imagePicker.pickImage(
-            source: ImageSource.gallery,
-            maxWidth: 1024,
-            maxHeight: 1024,
-            imageQuality: 85,
-          );
-        }
-      }
-
-      if (image != null) {
-        final bytes = await image.readAsBytes();
-        setState(() {
-          _imageBase64 = base64Encode(bytes);
-          _imagePath = image!.path;
-          _photoTaken = true;
-          _analysisResult = null;
-          _yoloDetections = [];
-        });
-      }
-    } catch (e) {
-      debugPrint('選擇圖片失敗: $e');
-    }
-  }
-
-  Future<void> _analyzeImage() async {
-    if (_imageBase64 == null) return;
-
-    setState(() {
-      _isAnalyzing = true;
-    });
-    final provider = context.read<InspectionProvider>();
-
-    try {
-
-      String? yoloContext;
-      if (YoloService.isSupported) {
-        final imageBytes = base64Decode(_imageBase64!);
-        final detections = await YoloService.instance.detect(imageBytes);
-        if (mounted) {
-          setState(() => _yoloDetections = detections);
-        }
-        if (detections.isNotEmpty) {
-          final yoloMap = YoloService.toSafetyAnalysis(detections);
-          yoloContext = '[YOLO Local Detection]\n${yoloMap['analysis']}';
-        }
-      }
-
-      final updatedPin = await provider.analyzePin(
-        widget.pin,
-        imageBase64: _imageBase64!,
-        imagePath: _imagePath,
-        yoloContext: yoloContext,
-      );
-
-      final result = updatedPin.aiResult ??
-          {
-            'risk_level': updatedPin.riskLevel,
-            'risk_score': updatedPin.riskScore,
-            'analysis': updatedPin.description,
-            'recommendations': updatedPin.recommendations,
-          };
-
-      setState(() {
-        _analysisResult = result;
-        _isAnalyzing = false;
-
-        final analysisText = result['analysis'] as String? ?? '分析完成';
-        final recs =
-            (result['recommendations'] as List<dynamic>?)?.join('\n• ') ?? '';
-        final riskScore = result['risk_score'] ?? 0;
-        final riskLevel = result['risk_level'] ?? 'low';
-        final fullMsg =
-            '【AI 分析結果】\n風險等級: $riskLevel ($riskScore)\n\n$analysisText'
-            '${recs.isNotEmpty ? '\n\n建議:\n• $recs' : ''}';
-        _chatMessages.add(ChatMessage(
-          id: const Uuid().v4(),
-          role: 'ai',
-          content: fullMsg,
-          timestamp: DateTime.now(),
-        ));
-      });
-      _scrollChatToBottom();
-    } catch (e) {
-      setState(() {
-        _isAnalyzing = false;
-      });
-      debugPrint('AI 分析錯誤: $e');
-    }
-  }
-
-  Future<void> _sendChatMessage() async {
-    final text = _chatController.text.trim();
-    if (text.isEmpty || _imageBase64 == null) return;
-
-    setState(() {
-      _chatMessages.add(ChatMessage(
-        id: const Uuid().v4(),
-        role: 'user',
-        content: text,
-        timestamp: DateTime.now(),
-      ));
-      _chatController.clear();
-      _isAnalyzing = true;
-    });
-    _scrollChatToBottom();
-
-    try {
-
-      final chatContext = _chatMessages
-          .where((m) => m.role == 'user')
-          .map((m) => m.content)
-          .join('\n');
-
-      final result = await AiRemoteDataSource.instance.analyzeImage(
-        _imageBase64!,
-        additionalContext: chatContext,
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        _analysisResult = result;
-        _isAnalyzing = false;
-
-        final analysisText = result['analysis'] as String? ?? '分析完成';
-        final recs =
-            (result['recommendations'] as List<dynamic>?)?.join('\n• ') ?? '';
-        final riskScore = result['risk_score'] ?? 0;
-        final riskLevel = result['risk_level'] ?? 'low';
-        final fullMsg =
-            '【AI 重新分析】\n風險等級: $riskLevel ($riskScore)\n\n$analysisText'
-            '${recs.isNotEmpty ? '\n\n建議:\n• $recs' : ''}';
-        _chatMessages.add(ChatMessage(
-          id: const Uuid().v4(),
-          role: 'ai',
-          content: fullMsg,
-          timestamp: DateTime.now(),
-        ));
-      });
-      _scrollChatToBottom();
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isAnalyzing = false;
-        _chatMessages.add(ChatMessage(
-          id: const Uuid().v4(),
-          role: 'ai',
-          content: '分析失敗: $e',
-          timestamp: DateTime.now(),
-        ));
-      });
-    }
-  }
-
-  void _scrollChatToBottom() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_chatScrollController.hasClients) {
-        _chatScrollController.animateTo(
-          _chatScrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
-  }
-
-  String _normalizeReportCategory(String? rawCategory) {
-    final value = (rawCategory ?? '').trim().toLowerCase();
-    if (value.isEmpty) return 'other';
-
-    if (value.contains('structural') ||
-        value.contains('結構') ||
-        value.contains('spalling') ||
-        value.contains('crack') ||
-        value.contains('裂')) {
-      return 'structural';
-    }
-    if (value.contains('exterior') ||
-        value.contains('外牆') ||
-        value.contains('facade') ||
-        value.contains('tile') ||
-        value.contains('window')) {
-      return 'exterior';
-    }
-    if (value.contains('public') || value.contains('公共')) {
-      return 'public_area';
-    }
-    if (value.contains('electrical') || value.contains('電')) {
-      return 'electrical';
-    }
-    if (value.contains('plumb') ||
-        value.contains('leak') ||
-        value.contains('water') ||
-        value.contains('水')) {
-      return 'plumbing';
-    }
-    return 'other';
-  }
-
-  String _normalizeReportSeverity(String? rawSeverity, String riskLevel) {
-    final value = (rawSeverity ?? '').trim().toLowerCase();
-    if (value == 'mild' || value == 'moderate' || value == 'severe') {
-      return value;
-    }
-    switch (riskLevel.toLowerCase()) {
-      case 'high':
-        return 'severe';
-      case 'medium':
-        return 'moderate';
-      case 'low':
-      default:
-        return 'mild';
-    }
-  }
-
-  Future<void> _saveAndClose() async {
-    var updatedPin = widget.pin;
-
-    if (_imageBase64 != null) {
-      final defect = Defect(
-        id: const Uuid().v4(),
-        imagePath: _imagePath,
-        imageBase64: _imageBase64,
-        aiResult: _analysisResult,
-        category: _analysisResult?['category'] as String?,
-        severity: _analysisResult?['severity'] as String?,
-        riskScore: _analysisResult?['risk_score'] as int? ?? 0,
-        riskLevel: _analysisResult?['risk_level'] as String? ?? 'low',
-        description: _analysisResult?['analysis'] as String?,
-        recommendations: (_analysisResult?['recommendations'] as List<dynamic>?)
-                ?.map((e) => e.toString())
-                .toList() ??
-            [],
-        status: _analysisResult != null ? 'analyzed' : 'pending',
-        chatMessages: List<ChatMessage>.from(_chatMessages),
-        createdAt: DateTime.now(),
-      );
-
-      final newDefects = [...updatedPin.defects, defect];
-      updatedPin = updatedPin.copyWith(
-        defects: newDefects,
-        imageBase64: _imageBase64,
-        imagePath: _imagePath,
-      );
-
-      if (_analysisResult != null) {
-        updatedPin = updatedPin.copyWith(
-          aiResult: _analysisResult,
-          riskLevel: _analysisResult!['risk_level'] as String? ?? 'low',
-          riskScore: _analysisResult!['risk_score'] as int? ?? 0,
-          description: _analysisResult!['analysis'] as String?,
-          recommendations:
-              (_analysisResult!['recommendations'] as List<dynamic>?)
-                      ?.map((e) => e.toString())
-                      .toList() ??
-                  [],
-          status: 'analyzed',
-        );
-      }
-
-      try {
-        final currentSession =
-            context.read<InspectionProvider>().currentSession;
-        final currentSessionId = currentSession?.id ?? '';
-        final currentFloor = currentSession?.floor ?? 1;
-        String boundsRef = '';
-        try {
-          final uwb = context.read<UwbService>();
-          if (uwb.anchors.isNotEmpty) {
-            final minX = uwb.anchors.map((a) => a.x).reduce(min) - 1;
-            final maxX = uwb.anchors.map((a) => a.x).reduce(max) + 1;
-            final minY = uwb.anchors.map((a) => a.y).reduce(min) - 1;
-            final maxY = uwb.anchors.map((a) => a.y).reduce(max) + 1;
-            boundsRef =
-                ';minX=${minX.toStringAsFixed(4)};maxX=${maxX.toStringAsFixed(4)};minY=${minY.toStringAsFixed(4)};maxY=${maxY.toStringAsFixed(4)}';
-          }
-        } catch (_) {}
-
-        final damageDetected = _analysisResult?['damage_detected'] == true;
-        final rawCategory = _analysisResult?['category'] as String?;
-        final rawSeverity = _analysisResult?['severity'] as String?;
-        final rawTitle = _analysisResult?['title'] as String?;
-
-        final defectDescription =
-            _analysisResult?['analysis'] as String? ?? '已拍照記錄';
-        final riskLevel = _analysisResult?['risk_level'] as String? ?? 'medium';
-        final riskScore = _analysisResult?['risk_score'] as int? ?? 50;
-        final normalizedCategory = rawCategory != null
-            ? _normalizeReportCategory(rawCategory)
-            : (damageDetected ? 'structural' : 'other');
-        final normalizedSeverity =
-            _normalizeReportSeverity(rawSeverity, riskLevel);
-        final normalizedTitle =
-            rawTitle ?? (damageDetected ? '建築安全問題' : '影像證據不足 / 未檢測到缺陷');
-
-        final report = ReportModel(
-          title: normalizedTitle,
-          description: defectDescription,
-          category: normalizedCategory,
-          severity: normalizedSeverity,
-          riskLevel: riskLevel,
-          riskScore: riskScore,
-          isUrgent: riskScore >= 70,
-          status: 'pending',
-          imageUrl: null,
-          imageBase64: _imageBase64,
-          aiAnalysis: _analysisResult != null
-              ? _analysisResult!['analysis'].toString()
-              : '',
-          location:
-              'UWB 座標: (${widget.pin.x.toStringAsFixed(2)}, ${widget.pin.y.toStringAsFixed(2)}) | ref:session=$currentSessionId;pin=${widget.pin.id};floor=$currentFloor$boundsRef',
-          latitude: widget.pin.x,
-          longitude: widget.pin.y,
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        );
-
-        final created = await SupabaseService.instance
-            .createReport(report, imageBase64: _imageBase64);
-        if (created != null) {
-          if (!mounted) return;
-
-          context.read<ReportProvider>().refreshFromCloud();
-          debugPrint('✅ 巡檢缺陷已同步到歷史記錄 (ID: ${created.id})');
-        } else {
-          debugPrint('⚠️ 同步到歷史記錄失敗，但本地巡檢已保存');
-        }
-      } catch (e) {
-        debugPrint('⚠️ 同步到歷史記錄失敗: $e，但本地巡檢已保存');
-
-      }
-    }
-
-    if (!mounted) return;
-    widget.onComplete(updatedPin);
-    Navigator.pop(context);
-  }
-
-  Widget _buildAnalysisResultCard() {
-    final riskLevel = _analysisResult!['risk_level'] as String? ?? 'low';
-    final riskScore = _analysisResult!['risk_score'] as int? ?? 0;
-    final analysis = _analysisResult!['analysis'] as String? ?? '';
-    final recommendations =
-        _analysisResult!['recommendations'] as List<dynamic>? ?? [];
-
-    Color riskColor;
-    switch (riskLevel) {
-      case 'high':
-        riskColor = Colors.red;
-        break;
-      case 'medium':
-        riskColor = Colors.orange;
-        break;
-      default:
-        riskColor = Colors.green;
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: riskColor.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: riskColor.withValues(alpha: 0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.analytics, color: riskColor),
-              const SizedBox(width: 8),
-              const Text(
-                'AI 分析結果',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: riskColor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '風險: $riskScore',
-                  style: TextStyle(
-                    color: riskColor,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(analysis, style: const TextStyle(fontSize: 13)),
-          if (recommendations.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            const Text('建議:',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-            ...recommendations.map((r) => Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('• ', style: TextStyle(fontSize: 13)),
-                      Expanded(
-                          child: Text(r.toString(),
-                              style: const TextStyle(fontSize: 13))),
-                    ],
-                  ),
-                )),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _YoloBoundingBoxPainter extends CustomPainter {
-  final List<YoloDetection> detections;
-  final Uint8List imageBytes;
-  final double canvasWidth;
-  final double canvasHeight;
-
-  _YoloBoundingBoxPainter({
-    required this.detections,
-    required this.imageBytes,
-    required this.canvasWidth,
-    required this.canvasHeight,
-  });
-
-  static final List<Color> _colors = [
-    Colors.red,
-    Colors.green,
-    Colors.blue,
-    Colors.orange,
-    Colors.purple,
-    Colors.cyan,
-    Colors.pink,
-    Colors.teal,
-    Colors.amber,
-    Colors.indigo,
-  ];
-
-  Color _getColorForClass(String className) {
-    final hash = className.hashCode.abs();
-    return _colors[hash % _colors.length];
-  }
-
-  @override
-  void paint(Canvas canvas, Size size) {
-
-    for (final det in detections) {
-      final color = _getColorForClass(det.className);
-
-      final left = (det.x - det.width / 2) * size.width;
-      final top = (det.y - det.height / 2) * size.height;
-      final boxWidth = det.width * size.width;
-      final boxHeight = det.height * size.height;
-
-      final rect = Rect.fromLTWH(left, top, boxWidth, boxHeight);
-
-      final boxPaint = Paint()
-        ..color = color
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.0;
-      canvas.drawRect(rect, boxPaint);
-
-      final label =
-          '${det.className} ${(det.confidence * 100).toStringAsFixed(0)}%';
-      final textPainter = TextPainter(
-        text: TextSpan(
-          text: label,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 10,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-
-      final bgRect = Rect.fromLTWH(
-        left,
-        top - textPainter.height - 4,
-        textPainter.width + 8,
-        textPainter.height + 4,
-      );
-
-      final bgPaint = Paint()
-        ..color = color.withValues(alpha: 0.85)
-        ..style = PaintingStyle.fill;
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(bgRect, const Radius.circular(2)),
-        bgPaint,
-      );
-
-      textPainter.paint(canvas, Offset(left + 4, top - textPainter.height - 2));
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _YoloBoundingBoxPainter oldDelegate) {
-    return oldDelegate.detections != detections;
   }
 }
 
@@ -5605,8 +2896,6 @@ class InspectionCanvasPainter extends CustomPainter {
   final List<TrajectoryPoint> trajectory;
   final UwbConfig config;
   final ui.Image? floorPlanImage;
-  final List<InspectionPin> pins;
-  final String? selectedPinId;
   final double padding;
 
   InspectionCanvasPainter({
@@ -5615,8 +2904,6 @@ class InspectionCanvasPainter extends CustomPainter {
     this.trajectory = const [],
     required this.config,
     this.floorPlanImage,
-    this.pins = const [],
-    this.selectedPinId,
     this.padding = 40.0,
   });
 
@@ -5672,90 +2959,8 @@ class InspectionCanvasPainter extends CustomPainter {
       _drawTag(canvas, toCanvas(currentTag!.x, currentTag!.y), currentTag!);
     }
 
-    for (int i = 0; i < pins.length; i++) {
-      final pin = pins[i];
-      final pos = toCanvas(pin.x, pin.y);
-      _drawInspectionPin(canvas, pos, pin, i + 1, pin.id == selectedPinId);
-    }
-
     _drawAxisLabels(canvas, size, minX, maxX, minY, maxY, scale, offsetX,
         offsetY, toCanvas);
-  }
-
-  void _drawInspectionPin(Canvas canvas, Offset position, InspectionPin pin,
-      int index, bool isSelected) {
-
-    Color pinColor;
-    switch (pin.riskLevel) {
-      case 'high':
-        pinColor = Colors.red;
-        break;
-      case 'medium':
-        pinColor = Colors.orange;
-        break;
-      case 'low':
-        pinColor = Colors.green;
-        break;
-      default:
-        pinColor = pin.isAnalyzed ? Colors.blue : Colors.grey;
-    }
-
-    if (isSelected) {
-      final glowPaint = Paint()
-        ..color = pinColor.withValues(alpha: 0.3)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
-      canvas.drawCircle(position, 20, glowPaint);
-    }
-
-    final pinPath = Path();
-    pinPath.moveTo(position.dx, position.dy + 4);
-    pinPath.lineTo(position.dx - 8, position.dy - 12);
-    pinPath.quadraticBezierTo(
-        position.dx - 12, position.dy - 22, position.dx, position.dy - 28);
-    pinPath.quadraticBezierTo(
-        position.dx + 12, position.dy - 22, position.dx + 8, position.dy - 12);
-    pinPath.close();
-
-    final shadowPaint = Paint()
-      ..color = Colors.black.withValues(alpha: 0.2)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
-    canvas.drawPath(pinPath.shift(const Offset(2, 2)), shadowPaint);
-
-    final pinPaint = Paint()
-      ..color = pinColor
-      ..style = PaintingStyle.fill;
-    canvas.drawPath(pinPath, pinPaint);
-
-    final borderPaint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-    canvas.drawPath(pinPath, borderPaint);
-
-    final dotPaint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.fill;
-    canvas.drawCircle(Offset(position.dx, position.dy - 16), 5, dotPaint);
-
-    final textPainter = TextPainter(
-      text: TextSpan(
-        text: '$index',
-        style: TextStyle(
-          color: pinColor,
-          fontSize: 8,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    );
-    textPainter.layout();
-    textPainter.paint(
-      canvas,
-      Offset(position.dx - textPainter.width / 2,
-          position.dy - 16 - textPainter.height / 2),
-    );
-
-    canvas.drawCircle(position, 3, Paint()..color = pinColor);
   }
 
   void _drawEmptyState(Canvas canvas, Size size) {
@@ -6018,9 +3223,6 @@ class InspectionCanvasPainter extends CustomPainter {
         oldDelegate.trajectory.length != trajectory.length ||
         oldDelegate.anchors != anchors ||
         oldDelegate.config != config ||
-        oldDelegate.floorPlanImage != floorPlanImage ||
-        oldDelegate.pins.length != pins.length ||
-        oldDelegate.selectedPinId != selectedPinId ||
-        oldDelegate.pins != pins;
+        oldDelegate.floorPlanImage != floorPlanImage;
   }
 }

@@ -16,7 +16,8 @@ dependencies:
   cupertino_icons: ^1.0.6
   
   # State Management
-  provider: ^6.1.1
+  provider: ^6.1.1          # kept for local UwbService ChangeNotifierProvider.value
+  flutter_riverpod: ^2.6.1  # global state management
   
   # Network & API
   http: ^1.1.2
@@ -53,8 +54,8 @@ dependencies:
   flutter_svg: ^2.2.3
   pdfrx: ^2.2.24
 
-  # YOLO Object Detection — tflite_flutter supports all native platforms
-  tflite_flutter: ^0.12.0
+  # YOLO Object Detection — ultralytics_yolo official plugin (Android/iOS)
+  ultralytics_yolo: ^0.2.0
   path_provider: ^2.1.1
   archive: ^4.0.9
 

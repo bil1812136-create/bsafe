@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:bsafe_app/features/defect_reporting/data/models/report_model.dart';
@@ -10,15 +10,15 @@ import 'package:bsafe_app/features/defect_reporting/domain/entities/report.dart'
 import 'package:bsafe_app/features/defect_reporting/presentation/providers/report_provider.dart';
 import 'package:bsafe_app/core/theme/app_theme.dart';
 
-class ReportDetailPage extends StatefulWidget {
+class ReportDetailPage extends ConsumerStatefulWidget {
   final ReportModel report;
   const ReportDetailPage({super.key, required this.report});
 
   @override
-  State<ReportDetailPage> createState() => _ReportDetailPageState();
+  ConsumerState<ReportDetailPage> createState() => _ReportDetailPageState();
 }
 
-class _ReportDetailPageState extends State<ReportDetailPage> {
+class _ReportDetailPageState extends ConsumerState<ReportDetailPage> {
   late ReportModel _report;
 
   @override
@@ -26,17 +26,17 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     super.initState();
     _report = widget.report;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final provider = context.read<ReportProvider>();
-      provider.refreshFromCloud();
-      provider.clearUnreadCompany(_report);
-      provider.subscribeToReport(_report);
+      final notifier = ref.read(reportNotifierProvider.notifier);
+      notifier.refreshFromCloud();
+      notifier.clearUnreadCompany(_report);
+      notifier.subscribeToReport(_report);
     });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ReportProvider>().unsubscribeFromCurrentReport();
+      ref.read(reportNotifierProvider.notifier).unsubscribeFromCurrentReport();
     });
     super.dispose();
   }
@@ -146,7 +146,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<ReportProvider>();
+    final provider = ref.watch(reportNotifierProvider);
     if (provider.currentReport != null &&
         provider.currentReport!.id == _report.id) {
       _report = provider.currentReport!;
@@ -160,9 +160,11 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
             icon: const Icon(Icons.refresh),
             tooltip: '從雲端刷新',
             onPressed: () async {
-              await context.read<ReportProvider>().refreshFromCloud();
+              await ref
+                  .read(reportNotifierProvider.notifier)
+                  .refreshFromCloud();
               if (!context.mounted) return;
-              final prov = context.read<ReportProvider>();
+              final prov = ref.read(reportNotifierProvider);
               final updated = prov.reports
                   .cast<ReportModel?>()
                   .firstWhere((r) => r?.id == _report.id, orElse: () => null);
@@ -317,9 +319,11 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
             Expanded(
                 child: OutlinedButton.icon(
               onPressed: () async {
-                await context.read<ReportProvider>().refreshFromCloud();
+                await ref
+                    .read(reportNotifierProvider.notifier)
+                    .refreshFromCloud();
                 if (!context.mounted) return;
-                final prov = context.read<ReportProvider>();
+                final prov = ref.read(reportNotifierProvider);
                 final updated = prov.reports
                     .cast<ReportModel?>()
                     .firstWhere((r) => r?.id == _report.id, orElse: () => null);
@@ -587,15 +591,16 @@ class _StatusStepper extends StatelessWidget {
   }
 }
 
-class _WorkerResponseForm extends StatefulWidget {
+class _WorkerResponseForm extends ConsumerStatefulWidget {
   final ReportModel report;
   final ValueChanged<ReportModel> onSubmitted;
   const _WorkerResponseForm({required this.report, required this.onSubmitted});
   @override
-  State<_WorkerResponseForm> createState() => _WorkerResponseFormState();
+  ConsumerState<_WorkerResponseForm> createState() =>
+      _WorkerResponseFormState();
 }
 
-class _WorkerResponseFormState extends State<_WorkerResponseForm> {
+class _WorkerResponseFormState extends ConsumerState<_WorkerResponseForm> {
   final _textController = TextEditingController();
   final _picker = ImagePicker();
   String? _imageBase64;
@@ -631,7 +636,7 @@ class _WorkerResponseFormState extends State<_WorkerResponseForm> {
       return;
     }
     setState(() => _isSending = true);
-    final provider = context.read<ReportProvider>();
+    final provider = ref.read(reportNotifierProvider.notifier);
     final success =
         await provider.submitWorkerResponse(widget.report, text, _imageBase64);
     if (!mounted) return;

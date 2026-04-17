@@ -1,6 +1,6 @@
 import 'package:bsafe_app/core/usecases/usecase.dart';
-import 'package:bsafe_app/features/ai_analysis/domain/entities/ai_result.dart';
-import 'package:bsafe_app/features/ai_analysis/domain/repositories/ai_repository.dart';
+import 'package:bsafe_app/features/ai/analysis/domain/entities/ai_result.dart';
+import 'package:bsafe_app/features/ai/analysis/domain/repositories/ai_repository.dart';
 
 class AnalyzeImageParams {
   final String imageBase64;
