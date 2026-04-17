@@ -192,7 +192,7 @@ class ReportProvider extends ChangeNotifier {
 
       await SupabaseService.instance.client.from('reports').update({
         'status': newStatus,
-        'updated_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
       }).eq('id', report.id!);
 
       debugPrint('☁️ 狀態已更新: $newStatus');

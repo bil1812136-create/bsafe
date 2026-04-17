@@ -838,7 +838,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                                                       constraints.maxWidth <
                                                           760;
 
-                                                  Widget preview =
+                                                  final Widget preview =
                                                       GestureDetector(
                                                     onTap: () =>
                                                         _showFloorPlanPreviewDialog(
@@ -957,7 +957,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                                                     ),
                                                   );
 
-                                                  Widget info = Column(
+                                                  final Widget info = Column(
                                                     crossAxisAlignment:
                                                         CrossAxisAlignment
                                                             .start,
@@ -981,7 +981,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                                                     ],
                                                   );
 
-                                                  Widget deleteButton =
+                                                  final Widget deleteButton =
                                                       ElevatedButton.icon(
                                                     style: ElevatedButton
                                                         .styleFrom(
@@ -1479,7 +1479,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
     final status = report['status'] ?? 'pending';
     final createdAt = report['created_at'] != null
         ? DateFormat('yyyy/MM/dd HH:mm')
-            .format(DateTime.parse(report['created_at']).toLocal())
+            .format(AppTheme.toUtcPlus8(DateTime.parse(report['created_at'])))
         : '-';
     final category = _categoryLabel(report['category'] ?? '');
 
@@ -1714,11 +1714,11 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
 
     rawPins.removeAt(targetPinIndex);
     targetSession['pins'] = rawPins;
-    targetSession['updatedAt'] = DateTime.now().toIso8601String();
+    targetSession['updatedAt'] = DateTime.now().toUtc().toIso8601String();
 
     await _supabase.from('inspection_sessions').update({
       'payload': targetSession,
-      'updated_at': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
     }).eq('session_id', targetRow['session_id']);
   }
 

@@ -72,6 +72,9 @@ class SupabaseService {
       supabaseUrl != 'https://YOUR_PROJECT_ID.supabase.co' &&
       supabaseAnonKey != 'YOUR_ANON_KEY';
 
+  static String _asUtcIso(DateTime dateTime) =>
+      dateTime.toUtc().toIso8601String();
+
   // ══════════════════════════════════════════════════════════
   // REPORTS — AI 分析結果雲端同步
   // ══════════════════════════════════════════════════════════
@@ -114,8 +117,8 @@ class SupabaseService {
         'longitude': report.longitude,
         'ai_analysis': report.aiAnalysis,
         'company_notes': report.companyNotes,
-        'created_at': report.createdAt.toIso8601String(),
-        'updated_at': DateTime.now().toIso8601String(),
+        'created_at': _asUtcIso(report.createdAt),
+        'updated_at': _asUtcIso(DateTime.now()),
       };
 
       final response = await client
@@ -197,8 +200,8 @@ class SupabaseService {
         'latitude': report.latitude,
         'longitude': report.longitude,
         'ai_analysis': report.aiAnalysis,
-        'created_at': report.createdAt.toIso8601String(),
-        'updated_at': DateTime.now().toIso8601String(),
+        'created_at': _asUtcIso(report.createdAt),
+        'updated_at': _asUtcIso(DateTime.now()),
       };
 
       final response =
@@ -246,7 +249,7 @@ class SupabaseService {
         'sender': 'worker',
         'text': responseText,
         'image': responseImageUrl ?? fallbackBase64,
-        'timestamp': DateTime.now().toIso8601String(),
+        'timestamp': _asUtcIso(DateTime.now()),
       });
 
       await client.from('reports').update({
@@ -255,7 +258,7 @@ class SupabaseService {
         'conversation': jsonEncode(conv),
         'has_unread_company': false,
         'status': 'in_progress',
-        'updated_at': DateTime.now().toIso8601String(),
+        'updated_at': _asUtcIso(DateTime.now()),
       }).eq('id', reportId);
 
       debugPrint('✅ 工人回覆已提交，狀態更新為處理中');
@@ -284,14 +287,14 @@ class SupabaseService {
         'sender': 'company',
         'text': messageText,
         'image': null,
-        'timestamp': DateTime.now().toIso8601String(),
+        'timestamp': _asUtcIso(DateTime.now()),
       });
 
       await client.from('reports').update({
         'company_notes': messageText, // 向後兼容（最後一條公司訊息）
         'conversation': jsonEncode(conv),
         'has_unread_company': true,
-        'updated_at': DateTime.now().toIso8601String(),
+        'updated_at': _asUtcIso(DateTime.now()),
       }).eq('id', reportId);
 
       debugPrint('✅ 公司訊息已添加');
@@ -353,10 +356,11 @@ class SupabaseService {
       conversation: ReportModel.conversationFromJson(data['conversation']),
       hasUnreadCompany: data['has_unread_company'] == true,
       createdAt: data['created_at'] != null
-          ? DateTime.tryParse(data['created_at'] as String) ?? DateTime.now()
+          ? (DateTime.tryParse(data['created_at'] as String) ?? DateTime.now())
+              .toLocal()
           : DateTime.now(),
       updatedAt: data['updated_at'] != null
-          ? DateTime.tryParse(data['updated_at'] as String)
+          ? DateTime.tryParse(data['updated_at'] as String)?.toLocal()
           : null,
       synced: true,
     );

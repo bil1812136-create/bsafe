@@ -730,7 +730,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
         'severity': _severity,
         'risk_level': _riskLevel,
         'risk_score': _riskScore,
-        'updated_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
       }).eq('id', widget.report['id']);
 
       if (mounted) {
@@ -793,7 +793,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
         'sender': 'company',
         'text': text,
         'image': null,
-        'timestamp': DateTime.now().toIso8601String(),
+        'timestamp': DateTime.now().toUtc().toIso8601String(),
       };
       conv.add(newMsg);
 
@@ -801,7 +801,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
         'company_notes': text,
         'conversation': jsonEncode(conv),
         'has_unread_company': true,
-        'updated_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
       }).eq('id', widget.report['id']);
 
       if (mounted) {
@@ -846,7 +846,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
     final riskColor = AppTheme.getRiskColor(riskLevel);
     final createdAt = r['created_at'] != null
         ? DateFormat('yyyy/MM/dd HH:mm')
-            .format(DateTime.parse(r['created_at']).toLocal())
+            .format(AppTheme.toUtcPlus8(DateTime.parse(r['created_at'])))
         : '-';
     final imageUrl = r['image_url'] as String?;
     final imageBase64 = r['image_base64'] as String?;
@@ -1085,7 +1085,8 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
   }
 
   Widget _buildMessageBubble(ConversationMessage msg, bool isCompany) {
-    final time = DateFormat('MM/dd HH:mm').format(msg.timestamp.toLocal());
+    final time =
+        DateFormat('MM/dd HH:mm').format(AppTheme.toUtcPlus8(msg.timestamp));
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(

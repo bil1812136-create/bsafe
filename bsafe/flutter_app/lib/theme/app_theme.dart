@@ -49,6 +49,11 @@ class AppTheme {
     }
   }
 
+  // Normalize timestamps for UTC+8 display without double-shifting local time.
+  static DateTime toUtcPlus8(DateTime dateTime) {
+    return dateTime.isUtc ? dateTime.add(const Duration(hours: 8)) : dateTime;
+  }
+
   static ThemeData lightTheme = ThemeData(
     useMaterial3: true,
     colorScheme: ColorScheme.fromSeed(
