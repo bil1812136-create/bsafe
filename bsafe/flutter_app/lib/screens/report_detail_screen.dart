@@ -175,6 +175,129 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     return const SizedBox.shrink();
   }
 
+  Map<String, dynamic> _extractInspectionRefFromLocation(String? location) {
+    if (location == null || location.isEmpty) return {};
+
+    final refIndex = location.indexOf('ref:');
+    if (refIndex < 0) {
+      final legacyFloorMatch =
+          RegExp(r'\bF\s*(\d+)\b', caseSensitive: false).firstMatch(location);
+      final legacyPinMatch = RegExp(
+              r'Pin\s*\(\s*([-+]?\d+(?:\.\d+)?)\s*,\s*([-+]?\d+(?:\.\d+)?)\s*\)',
+              caseSensitive: false)
+          .firstMatch(location);
+      final legacyPercentMatch = RegExp(
+              r'pinXPercent\s*=\s*([-+]?\d+(?:\.\d+)?)\s*;\s*pinYPercent\s*=\s*([-+]?\d+(?:\.\d+)?)',
+              caseSensitive: false)
+          .firstMatch(location);
+
+      return {
+        if (legacyFloorMatch != null)
+          'floor': int.tryParse(legacyFloorMatch.group(1) ?? ''),
+        if (legacyPinMatch != null) ...{
+          'legacyPinX': double.tryParse(legacyPinMatch.group(1) ?? ''),
+          'legacyPinY': double.tryParse(legacyPinMatch.group(2) ?? ''),
+        },
+        if (legacyPercentMatch != null) ...{
+          'pinXPercent': double.tryParse(legacyPercentMatch.group(1) ?? ''),
+          'pinYPercent': double.tryParse(legacyPercentMatch.group(2) ?? ''),
+        },
+      };
+    }
+
+    final refText = location.substring(refIndex + 4).trim();
+    final parts = refText.split(';');
+    String? sessionId;
+    String? pinId;
+    int? floor;
+    double? minX;
+    double? maxX;
+    double? minY;
+    double? maxY;
+    double? pinXPercent;
+    double? pinYPercent;
+
+    final legacyFloorMatch =
+        RegExp(r'\bF\s*(\d+)\b', caseSensitive: false).firstMatch(location);
+    if (legacyFloorMatch != null) {
+      floor ??= int.tryParse(legacyFloorMatch.group(1) ?? '');
+    }
+
+    for (final part in parts) {
+      final kv = part.split('=');
+      if (kv.length != 2) continue;
+      final key = kv[0].trim();
+      final value = kv[1].trim();
+      if (key == 'session' && value.isNotEmpty) {
+        sessionId = value;
+      } else if (key == 'pin' && value.isNotEmpty) {
+        pinId = value;
+      } else if (key == 'floor') {
+        floor = int.tryParse(value);
+      } else if (key == 'minX') {
+        minX = double.tryParse(value);
+      } else if (key == 'maxX') {
+        maxX = double.tryParse(value);
+      } else if (key == 'minY') {
+        minY = double.tryParse(value);
+      } else if (key == 'maxY') {
+        maxY = double.tryParse(value);
+      } else if (key == 'pinXPercent') {
+        pinXPercent = double.tryParse(value);
+      } else if (key == 'pinYPercent') {
+        pinYPercent = double.tryParse(value);
+      }
+    }
+
+    return {
+      if (sessionId != null) 'sessionId': sessionId,
+      if (pinId != null) 'pinId': pinId,
+      if (floor != null) 'floor': floor,
+      if (minX != null) 'minX': minX,
+      if (maxX != null) 'maxX': maxX,
+      if (minY != null) 'minY': minY,
+      if (maxY != null) 'maxY': maxY,
+      if (pinXPercent != null) 'pinXPercent': pinXPercent,
+      if (pinYPercent != null) 'pinYPercent': pinYPercent,
+    };
+  }
+
+  String _buildLocationSummary(String? location) {
+    if (location == null || location.isEmpty) return '未指定';
+
+    final ref = _extractInspectionRefFromLocation(location);
+    final sessionId = ref['sessionId']?.toString();
+    final pinId = ref['pinId']?.toString();
+    final floor = ref['floor']?.toString();
+    final legacyPinX = (ref['legacyPinX'] as num?)?.toDouble();
+    final legacyPinY = (ref['legacyPinY'] as num?)?.toDouble();
+    final pinXPercent = (ref['pinXPercent'] as num?)?.toDouble();
+    final pinYPercent = (ref['pinYPercent'] as num?)?.toDouble();
+    final displayPinX = pinXPercent != null ? (pinXPercent * 100) : legacyPinX;
+    final displayPinY =
+        pinYPercent != null ? ((1 - pinYPercent) * 100) : legacyPinY;
+
+    final lines = <String>[location];
+    if (sessionId != null) lines.add('Session: $sessionId');
+    if (pinId != null) lines.add('Pin: $pinId');
+    if (floor != null) lines.add('Floor: $floor');
+    if (displayPinX != null || displayPinY != null) {
+      lines.add(
+        '畫布座標: '
+        '${displayPinX != null ? displayPinX.toStringAsFixed(1) : '-'}, '
+        '${displayPinY != null ? displayPinY.toStringAsFixed(1) : '-'}',
+      );
+    }
+    if (pinXPercent != null || pinYPercent != null) {
+      lines.add(
+        'Normalized: '
+        'x=${pinXPercent?.toStringAsFixed(6) ?? '-'}, '
+        'y=${pinYPercent?.toStringAsFixed(6) ?? '-'}',
+      );
+    }
+    return lines.join('\n');
+  }
+
   @override
   Widget build(BuildContext context) {
     // 🔴 從 Provider 獲取最新的報告資料（支持實時更新）
@@ -282,7 +405,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
 
                   const SizedBox(height: 20),
 
-                  // Risk Level Card
+                  // Risk Score Card
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
@@ -298,20 +421,25 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                     child: Row(
                       children: [
                         Container(
-                          width: 56,
-                          height: 56,
+                          width: 80,
+                          height: 80,
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
+                            shape: BoxShape.circle,
                             color: Colors.white,
                             border: Border.all(
                               color: AppTheme.getRiskColor(_report.riskLevel),
-                              width: 2,
+                              width: 4,
                             ),
                           ),
-                          child: Icon(
-                            Icons.shield_outlined,
-                            size: 28,
-                            color: AppTheme.getRiskColor(_report.riskLevel),
+                          child: Center(
+                            child: Text(
+                              '${_report.riskScore}',
+                              style: TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.getRiskColor(_report.riskLevel),
+                              ),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -320,7 +448,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const Text(
-                                '風險等級',
+                                '風險評分',
                                 style: TextStyle(
                                   fontSize: 14,
                                   color: Colors.grey,
@@ -382,7 +510,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                     _DetailSection(
                       title: '位置資訊',
                       icon: Icons.location_on,
-                      content: _report.location!,
+                      content: _buildLocationSummary(_report.location),
                     ),
 
                   if (_report.aiAnalysis != null &&
@@ -656,7 +784,7 @@ class _ConversationSection extends StatelessWidget {
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  isCompany ? '公司' : '我',
+                  isCompany ? '公司' : '工人',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 11,

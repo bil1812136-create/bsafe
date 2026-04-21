@@ -4,7 +4,7 @@ import 'dart:io' show Platform;
 import 'package:provider/provider.dart';
 import 'package:bsafe_app/models/uwb_model.dart';
 import 'package:bsafe_app/services/uwb_service.dart';
-import 'package:bsafe_app/services/desktop_serial_service.dart';
+import 'package:bsafe_app/services/desktop_serial_service_platform.dart';
 import 'package:bsafe_app/widgets/uwb_position_canvas.dart';
 import 'package:bsafe_app/widgets/uwb_settings_panel.dart';
 import 'package:bsafe_app/widgets/uwb_data_tables.dart';

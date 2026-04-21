@@ -148,7 +148,9 @@ class ReportDetailCard extends StatelessWidget {
                       const SizedBox(height: 8),
 
                       // Tags Row
-                      Row(
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
                         children: [
                           _Tag(
                             icon: Icons.category,
@@ -156,7 +158,6 @@ class ReportDetailCard extends StatelessWidget {
                                 ReportModel.getCategoryLabel(report.category),
                             color: AppTheme.primaryColor,
                           ),
-                          const SizedBox(width: 8),
                           _Tag(
                             icon: Icons.warning_amber,
                             label:

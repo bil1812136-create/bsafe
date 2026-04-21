@@ -349,6 +349,8 @@ class SupabaseService {
       location: data['location'] as String?,
       latitude: (data['latitude'] as num?)?.toDouble(),
       longitude: (data['longitude'] as num?)?.toDouble(),
+      pinXPercent: (data['pin_x_percent'] as num?)?.toDouble(),
+      pinYPercent: (data['pin_y_percent'] as num?)?.toDouble(),
       aiAnalysis: data['ai_analysis'] as String?,
       companyNotes: data['company_notes'] as String?,
       workerResponse: data['worker_response'] as String?,

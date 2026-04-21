@@ -9,8 +9,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:bsafe_app/models/uwb_model.dart';
-import 'package:bsafe_app/services/desktop_serial_service.dart';
-import 'package:bsafe_app/services/mobile_serial_service.dart';
+import 'package:bsafe_app/services/desktop_serial_service_platform.dart';
+import 'package:bsafe_app/services/mobile_serial_service_platform.dart';
 
 /// UWB定位服务
 /// 提供与安信可UWB TWR系统的通信和数据处理

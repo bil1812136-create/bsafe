@@ -21,6 +21,359 @@ class WebReportDetailScreen extends StatefulWidget {
   State<WebReportDetailScreen> createState() => _WebReportDetailScreenState();
 }
 
+class _FloorPlanPinCanvas extends StatefulWidget {
+  final String? imageUrl;
+  final String? imageBase64;
+  final List<Map<String, dynamic>> pins;
+  final double? coordMinX;
+  final double? coordMaxX;
+  final double? coordMinY;
+  final double? coordMaxY;
+  final double? xOffset;
+  final double? yOffset;
+  final double? xScale;
+  final double? yScale;
+  final bool flipX;
+  final bool flipY;
+  final String? selectedPinId;
+  final ValueChanged<Map<String, dynamic>>? onPinTap;
+
+  const _FloorPlanPinCanvas({
+    required this.imageUrl,
+    required this.imageBase64,
+    required this.pins,
+    required this.coordMinX,
+    required this.coordMaxX,
+    required this.coordMinY,
+    required this.coordMaxY,
+    this.xOffset,
+    this.yOffset,
+    this.xScale,
+    this.yScale,
+    this.flipX = false,
+    this.flipY = false,
+    this.selectedPinId,
+    this.onPinTap,
+  });
+
+  @override
+  State<_FloorPlanPinCanvas> createState() => _FloorPlanPinCanvasState();
+}
+
+class _FloorPlanPinCanvasState extends State<_FloorPlanPinCanvas> {
+  ImageProvider<Object>? _imageProvider;
+  Size? _imageSize;
+  ImageStream? _imageStream;
+  ImageStreamListener? _imageStreamListener;
+
+  Rect _pinRect(Size canvasSize) {
+    if (_imageSize == null) {
+      return Rect.fromLTWH(0, 0, canvasSize.width, canvasSize.height);
+    }
+    return _containRect(canvasSize, _imageSize!);
+  }
+
+  Offset _pinPosition(Map<String, dynamic> pin, Rect imageRect) {
+    final percentX = (pin['pin_x_percent'] ?? pin['pinXPercent']) as num?;
+    final percentY = (pin['pin_y_percent'] ?? pin['pinYPercent']) as num?;
+    if (percentX != null && percentY != null) {
+      final nx = percentX.toDouble().clamp(0.0, 1.0);
+      final ny = percentY.toDouble().clamp(0.0, 1.0);
+      return Offset(
+        imageRect.left + imageRect.width * nx,
+        imageRect.top + imageRect.height * ny,
+      );
+    }
+
+    final x = (pin['x'] as num?)?.toDouble();
+    final y = (pin['y'] as num?)?.toDouble();
+    if (x == null || y == null) {
+      return imageRect.center;
+    }
+
+    final hasCalibration = widget.xOffset != null &&
+        widget.yOffset != null &&
+        widget.xScale != null &&
+        widget.yScale != null &&
+        widget.xScale!.abs() > 0.0001 &&
+        widget.yScale!.abs() > 0.0001 &&
+        _imageSize != null;
+
+    if (hasCalibration) {
+      final imageWidth = _imageSize!.width;
+      final imageHeight = _imageSize!.height;
+      var imageX = (x - widget.xOffset!) * widget.xScale!;
+      var imageY = imageHeight - ((y - widget.yOffset!) * widget.yScale!);
+
+      if (widget.flipX) {
+        imageX = imageWidth - imageX;
+      }
+      if (widget.flipY) {
+        imageY = imageHeight - imageY;
+      }
+
+      return Offset(
+        imageRect.left + imageRect.width * (imageX / imageWidth),
+        imageRect.top + imageRect.height * (imageY / imageHeight),
+      );
+    }
+
+    final bounds = _resolveBounds();
+    final minX = bounds['minX']!;
+    final maxX = bounds['maxX']!;
+    final minY = bounds['minY']!;
+    final maxY = bounds['maxY']!;
+    final spanX = (maxX - minX).abs() < 0.0001 ? 1.0 : (maxX - minX);
+    final spanY = (maxY - minY).abs() < 0.0001 ? 1.0 : (maxY - minY);
+    final nx = ((x - minX) / spanX).clamp(0.0, 1.0);
+    final ny = ((y - minY) / spanY).clamp(0.0, 1.0);
+    return Offset(
+      imageRect.left + imageRect.width * nx,
+      imageRect.top + imageRect.height * (1 - ny),
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _resetImageProvider();
+  }
+
+  @override
+  void didUpdateWidget(covariant _FloorPlanPinCanvas oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.imageUrl != widget.imageUrl ||
+        oldWidget.imageBase64 != widget.imageBase64) {
+      _resetImageProvider();
+    }
+  }
+
+  @override
+  void dispose() {
+    if (_imageStream != null && _imageStreamListener != null) {
+      _imageStream!.removeListener(_imageStreamListener!);
+    }
+    super.dispose();
+  }
+
+  void _resetImageProvider() {
+    final provider =
+        widget.imageBase64 != null && widget.imageBase64!.isNotEmpty
+            ? MemoryImage(base64Decode(widget.imageBase64!))
+                as ImageProvider<Object>
+            : widget.imageUrl != null && widget.imageUrl!.isNotEmpty
+                ? NetworkImage(widget.imageUrl!) as ImageProvider<Object>
+                : null;
+
+    if (_imageStream != null && _imageStreamListener != null) {
+      _imageStream!.removeListener(_imageStreamListener!);
+    }
+
+    _imageProvider = provider;
+    _imageSize = null;
+
+    if (provider == null) {
+      if (mounted) setState(() {});
+      return;
+    }
+
+    final stream = provider.resolve(const ImageConfiguration());
+    final listener = ImageStreamListener((info, _) {
+      if (!mounted) return;
+      setState(() {
+        _imageSize =
+            Size(info.image.width.toDouble(), info.image.height.toDouble());
+      });
+    }, onError: (_, __) {
+      if (!mounted) return;
+      setState(() => _imageSize = null);
+    });
+
+    _imageStream = stream;
+    _imageStreamListener = listener;
+    stream.addListener(listener);
+
+    if (mounted) setState(() {});
+  }
+
+  Rect _containRect(Size boxSize, Size imageSize) {
+    final boxAspect = boxSize.width / boxSize.height;
+    final imageAspect = imageSize.width / imageSize.height;
+
+    if (imageAspect > boxAspect) {
+      final width = boxSize.width;
+      final height = width / imageAspect;
+      return Rect.fromLTWH(0, (boxSize.height - height) / 2, width, height);
+    }
+
+    final height = boxSize.height;
+    final width = height * imageAspect;
+    return Rect.fromLTWH((boxSize.width - width) / 2, 0, width, height);
+  }
+
+  Map<String, double> _resolveBounds() {
+    if (widget.coordMinX != null &&
+        widget.coordMaxX != null &&
+        widget.coordMinY != null &&
+        widget.coordMaxY != null) {
+      return {
+        'minX': widget.coordMinX!,
+        'maxX': widget.coordMaxX!,
+        'minY': widget.coordMinY!,
+        'maxY': widget.coordMaxY!,
+      };
+    }
+
+    if (widget.pins.isEmpty) {
+      return {'minX': 0, 'maxX': 1, 'minY': 0, 'maxY': 1};
+    }
+
+    double minX = double.infinity;
+    double maxX = -double.infinity;
+    double minY = double.infinity;
+    double maxY = -double.infinity;
+
+    for (final pin in widget.pins) {
+      final x = (pin['x'] as num?)?.toDouble();
+      final y = (pin['y'] as num?)?.toDouble();
+      if (x == null || y == null) continue;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+
+    if (!minX.isFinite || !maxX.isFinite || !minY.isFinite || !maxY.isFinite) {
+      return {'minX': 0, 'maxX': 1, 'minY': 0, 'maxY': 1};
+    }
+
+    if ((maxX - minX).abs() < 0.0001) {
+      minX -= 0.5;
+      maxX += 0.5;
+    }
+    if ((maxY - minY).abs() < 0.0001) {
+      minY -= 0.5;
+      maxY += 0.5;
+    }
+
+    return {'minX': minX, 'maxX': maxX, 'minY': minY, 'maxY': maxY};
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = _imageProvider;
+    if (provider == null) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          return Container(
+            width: constraints.maxWidth,
+            height: constraints.maxHeight,
+            color: Colors.grey.shade100,
+            child: Stack(
+              children: [
+                const Positioned.fill(
+                  child: Center(
+                    child: Text('無樓層圖 / 無定位圖',
+                        style: TextStyle(color: Colors.grey)),
+                  ),
+                ),
+                ...widget.pins.map((pin) {
+                  final x = (pin['x'] as num?)?.toDouble();
+                  final y = (pin['y'] as num?)?.toDouble();
+                  if (x == null || y == null) return const SizedBox.shrink();
+                  final active = widget.selectedPinId == pin['id']?.toString();
+                  final left = constraints.maxWidth * 0.5;
+                  final top = constraints.maxHeight * 0.5;
+                  return Positioned(
+                    left: left - 12,
+                    top: top - 12,
+                    child: GestureDetector(
+                      onTap: widget.onPinTap == null
+                          ? null
+                          : () => widget.onPinTap!(pin),
+                      child: Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: active ? Colors.red : AppTheme.primaryColor,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                        ),
+                        child: const Icon(Icons.location_on,
+                            color: Colors.white, size: 14),
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          );
+        },
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final canvasSize = Size(constraints.maxWidth, constraints.maxHeight);
+        final imageRect = _pinRect(canvasSize);
+
+        return Container(
+          width: constraints.maxWidth,
+          height: constraints.maxHeight,
+          color: Colors.grey.shade100,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: Image(
+                  image: provider,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => Container(
+                    color: Colors.grey.shade100,
+                    alignment: Alignment.center,
+                    child: const Text('樓層圖載入失敗'),
+                  ),
+                ),
+              ),
+              ...widget.pins.map((pin) {
+                final active = widget.selectedPinId == pin['id']?.toString();
+                final position = _pinPosition(pin, imageRect);
+
+                return Positioned(
+                  left: position.dx - 12,
+                  top: position.dy - 12,
+                  child: GestureDetector(
+                    onTap: widget.onPinTap == null
+                        ? null
+                        : () => widget.onPinTap!(pin),
+                    child: Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: active ? Colors.red : AppTheme.primaryColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.28),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(Icons.location_on,
+                          color: Colors.white, size: 14),
+                    ),
+                  ),
+                );
+              }),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
   late TextEditingController _analysisController;
   late TextEditingController _titleController;
@@ -45,6 +398,12 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
   double? _coordMaxX;
   double? _coordMinY;
   double? _coordMaxY;
+  double? _coordXOffset;
+  double? _coordYOffset;
+  double? _coordXScale;
+  double? _coordYScale;
+  bool _coordFlipX = false;
+  bool _coordFlipY = false;
   final Map<String, TextEditingController> _analysisFieldControllers = {};
   late TextEditingController _imageDefectController;
   List<String> _analysisFieldOrder = [];
@@ -135,6 +494,12 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
       final refMaxX = locationRef['maxX'] as double?;
       final refMinY = locationRef['minY'] as double?;
       final refMaxY = locationRef['maxY'] as double?;
+      final refXOffset = locationRef['xOffset'] as double?;
+      final refYOffset = locationRef['yOffset'] as double?;
+      final refXScale = locationRef['xScale'] as double?;
+      final refYScale = locationRef['yScale'] as double?;
+      final refFlipX = locationRef['flipX'] as bool?;
+      final refFlipY = locationRef['flipY'] as bool?;
 
       final reportX = (widget.report['latitude'] as num?)?.toDouble();
       final reportY = (widget.report['longitude'] as num?)?.toDouble();
@@ -307,6 +672,12 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
           _coordMaxX = finalMaxX;
           _coordMinY = finalMinY;
           _coordMaxY = finalMaxY;
+          _coordXOffset = refXOffset;
+          _coordYOffset = refYOffset;
+          _coordXScale = refXScale;
+          _coordYScale = refYScale;
+          _coordFlipX = refFlipX ?? false;
+          _coordFlipY = refFlipY ?? false;
           _selectedFloorPin =
               matchedPin ?? (pins.isNotEmpty ? pins.first : null);
           _isLoadingFloorPlan = false;
@@ -324,6 +695,12 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
           _coordMaxX = null;
           _coordMinY = null;
           _coordMaxY = null;
+          _coordXOffset = null;
+          _coordYOffset = null;
+          _coordXScale = null;
+          _coordYScale = null;
+          _coordFlipX = false;
+          _coordFlipY = false;
           _selectedFloorPin = null;
         });
       }
@@ -349,7 +726,31 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
     if (location == null || location.isEmpty) return {};
 
     final refIndex = location.indexOf('ref:');
-    if (refIndex < 0) return {};
+    if (refIndex < 0) {
+      final legacyFloorMatch =
+          RegExp(r'\bF\s*(\d+)\b', caseSensitive: false).firstMatch(location);
+      final legacyPinMatch = RegExp(
+              r'Pin\s*\(\s*([-+]?\d+(?:\.\d+)?)\s*,\s*([-+]?\d+(?:\.\d+)?)\s*\)',
+              caseSensitive: false)
+          .firstMatch(location);
+      final legacyPercentMatch = RegExp(
+              r'pinXPercent\s*=\s*([-+]?\d+(?:\.\d+)?)\s*;\s*pinYPercent\s*=\s*([-+]?\d+(?:\.\d+)?)',
+              caseSensitive: false)
+          .firstMatch(location);
+
+      return {
+        if (legacyFloorMatch != null)
+          'floor': int.tryParse(legacyFloorMatch.group(1) ?? ''),
+        if (legacyPinMatch != null) ...{
+          'legacyPinX': double.tryParse(legacyPinMatch.group(1) ?? ''),
+          'legacyPinY': double.tryParse(legacyPinMatch.group(2) ?? ''),
+        },
+        if (legacyPercentMatch != null) ...{
+          'pinXPercent': double.tryParse(legacyPercentMatch.group(1) ?? ''),
+          'pinYPercent': double.tryParse(legacyPercentMatch.group(2) ?? ''),
+        },
+      };
+    }
 
     final refText = location.substring(refIndex + 4).trim();
     final parts = refText.split(';');
@@ -360,6 +761,20 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
     double? maxX;
     double? minY;
     double? maxY;
+    double? xOffset;
+    double? yOffset;
+    double? xScale;
+    double? yScale;
+    bool? flipX;
+    bool? flipY;
+    double? pinXPercent;
+    double? pinYPercent;
+
+    final legacyFloorMatch =
+        RegExp(r'\bF\s*(\d+)\b', caseSensitive: false).firstMatch(location);
+    if (legacyFloorMatch != null) {
+      floor ??= int.tryParse(legacyFloorMatch.group(1) ?? '');
+    }
 
     for (final part in parts) {
       final kv = part.split('=');
@@ -380,6 +795,22 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
         minY = double.tryParse(value);
       } else if (key == 'maxY') {
         maxY = double.tryParse(value);
+      } else if (key == 'xOffset') {
+        xOffset = double.tryParse(value);
+      } else if (key == 'yOffset') {
+        yOffset = double.tryParse(value);
+      } else if (key == 'xScale') {
+        xScale = double.tryParse(value);
+      } else if (key == 'yScale') {
+        yScale = double.tryParse(value);
+      } else if (key == 'flipX') {
+        flipX = value.toLowerCase() == 'true';
+      } else if (key == 'flipY') {
+        flipY = value.toLowerCase() == 'true';
+      } else if (key == 'pinXPercent') {
+        pinXPercent = double.tryParse(value);
+      } else if (key == 'pinYPercent') {
+        pinYPercent = double.tryParse(value);
       }
     }
 
@@ -391,6 +822,14 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
       if (maxX != null) 'maxX': maxX,
       if (minY != null) 'minY': minY,
       if (maxY != null) 'maxY': maxY,
+      if (xOffset != null) 'xOffset': xOffset,
+      if (yOffset != null) 'yOffset': yOffset,
+      if (xScale != null) 'xScale': xScale,
+      if (yScale != null) 'yScale': yScale,
+      if (flipX != null) 'flipX': flipX,
+      if (flipY != null) 'flipY': flipY,
+      if (pinXPercent != null) 'pinXPercent': pinXPercent,
+      if (pinYPercent != null) 'pinYPercent': pinYPercent,
     };
   }
 
@@ -1348,7 +1787,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
           ),
           const SizedBox(height: 16),
           _infoRow('類別', _categoryLabel(widget.report['category'] ?? '')),
-          _infoRow('位置', widget.report['location'] ?? '未指定'),
+          _infoRow('位置', _buildLocationSummary(widget.report['location'])),
           _infoRow('建立時間', createdAt),
           const Divider(height: 24),
           // 風險指標
@@ -1475,9 +1914,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
         );
       }
 
-      return _buildPinCanvas(
-        background: Container(color: Colors.grey.shade100),
-      );
+      return _buildPinCanvas(imageUrl: null, imageBase64: null);
     }
 
     // Build background with URL or base64, with fallback
@@ -1511,7 +1948,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
       } else if (hasBase64) {
         return Image.memory(
           base64Decode(_floorPlanBase64!),
-          fit: BoxFit.fill,
+          fit: BoxFit.contain,
           errorBuilder: (_, __, ___) => Container(
             color: Colors.grey.shade100,
             child: const Center(
@@ -1528,69 +1965,42 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
       );
     }
 
-    return _buildPinCanvas(background: buildBackgroundImage());
+    return _buildPinCanvas(
+      imageUrl: _floorPlanDisplayUrl,
+      imageBase64: _floorPlanBase64,
+    );
   }
 
-  Widget _buildPinCanvas({required Widget background}) {
-    if (_floorPins.isEmpty) {
-      return background;
+  Widget _buildPinCanvas({String? imageUrl, String? imageBase64}) {
+    if (imageUrl == null && imageBase64 == null) {
+      return Container(
+        color: Colors.grey.shade100,
+        child: const Center(
+          child: Text('無樓層圖 / 無定位圖', style: TextStyle(color: Colors.grey)),
+        ),
+      );
     }
 
-    final minX = _coordMinX ?? 0.0;
-    final maxX = _coordMaxX ?? 1.0;
-    final minY = _coordMinY ?? 0.0;
-    final maxY = _coordMaxY ?? 1.0;
-
-    final spanX = (maxX - minX).abs() < 0.0001 ? 1.0 : (maxX - minX);
-    final spanY = (maxY - minY).abs() < 0.0001 ? 1.0 : (maxY - minY);
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return Stack(
-          children: [
-            Positioned.fill(child: background),
-            ..._floorPins.map((pin) {
-              final x = (pin['x'] as num?)?.toDouble();
-              final y = (pin['y'] as num?)?.toDouble();
-              if (x == null || y == null) return const SizedBox.shrink();
-
-              final nx = ((x - minX) / spanX).clamp(0.0, 1.0);
-              final ny = ((y - minY) / spanY).clamp(0.0, 1.0);
-              final pinId = pin['id']?.toString() ?? '';
-              final active = _selectedFloorPin?['id']?.toString() == pinId;
-
-              return Positioned(
-                left: (constraints.maxWidth * nx) - 11,
-                top: (constraints.maxHeight * (1 - ny)) - 11,
-                child: GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _selectedFloorPin = pin;
-                      _showLinkedPhoto = true;
-                    });
-                  },
-                  child: Container(
-                    width: 22,
-                    height: 22,
-                    decoration: BoxDecoration(
-                      color: active ? Colors.red : AppTheme.primaryColor,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.25),
-                          blurRadius: 4,
-                        ),
-                      ],
-                    ),
-                    child: const Icon(Icons.location_on,
-                        color: Colors.white, size: 12),
-                  ),
-                ),
-              );
-            }),
-          ],
-        );
+    return _FloorPlanPinCanvas(
+      imageUrl: imageUrl,
+      imageBase64: imageBase64,
+      pins: _floorPins,
+      coordMinX: _coordMinX,
+      coordMaxX: _coordMaxX,
+      coordMinY: _coordMinY,
+      coordMaxY: _coordMaxY,
+      xOffset: _coordXOffset,
+      yOffset: _coordYOffset,
+      xScale: _coordXScale,
+      yScale: _coordYScale,
+      flipX: _coordFlipX,
+      flipY: _coordFlipY,
+      selectedPinId: _selectedFloorPin?['id']?.toString(),
+      onPinTap: (pin) {
+        setState(() {
+          _selectedFloorPin = pin;
+          _showLinkedPhoto = true;
+        });
       },
     );
   }
@@ -1935,6 +2345,42 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
         ],
       ),
     );
+  }
+
+  String _buildLocationSummary(String? location) {
+    if (location == null || location.isEmpty) return '未指定';
+
+    final ref = _extractInspectionRefFromLocation(location);
+    final sessionId = ref['sessionId']?.toString();
+    final pinId = ref['pinId']?.toString();
+    final floor = ref['floor']?.toString();
+    final legacyPinX = (ref['legacyPinX'] as num?)?.toDouble();
+    final legacyPinY = (ref['legacyPinY'] as num?)?.toDouble();
+    final pinXPercent = (ref['pinXPercent'] as num?)?.toDouble();
+    final pinYPercent = (ref['pinYPercent'] as num?)?.toDouble();
+    final displayPinX = pinXPercent != null ? (pinXPercent * 100) : legacyPinX;
+    final displayPinY =
+        pinYPercent != null ? ((1 - pinYPercent) * 100) : legacyPinY;
+
+    final lines = <String>[location];
+    if (sessionId != null) lines.add('Session: $sessionId');
+    if (pinId != null) lines.add('Pin: $pinId');
+    if (floor != null) lines.add('Floor: $floor');
+    if (displayPinX != null || displayPinY != null) {
+      lines.add(
+        '畫布座標: '
+        '${displayPinX != null ? displayPinX.toStringAsFixed(1) : '-'}, '
+        '${displayPinY != null ? displayPinY.toStringAsFixed(1) : '-'}',
+      );
+    }
+    if (pinXPercent != null || pinYPercent != null) {
+      lines.add(
+        'Normalized: '
+        'x=${pinXPercent?.toStringAsFixed(6) ?? '-'}, '
+        'y=${pinYPercent?.toStringAsFixed(6) ?? '-'}',
+      );
+    }
+    return lines.join('\n');
   }
 
   String _categoryLabel(String category) {

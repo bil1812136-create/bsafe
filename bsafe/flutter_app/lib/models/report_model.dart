@@ -50,6 +50,8 @@ class ReportModel {
   final String? location;
   final double? latitude;
   final double? longitude;
+  final double? pinXPercent;
+  final double? pinYPercent;
   final String? aiAnalysis;
   final String? companyNotes; // 公司後台回饋 / 跟進任務（向後兼容）
   final String? workerResponse; // 工人回覆文字（向後兼容）
@@ -76,6 +78,8 @@ class ReportModel {
     this.location,
     this.latitude,
     this.longitude,
+    this.pinXPercent,
+    this.pinYPercent,
     this.aiAnalysis,
     this.companyNotes,
     this.workerResponse,
@@ -166,6 +170,8 @@ class ReportModel {
       'location': location,
       'latitude': latitude,
       'longitude': longitude,
+      'pin_x_percent': pinXPercent,
+      'pin_y_percent': pinYPercent,
       'ai_analysis': aiAnalysis,
       'company_notes': companyNotes,
       'conversation': conversationToJson(conversation),
@@ -194,6 +200,8 @@ class ReportModel {
       location: map['location'] as String?,
       latitude: map['latitude'] as double?,
       longitude: map['longitude'] as double?,
+      pinXPercent: (map['pin_x_percent'] as num?)?.toDouble(),
+      pinYPercent: (map['pin_y_percent'] as num?)?.toDouble(),
       aiAnalysis: map['ai_analysis'] as String?,
       companyNotes: map['company_notes'] as String?,
       workerResponse: map['worker_response'] as String?,
@@ -225,6 +233,8 @@ class ReportModel {
       'location': location,
       'latitude': latitude,
       'longitude': longitude,
+      'pin_x_percent': pinXPercent,
+      'pin_y_percent': pinYPercent,
       'ai_analysis': aiAnalysis,
       'company_notes': companyNotes,
       'worker_response': workerResponse,
@@ -253,6 +263,8 @@ class ReportModel {
       location: json['location'] as String?,
       latitude: (json['latitude'] as num?)?.toDouble(),
       longitude: (json['longitude'] as num?)?.toDouble(),
+      pinXPercent: (json['pin_x_percent'] as num?)?.toDouble(),
+      pinYPercent: (json['pin_y_percent'] as num?)?.toDouble(),
       aiAnalysis: json['ai_analysis'] as String?,
       companyNotes: json['company_notes'] as String?,
       workerResponse: json['worker_response'] as String?,
@@ -286,6 +298,8 @@ class ReportModel {
     String? location,
     double? latitude,
     double? longitude,
+    double? pinXPercent,
+    double? pinYPercent,
     String? aiAnalysis,
     String? companyNotes,
     String? workerResponse,
@@ -312,6 +326,8 @@ class ReportModel {
       location: location ?? this.location,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
+      pinXPercent: pinXPercent ?? this.pinXPercent,
+      pinYPercent: pinYPercent ?? this.pinYPercent,
       aiAnalysis: aiAnalysis ?? this.aiAnalysis,
       companyNotes: companyNotes ?? this.companyNotes,
       workerResponse: workerResponse ?? this.workerResponse,

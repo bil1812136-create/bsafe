@@ -12,8 +12,8 @@ import 'package:bsafe_app/models/inspection_model.dart';
 import 'package:bsafe_app/models/project_model.dart';
 import 'package:bsafe_app/models/report_model.dart';
 import 'package:bsafe_app/services/uwb_service.dart';
-import 'package:bsafe_app/services/desktop_serial_service.dart';
-import 'package:bsafe_app/services/mobile_serial_service.dart';
+import 'package:bsafe_app/services/desktop_serial_service_platform.dart';
+import 'package:bsafe_app/services/mobile_serial_service_platform.dart';
 import 'package:bsafe_app/services/yolo_service.dart';
 import 'package:bsafe_app/providers/inspection_provider.dart';
 import 'package:bsafe_app/providers/report_provider.dart';
@@ -5263,17 +5263,45 @@ class _PhotoAnalysisDialogState extends State<_PhotoAnalysisDialog> {
             context.read<InspectionProvider>().currentSession;
         final currentSessionId = currentSession?.id ?? '';
         final currentFloor = currentSession?.floor ?? 1;
+        double? minX;
+        double? maxX;
+        double? minY;
+        double? maxY;
+        double? pinXPercent;
+        double? pinYPercent;
         String boundsRef = '';
+        String calibrationRef = '';
+        String percentRef = '';
         try {
           final uwb = context.read<UwbService>();
           if (uwb.anchors.isNotEmpty) {
-            final minX = uwb.anchors.map((a) => a.x).reduce(min) - 1;
-            final maxX = uwb.anchors.map((a) => a.x).reduce(max) + 1;
-            final minY = uwb.anchors.map((a) => a.y).reduce(min) - 1;
-            final maxY = uwb.anchors.map((a) => a.y).reduce(max) + 1;
+            minX = uwb.anchors.map((a) => a.x).reduce(min) - 1;
+            maxX = uwb.anchors.map((a) => a.x).reduce(max) + 1;
+            minY = uwb.anchors.map((a) => a.y).reduce(min) - 1;
+            maxY = uwb.anchors.map((a) => a.y).reduce(max) + 1;
+            final rangeX = maxX - minX;
+            final rangeY = maxY - minY;
+            if (rangeX.abs() > 0.0001) {
+              pinXPercent =
+                  ((widget.pin.x - minX) / rangeX).clamp(0.0, 1.0).toDouble();
+            }
+            if (rangeY.abs() > 0.0001) {
+              pinYPercent =
+                  ((widget.pin.y - minY) / rangeY).clamp(0.0, 1.0).toDouble();
+            }
             boundsRef =
                 ';minX=${minX.toStringAsFixed(4)};maxX=${maxX.toStringAsFixed(4)};minY=${minY.toStringAsFixed(4)};maxY=${maxY.toStringAsFixed(4)}';
+            if (pinXPercent != null && pinYPercent != null) {
+              percentRef =
+                  ';pinXPercent=${pinXPercent.toStringAsFixed(6)};pinYPercent=${pinYPercent.toStringAsFixed(6)}';
+            }
           }
+          calibrationRef = ';xOffset=${uwb.config.xOffset.toStringAsFixed(4)}'
+              ';yOffset=${uwb.config.yOffset.toStringAsFixed(4)}'
+              ';xScale=${uwb.config.xScale.toStringAsFixed(4)}'
+              ';yScale=${uwb.config.yScale.toStringAsFixed(4)}'
+              ';flipX=${uwb.config.flipX}'
+              ';flipY=${uwb.config.flipY}';
         } catch (_) {}
 
         final damageDetected = _analysisResult?['damage_detected'] == true;
@@ -5311,9 +5339,11 @@ class _PhotoAnalysisDialogState extends State<_PhotoAnalysisDialog> {
               ? _analysisResult!['analysis'].toString()
               : '',
           location:
-              'UWB 座標: (${widget.pin.x.toStringAsFixed(2)}, ${widget.pin.y.toStringAsFixed(2)}) | ref:session=$currentSessionId;pin=${widget.pin.id};floor=$currentFloor$boundsRef',
+              'UWB 座標: (${widget.pin.x.toStringAsFixed(2)}, ${widget.pin.y.toStringAsFixed(2)}) | ref:session=$currentSessionId;pin=${widget.pin.id};floor=$currentFloor$boundsRef$calibrationRef$percentRef',
           latitude: widget.pin.x,
           longitude: widget.pin.y,
+          pinXPercent: pinXPercent,
+          pinYPercent: pinYPercent,
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
         );

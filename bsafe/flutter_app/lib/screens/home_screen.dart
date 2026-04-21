@@ -152,7 +152,8 @@ class HomeScreen extends StatelessWidget {
                   const SizedBox(height: 24),
                   Text(
                     language.t('risk_overview'),
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
                   Consumer<NavigationProvider>(
@@ -246,7 +247,8 @@ class HomeScreen extends StatelessWidget {
                   const SizedBox(height: 24),
                   Text(
                     language.t('quick_report'),
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   const _HomeQuickReportPanel(),
@@ -291,6 +293,59 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
     return _floorPlanOptions
         .where((item) => item['buildingName']?.toString() == _selectedFolder)
         .toList();
+  }
+
+  List<Map<String, dynamic>> get _selectedSessionPins {
+    final floorPlan = _selectedFloorPlan;
+    if (floorPlan == null) return const [];
+    final payload = floorPlan['payload'];
+    if (payload is! Map) return const [];
+    final pinsRaw = payload['pins'];
+    if (pinsRaw is! List) return const [];
+    return pinsRaw
+        .whereType<Map>()
+        .map((pin) => Map<String, dynamic>.from(pin))
+        .toList();
+  }
+
+  Offset? _pinOffsetOnCanvas({
+    required Map<String, dynamic> pin,
+    required double width,
+    required double height,
+  }) {
+    final percentX = _toDouble(pin['pin_x_percent'] ?? pin['pinXPercent']);
+    final percentY = _toDouble(pin['pin_y_percent'] ?? pin['pinYPercent']);
+    if (percentX != null && percentY != null) {
+      final nx = percentX.clamp(0.0, 1.0);
+      final ny = percentY.clamp(0.0, 1.0);
+      return Offset(width * nx, height * ny);
+    }
+
+    final x = _toDouble(pin['x']);
+    final y = _toDouble(pin['y']);
+    if (x == null || y == null) return null;
+    final nx = (x / 100.0).clamp(0.0, 1.0);
+    final ny = (1.0 - (y / 100.0)).clamp(0.0, 1.0);
+    return Offset(width * nx, height * ny);
+  }
+
+  void _selectExistingPin(Map<String, dynamic> pin) {
+    final percentX = _toDouble(pin['pin_x_percent'] ?? pin['pinXPercent']);
+    final percentY = _toDouble(pin['pin_y_percent'] ?? pin['pinYPercent']);
+    final x = percentX != null
+        ? (percentX.clamp(0.0, 1.0) * 100.0)
+        : _toDouble(pin['x']);
+    final y = percentY != null
+        ? ((1.0 - percentY.clamp(0.0, 1.0)) * 100.0)
+        : _toDouble(pin['y']);
+    if (x == null || y == null || _selectedFloorPlan == null) return;
+
+    setState(() {
+      _selectedPinX = x;
+      _selectedPinY = y;
+      _locationTextController.text =
+          '${_selectedFloorPlan!['buildingName']} / ${_selectedFloorPlan!['label']} - Pin(${x.toStringAsFixed(1)}, ${y.toStringAsFixed(1)})';
+    });
   }
 
   String _extractBuildingName(
@@ -467,7 +522,161 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
     }
   }
 
-  Future<void> _appendPinToSelectedSession() async {
+  int? _parseFloorNumber(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toInt();
+    final match = RegExp(r'-?\d+').firstMatch(value.toString());
+    if (match == null) return null;
+    return int.tryParse(match.group(0)!);
+  }
+
+  double? _toDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    if (value == null) return null;
+    return double.tryParse(value.toString());
+  }
+
+  bool? _toBool(dynamic value) {
+    if (value is bool) return value;
+    if (value == null) return null;
+    final text = value.toString().toLowerCase();
+    if (text == 'true') return true;
+    if (text == 'false') return false;
+    return null;
+  }
+
+  String _stripRefSuffix(String text) {
+    final trimmed = text.trim();
+    final refIndex = trimmed.indexOf('ref:');
+    if (refIndex < 0) return trimmed;
+    final base = trimmed.substring(0, refIndex).trim();
+    return base.replaceFirst(RegExp(r'[;,\s]+$'), '');
+  }
+
+  Map<String, double>? _resolveBoundsFromPins(
+    List<dynamic> pins, {
+    double? extraX,
+    double? extraY,
+  }) {
+    double minX = double.infinity;
+    double maxX = -double.infinity;
+    double minY = double.infinity;
+    double maxY = -double.infinity;
+
+    void applyPoint(double? x, double? y) {
+      if (x == null || y == null) return;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+
+    for (final pin in pins) {
+      if (pin is! Map) continue;
+      applyPoint(_toDouble(pin['x']), _toDouble(pin['y']));
+    }
+    applyPoint(extraX, extraY);
+
+    if (!minX.isFinite || !maxX.isFinite || !minY.isFinite || !maxY.isFinite) {
+      return null;
+    }
+
+    if ((maxX - minX).abs() < 0.0001) {
+      minX -= 0.5;
+      maxX += 0.5;
+    }
+    if ((maxY - minY).abs() < 0.0001) {
+      minY -= 0.5;
+      maxY += 0.5;
+    }
+
+    return {
+      'minX': minX,
+      'maxX': maxX,
+      'minY': minY,
+      'maxY': maxY,
+    };
+  }
+
+  double? _payloadDouble(Map<String, dynamic> payload, List<String> keys) {
+    for (final key in keys) {
+      final value = _toDouble(payload[key]);
+      if (value != null) return value;
+    }
+    return null;
+  }
+
+  bool? _payloadBool(Map<String, dynamic> payload, List<String> keys) {
+    for (final key in keys) {
+      final value = _toBool(payload[key]);
+      if (value != null) return value;
+    }
+    return null;
+  }
+
+  String _buildLocationWithRef({
+    required String baseLocation,
+    required String sessionId,
+    required String pinId,
+    required int? floorNumber,
+    required Map<String, dynamic> payload,
+    required List<dynamic> existingPins,
+    required double pinX,
+    required double pinY,
+    double? pinXPercent,
+    double? pinYPercent,
+  }) {
+    final refParts = <String>[
+      'session=$sessionId',
+      'pin=$pinId',
+      if (floorNumber != null) 'floor=$floorNumber',
+    ];
+
+    final bounds = _resolveBoundsFromPins(
+      existingPins,
+      extraX: pinX,
+      extraY: pinY,
+    );
+    if (bounds != null) {
+      refParts.addAll([
+        'minX=${bounds['minX']}',
+        'maxX=${bounds['maxX']}',
+        'minY=${bounds['minY']}',
+        'maxY=${bounds['maxY']}',
+      ]);
+    }
+
+    final xOffset = _payloadDouble(payload, const ['xOffset', 'x_offset']);
+    final yOffset = _payloadDouble(payload, const ['yOffset', 'y_offset']);
+    final xScale = _payloadDouble(payload, const ['xScale', 'x_scale']);
+    final yScale = _payloadDouble(payload, const ['yScale', 'y_scale']);
+    final flipX = _payloadBool(payload, const ['flipX', 'flip_x']);
+    final flipY = _payloadBool(payload, const ['flipY', 'flip_y']);
+
+    if (xOffset != null) refParts.add('xOffset=$xOffset');
+    if (yOffset != null) refParts.add('yOffset=$yOffset');
+    if (xScale != null) refParts.add('xScale=$xScale');
+    if (yScale != null) refParts.add('yScale=$yScale');
+    if (flipX != null) refParts.add('flipX=$flipX');
+    if (flipY != null) refParts.add('flipY=$flipY');
+    if (pinXPercent != null) {
+      refParts.add('pinXPercent=${pinXPercent.toStringAsFixed(6)}');
+    }
+    if (pinYPercent != null) {
+      refParts.add('pinYPercent=${pinYPercent.toStringAsFixed(6)}');
+    }
+
+    final cleanBase = _stripRefSuffix(baseLocation);
+    if (cleanBase.isEmpty) {
+      return 'ref:${refParts.join(';')}';
+    }
+    return '$cleanBase; ref:${refParts.join(';')}';
+  }
+
+  Future<void> _appendPinToSelectedSession({
+    required String pinId,
+    required String pinNote,
+  }) async {
     if (_selectedFloorPlan == null ||
         _selectedPinX == null ||
         _selectedPinY == null) {
@@ -475,18 +684,24 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
     }
 
     final sessionId = _selectedFloorPlan!['session_id'];
-    final payload = Map<String, dynamic>.from(
-      _selectedFloorPlan!['payload'] as Map<String, dynamic>? ?? {},
-    );
+    final rawPayload = _selectedFloorPlan!['payload'];
+    final payload = rawPayload is Map
+        ? Map<String, dynamic>.from(rawPayload)
+        : <String, dynamic>{};
     final pins = List<dynamic>.from(payload['pins'] as List<dynamic>? ?? []);
 
     final aiText = _extractAiText();
+    final pinXPercent = (_selectedPinX! / 100.0).clamp(0.0, 1.0).toDouble();
+    final pinYPercent =
+        (1.0 - (_selectedPinY! / 100.0)).clamp(0.0, 1.0).toDouble();
 
     pins.add({
-      'id': 'rp_${DateTime.now().millisecondsSinceEpoch}',
+      'id': pinId,
       'x': _selectedPinX,
       'y': _selectedPinY,
-      'note': _locationTextController.text.trim(),
+      'pin_x_percent': pinXPercent,
+      'pin_y_percent': pinYPercent,
+      'note': pinNote,
       'defects': [
         {
           'imageBase64': _imageBase64,
@@ -502,6 +717,54 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
       'payload': payload,
       'updated_at': DateTime.now().toIso8601String()
     }).eq('session_id', sessionId);
+
+    if (mounted && _selectedFloorPlan != null) {
+      setState(() {
+        _selectedFloorPlan = {
+          ..._selectedFloorPlan!,
+          'payload': payload,
+        };
+      });
+    }
+  }
+
+  Future<void> _removePinFromSelectedSession(String pinId) async {
+    if (_selectedFloorPlan == null) return;
+
+    final sessionId = _selectedFloorPlan!['session_id']?.toString();
+    if (sessionId == null || sessionId.isEmpty) return;
+
+    final row = await Supabase.instance.client
+        .from('inspection_sessions')
+        .select('payload')
+        .eq('session_id', sessionId)
+        .maybeSingle();
+    if (row == null) return;
+
+    final rawPayload = row['payload'];
+    final payload = rawPayload is Map
+        ? Map<String, dynamic>.from(rawPayload)
+        : <String, dynamic>{};
+    final pins = List<dynamic>.from(payload['pins'] as List<dynamic>? ?? []);
+    final originalLength = pins.length;
+    pins.removeWhere((pin) => pin is Map && pin['id']?.toString() == pinId);
+    if (pins.length == originalLength) return;
+
+    payload['pins'] = pins;
+
+    await Supabase.instance.client.from('inspection_sessions').update({
+      'payload': payload,
+      'updated_at': DateTime.now().toIso8601String(),
+    }).eq('session_id', sessionId);
+
+    if (mounted && _selectedFloorPlan != null) {
+      setState(() {
+        _selectedFloorPlan = {
+          ..._selectedFloorPlan!,
+          'payload': payload,
+        };
+      });
+    }
   }
 
   Future<void> _submit() async {
@@ -532,6 +795,47 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
       final description = _extractAiText().trim();
       final category = (_aiResult?['category'] as String?) ?? 'structural';
       final severity = (_aiResult?['severity'] as String?) ?? 'moderate';
+      final pinXPercent = (_selectedPinX! / 100.0).clamp(0.0, 1.0).toDouble();
+      final pinYPercent =
+          (1.0 - (_selectedPinY! / 100.0)).clamp(0.0, 1.0).toDouble();
+      final selectedFloorPlan = _selectedFloorPlan!;
+      final sessionId =
+          (selectedFloorPlan['session_id'] ?? '').toString().trim();
+      if (sessionId.isEmpty) {
+        _showMessage('樓層資料缺少 session_id，請重新選擇樓層圖', isError: true);
+        return;
+      }
+
+      final rawPayload = selectedFloorPlan['payload'];
+      final payload = rawPayload is Map
+          ? Map<String, dynamic>.from(rawPayload)
+          : <String, dynamic>{};
+      final pins = List<dynamic>.from(payload['pins'] as List<dynamic>? ?? []);
+      final floorNumber = _parseFloorNumber(
+        selectedFloorPlan['floorNumber'] ?? selectedFloorPlan['label'],
+      );
+
+      final pinId = 'rp_${DateTime.now().millisecondsSinceEpoch}';
+      final defaultLocation =
+          '${selectedFloorPlan['buildingName']} / ${selectedFloorPlan['label']} - Pin(${_selectedPinX!.toStringAsFixed(1)}, ${_selectedPinY!.toStringAsFixed(1)})';
+      final locationBase =
+          _stripRefSuffix(_locationTextController.text).isNotEmpty
+              ? _stripRefSuffix(_locationTextController.text)
+              : defaultLocation;
+      final locationWithRef = _buildLocationWithRef(
+        baseLocation: locationBase,
+        sessionId: sessionId,
+        pinId: pinId,
+        floorNumber: floorNumber,
+        payload: payload,
+        existingPins: pins,
+        pinX: _selectedPinX!,
+        pinY: _selectedPinY!,
+        pinXPercent: pinXPercent,
+        pinYPercent: pinYPercent,
+      );
+
+      await _appendPinToSelectedSession(pinId: pinId, pinNote: locationBase);
 
       final saved = await reportProvider.addReport(
         title: (title?.isNotEmpty ?? false) ? title! : '建築安全問題',
@@ -540,7 +844,7 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
         severity: severity,
         imagePath: _selectedImage!.path,
         imageBase64: _imageBase64,
-        location: _locationTextController.text.trim(),
+        location: locationWithRef,
         latitude: _selectedPinX,
         longitude: _selectedPinY,
         isOnline: connectivity.isOnline,
@@ -549,7 +853,6 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
 
       if (!mounted) return;
       if (saved != null) {
-        await _appendPinToSelectedSession();
         _showMessage('報告已提交');
         setState(() {
           _selectedImage = null;
@@ -561,6 +864,11 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
         });
         navigation.goToHistory();
       } else {
+        try {
+          await _removePinFromSelectedSession(pinId);
+        } catch (_) {
+          // Best-effort rollback to avoid dangling pins when report save fails.
+        }
         _showMessage(reportProvider.error ?? '提交失敗', isError: true);
       }
     } catch (e) {
@@ -641,8 +949,8 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
               },
             ),
             const SizedBox(height: 10),
-            DropdownButtonFormField<Map<String, dynamic>>(
-              initialValue: _selectedFloorPlan,
+            DropdownButtonFormField<String>(
+              initialValue: _selectedFloorPlan?['session_id']?.toString(),
               isExpanded: true,
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
@@ -651,19 +959,22 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
                 labelText: '樓層圖',
               ),
               items: _filteredFloorPlanOptions
-                  .map((item) => DropdownMenuItem<Map<String, dynamic>>(
-                        value: item,
+                  .map((item) => DropdownMenuItem<String>(
+                        value: item['session_id']?.toString(),
                         child: Text(item['label'] as String),
                       ))
                   .toList(),
               onChanged: (value) {
                 if (value == null) return;
                 setState(() {
-                  _selectedFloorPlan = value;
+                  _selectedFloorPlan = _filteredFloorPlanOptions.firstWhere(
+                    (item) => item['session_id']?.toString() == value,
+                    orElse: () => _filteredFloorPlanOptions.first,
+                  );
                   _selectedPinX = null;
                   _selectedPinY = null;
                   _locationTextController.text =
-                      '${value['buildingName']} / ${value['label']} - 未選 pin';
+                      '${_selectedFloorPlan!['buildingName']} / ${_selectedFloorPlan!['label']} - 未選 pin';
                 });
               },
             ),
@@ -789,6 +1100,7 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
                 aspectRatio: 16 / 9,
                 child: LayoutBuilder(
                   builder: (context, constraints) {
+                    final pins = _selectedSessionPins;
                     return GestureDetector(
                       onTapDown: (details) {
                         final local = details.localPosition;
@@ -878,6 +1190,43 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
                                 ),
                               ),
                             ),
+                          ...pins.map((pin) {
+                            final offset = _pinOffsetOnCanvas(
+                              pin: pin,
+                              width: constraints.maxWidth,
+                              height: constraints.maxHeight,
+                            );
+                            if (offset == null) return const SizedBox.shrink();
+
+                            final pinId = pin['id']?.toString();
+                            final isSelected = pinId != null &&
+                                _locationTextController.text
+                                    .contains('pin=$pinId');
+                            return Positioned(
+                              left: offset.dx - 7,
+                              top: offset.dy - 7,
+                              child: Tooltip(
+                                message: '既有 Pin ${pin['id'] ?? ''}',
+                                child: GestureDetector(
+                                  onTap: () => _selectExistingPin(pin),
+                                  child: Container(
+                                    width: 14,
+                                    height: 14,
+                                    decoration: BoxDecoration(
+                                      color: isSelected
+                                          ? AppTheme.primaryColor
+                                          : Colors.orange,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Colors.white,
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }),
                         ],
                       ),
                     );
@@ -891,6 +1240,16 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
                     : '已選 pin: (${_selectedPinX!.toStringAsFixed(1)}, ${_selectedPinY!.toStringAsFixed(1)})',
                 style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
               ),
+              if (_selectedPinX != null && _selectedPinY != null)
+                Text(
+                  'normalized: x=${(_selectedPinX! / 100).toStringAsFixed(4)}, y=${(1 - (_selectedPinY! / 100)).toStringAsFixed(4)}',
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+                ),
+              if (_selectedSessionPins.isNotEmpty)
+                Text(
+                  '橘色點為既有 Pin（可點選以重用座標），共 ${_selectedSessionPins.length} 個。',
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+                ),
             ],
             const SizedBox(height: 8),
             TextField(

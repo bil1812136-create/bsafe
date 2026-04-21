@@ -173,14 +173,20 @@ WITH CHECK (true);
 
 ```bash
 flutter run -d android
+
+flutter run -d R5CR30PFFTN --dart-define=GEMINI_API_KEY=YOUR_KEY
 ```
 
 Or specify a device ID:
 
 ```bash
 flutter devices
-flutter run -d <device_id>
+flutter run -d <R5CR30PFFTN>
 ```
+# mobile app flutter run
+flutter run -d chrome --target lib/main.dart
+
+--dart-define=GEMINI_API_KEY=AIza
 
 ### Web dashboard
 

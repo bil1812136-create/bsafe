@@ -301,111 +301,232 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
     showDialog(
       context: context,
       builder: (ctx) {
+        Map<String, dynamic>? selectedPin;
+        Map<String, dynamic>? selectedReport;
+
         return Dialog(
           insetPadding: const EdgeInsets.all(24),
           child: SizedBox(
-            width: 900,
+            width: 1080,
             height: 620,
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+              child: StatefulBuilder(
+                builder: (context, setLocalState) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        '樓層圖預覽與 Pin',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
+                      Row(
+                        children: [
+                          const Text(
+                            '樓層圖預覽與 Pin',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                          const Spacer(),
+                          Text('Pins: ${pins.length}'),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            icon: const Icon(Icons.close),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Expanded(
+                              flex: 3,
+                              child: _FloorPlanPreviewWithPins(
+                                imageUrl: imageUrl,
+                                imageBytes: imageBytes,
+                                pins: pins,
+                                selectedPinId: selectedPin?['id']?.toString(),
+                                onPinTap: (pin) {
+                                  setLocalState(() {
+                                    selectedPin = pin;
+                                    selectedReport =
+                                        _findReportByPin(row: row, pin: pin);
+                                  });
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Container(
+                              width: 330,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade50,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: AppTheme.borderColor),
+                              ),
+                              child: selectedPin == null
+                                  ? Center(
+                                      child: Text(
+                                        '點擊地圖上的 Pin 可查看對應報告',
+                                        style: TextStyle(
+                                          color: Colors.grey.shade600,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    )
+                                  : Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Pin ${selectedPin!['id'] ?? ''}',
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          '座標: (${((selectedPin!['pin_x_percent'] ?? selectedPin!['pinXPercent']) as num?) != null ? (((selectedPin!['pin_x_percent'] ?? selectedPin!['pinXPercent']) as num).toDouble() * 100).toStringAsFixed(1) : (selectedPin!['x'] as num?)?.toStringAsFixed(1) ?? '-'}, ${((selectedPin!['pin_y_percent'] ?? selectedPin!['pinYPercent']) as num?) != null ? (((selectedPin!['pin_y_percent'] ?? selectedPin!['pinYPercent']) as num).toDouble() * 100).toStringAsFixed(1) : (selectedPin!['y'] as num?)?.toStringAsFixed(1) ?? '-'})',
+                                          style: TextStyle(
+                                            color: Colors.grey.shade700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 10),
+                                        if (selectedReport == null)
+                                          Container(
+                                            padding: const EdgeInsets.all(10),
+                                            decoration: BoxDecoration(
+                                              color: Colors.orange.shade50,
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              border: Border.all(
+                                                  color:
+                                                      Colors.orange.shade200),
+                                            ),
+                                            child: const Text(
+                                              '此 Pin 尚未找到對應報告。',
+                                              style: TextStyle(fontSize: 12),
+                                            ),
+                                          )
+                                        else ...[
+                                          Container(
+                                            width: double.infinity,
+                                            padding: const EdgeInsets.all(10),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              border: Border.all(
+                                                  color: AppTheme.borderColor),
+                                            ),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  selectedReport!['title']
+                                                          ?.toString() ??
+                                                      '未命名報告',
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                                const SizedBox(height: 6),
+                                                Text(
+                                                  '狀態: ${selectedReport!['status'] ?? 'pending'}',
+                                                  style: TextStyle(
+                                                    color: Colors.grey.shade700,
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  '風險: ${selectedReport!['risk_level'] ?? '-'}',
+                                                  style: TextStyle(
+                                                    color: Colors.grey.shade700,
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(height: 10),
+                                          SizedBox(
+                                            width: double.infinity,
+                                            child: ElevatedButton.icon(
+                                              onPressed: () {
+                                                Navigator.pop(ctx);
+                                                _openDetail(selectedReport!);
+                                              },
+                                              icon:
+                                                  const Icon(Icons.open_in_new),
+                                              label: const Text('開啟完整報告（可編輯）'),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            '可編輯內容：基本資料、處理狀態、AI 報告、跟進對話、對應照片。',
+                                            style: TextStyle(
+                                              color: Colors.grey.shade600,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                            ),
+                          ],
                         ),
                       ),
-                      const Spacer(),
-                      Text('Pins: ${pins.length}'),
-                      const SizedBox(width: 8),
-                      IconButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        icon: const Icon(Icons.close),
-                      ),
                     ],
-                  ),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        return Container(
-                          width: constraints.maxWidth,
-                          height: constraints.maxHeight,
-                          color: Colors.grey.shade100,
-                          child: Stack(
-                            children: [
-                              Positioned.fill(
-                                child: imageUrl != null
-                                    ? Image.network(
-                                        imageUrl,
-                                        fit: BoxFit.contain,
-                                        errorBuilder: (_, __, ___) {
-                                          if (imageBytes != null) {
-                                            return Image.memory(
-                                              imageBytes,
-                                              fit: BoxFit.contain,
-                                            );
-                                          }
-                                          return const Center(
-                                            child: Text('樓層圖載入失敗'),
-                                          );
-                                        },
-                                      )
-                                    : imageBytes != null
-                                        ? Image.memory(
-                                            imageBytes,
-                                            fit: BoxFit.contain,
-                                          )
-                                        : const Center(child: Text('無圖片')),
-                              ),
-                              ...pins.map((pin) {
-                                final x = (pin['x'] as num?)?.toDouble();
-                                final y = (pin['y'] as num?)?.toDouble();
-                                if (x == null || y == null) {
-                                  return const SizedBox.shrink();
-                                }
-                                final left = constraints.maxWidth * (x / 100);
-                                final top =
-                                    constraints.maxHeight * (1 - (y / 100));
-                                return Positioned(
-                                  left: left - 9,
-                                  top: top - 9,
-                                  child: Tooltip(
-                                    message:
-                                        'Pin ${pin['id'] ?? ''} (${x.toStringAsFixed(1)}, ${y.toStringAsFixed(1)})',
-                                    child: Container(
-                                      width: 18,
-                                      height: 18,
-                                      decoration: BoxDecoration(
-                                        color: Colors.red,
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: Colors.white,
-                                          width: 2,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              }),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
+                  );
+                },
               ),
             ),
           ),
         );
       },
     );
+  }
+
+  Map<String, dynamic>? _findReportByPin({
+    required Map<String, dynamic> row,
+    required Map<String, dynamic> pin,
+  }) {
+    final sessionId = row['session_id']?.toString();
+    final pinId = pin['id']?.toString();
+
+    if ((sessionId == null || sessionId.isEmpty) &&
+        (pinId == null || pinId.isEmpty)) {
+      return null;
+    }
+
+    for (final report in _reports) {
+      final ref = _extractInspectionRefFromLocation(
+        report['location']?.toString(),
+      );
+      final reportSessionId = ref['sessionId'] as String?;
+      final reportPinId = ref['pinId'] as String?;
+
+      final sameSession = sessionId != null && sessionId == reportSessionId;
+      final samePin = pinId != null && pinId == reportPinId;
+
+      if (sameSession && samePin) return report;
+    }
+
+    for (final report in _reports) {
+      final ref = _extractInspectionRefFromLocation(
+        report['location']?.toString(),
+      );
+      final reportPinId = ref['pinId'] as String?;
+      if (pinId != null && pinId == reportPinId) {
+        return report;
+      }
+    }
+
+    return null;
   }
 
   String _extractBuildingNameFromRow(Map<String, dynamic> row) {
@@ -1097,9 +1218,10 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
       color: Colors.white,
-      child: Row(
-        children: [
-          const Column(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 760;
+          const titleBlock = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
@@ -1112,23 +1234,47 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                 style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
               ),
             ],
-          ),
-          const Spacer(),
-          // 手動刷新
-          OutlinedButton.icon(
-            onPressed: _loadReports,
-            icon: const Icon(Icons.refresh, size: 18),
-            label: const Text('刷新'),
-          ),
-          const SizedBox(width: 12),
-          Text(
-            '共 ${_reports.length} 筆報告',
-            style: const TextStyle(
-              color: AppTheme.textSecondary,
-              fontSize: 14,
-            ),
-          ),
-        ],
+          );
+
+          final actions = Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              OutlinedButton.icon(
+                onPressed: _loadReports,
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('刷新'),
+              ),
+              Text(
+                '共 ${_reports.length} 筆報告',
+                style: const TextStyle(
+                  color: AppTheme.textSecondary,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          );
+
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                titleBlock,
+                const SizedBox(height: 12),
+                actions,
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              titleBlock,
+              const Spacer(),
+              actions,
+            ],
+          );
+        },
       ),
     );
   }
@@ -1141,58 +1287,83 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
     final medium = _reports.where((r) => r['risk_level'] == 'medium').length;
     final low = _reports.where((r) => r['risk_level'] == 'low').length;
 
+    final cards = [
+      _clickableStatCard(
+        label: '全部報告',
+        value: '$total',
+        color: AppTheme.primaryColor,
+        icon: Icons.description,
+        isActive: _filterRiskLevel == 'all',
+        onTap: () {
+          setState(() => _filterRiskLevel = 'all');
+          _loadReports();
+        },
+      ),
+      _clickableStatCard(
+        label: '高風險',
+        value: '$high',
+        color: AppTheme.riskHigh,
+        icon: Icons.warning,
+        isActive: _filterRiskLevel == 'high',
+        onTap: () {
+          setState(() => _filterRiskLevel = 'high');
+          _loadReports();
+        },
+      ),
+      _clickableStatCard(
+        label: '中風險',
+        value: '$medium',
+        color: AppTheme.riskMedium,
+        icon: Icons.info,
+        isActive: _filterRiskLevel == 'medium',
+        onTap: () {
+          setState(() => _filterRiskLevel = 'medium');
+          _loadReports();
+        },
+      ),
+      _clickableStatCard(
+        label: '低風險',
+        value: '$low',
+        color: AppTheme.riskLow,
+        icon: Icons.check_circle,
+        isActive: _filterRiskLevel == 'low',
+        onTap: () {
+          setState(() => _filterRiskLevel = 'low');
+          _loadReports();
+        },
+      ),
+    ];
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-      child: Row(
-        children: [
-          _clickableStatCard(
-            label: '全部報告',
-            value: '$total',
-            color: AppTheme.primaryColor,
-            icon: Icons.description,
-            isActive: _filterRiskLevel == 'all',
-            onTap: () {
-              setState(() => _filterRiskLevel = 'all');
-              _loadReports();
-            },
-          ),
-          const SizedBox(width: 16),
-          _clickableStatCard(
-            label: '高風險',
-            value: '$high',
-            color: AppTheme.riskHigh,
-            icon: Icons.warning,
-            isActive: _filterRiskLevel == 'high',
-            onTap: () {
-              setState(() => _filterRiskLevel = 'high');
-              _loadReports();
-            },
-          ),
-          const SizedBox(width: 16),
-          _clickableStatCard(
-            label: '中風險',
-            value: '$medium',
-            color: AppTheme.riskMedium,
-            icon: Icons.info,
-            isActive: _filterRiskLevel == 'medium',
-            onTap: () {
-              setState(() => _filterRiskLevel = 'medium');
-              _loadReports();
-            },
-          ),
-          const SizedBox(width: 16),
-          _clickableStatCard(
-            label: '低風險',
-            value: '$low',
-            color: AppTheme.riskLow,
-            icon: Icons.check_circle,
-            isActive: _filterRiskLevel == 'low',
-            onTap: () {
-              setState(() => _filterRiskLevel = 'low');
-              _loadReports();
-            },
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 1100;
+          if (compact) {
+            final cardWidth =
+                ((constraints.maxWidth - 16) / 2).clamp(220.0, 420.0);
+            return Wrap(
+              spacing: 16,
+              runSpacing: 16,
+              children: cards
+                  .map((card) =>
+                      SizedBox(width: cardWidth.toDouble(), child: card))
+                  .toList(),
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(child: cards[0]),
+              const SizedBox(width: 16),
+              Expanded(child: cards[1]),
+              const SizedBox(width: 16),
+              Expanded(child: cards[2]),
+              const SizedBox(width: 16),
+              Expanded(child: cards[3]),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1205,61 +1376,98 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
     required bool isActive,
     required VoidCallback onTap,
   }) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: isActive ? color.withOpacity(0.08) : Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: isActive
-                ? Border.all(color: color, width: 2)
-                : Border.all(color: Colors.transparent, width: 2),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(isActive ? 0.08 : 0.04),
-                blurRadius: 10,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: color, size: 24),
-              ),
-              const SizedBox(width: 12),
-              Flexible(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      value,
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: color,
-                      ),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: isActive ? color.withOpacity(0.08) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: isActive
+              ? Border.all(color: color, width: 2)
+              : Border.all(color: Colors.transparent, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isActive ? 0.08 : 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final narrow = constraints.maxWidth < 170;
+            if (narrow) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    Text(
-                      label,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppTheme.textSecondary,
-                        fontSize: 13,
-                      ),
+                    child: Icon(icon, color: color, size: 20),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: color,
                     ),
-                  ],
+                  ),
+                  Text(
+                    label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppTheme.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            return Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: color, size: 24),
                 ),
-              ),
-            ],
-          ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        value,
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: color,
+                        ),
+                      ),
+                      Text(
+                        label,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -1753,5 +1961,247 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
       if (pinId != null) 'pinId': pinId,
       if (floor != null) 'floor': floor,
     };
+  }
+}
+
+class _FloorPlanPreviewWithPins extends StatefulWidget {
+  final String? imageUrl;
+  final Uint8List? imageBytes;
+  final List<Map<String, dynamic>> pins;
+  final String? selectedPinId;
+  final ValueChanged<Map<String, dynamic>>? onPinTap;
+
+  const _FloorPlanPreviewWithPins({
+    required this.imageUrl,
+    required this.imageBytes,
+    required this.pins,
+    this.selectedPinId,
+    this.onPinTap,
+  });
+
+  @override
+  State<_FloorPlanPreviewWithPins> createState() =>
+      _FloorPlanPreviewWithPinsState();
+}
+
+class _FloorPlanPreviewWithPinsState extends State<_FloorPlanPreviewWithPins> {
+  ImageProvider<Object>? _imageProvider;
+  Size? _imageSize;
+  ImageStream? _imageStream;
+  ImageStreamListener? _imageStreamListener;
+
+  Map<String, double> _resolveBounds() {
+    if (widget.pins.isEmpty) {
+      return {'minX': 0, 'maxX': 1, 'minY': 0, 'maxY': 1};
+    }
+
+    double minX = double.infinity;
+    double maxX = -double.infinity;
+    double minY = double.infinity;
+    double maxY = -double.infinity;
+
+    for (final pin in widget.pins) {
+      final x = (pin['x'] as num?)?.toDouble();
+      final y = (pin['y'] as num?)?.toDouble();
+      if (x == null || y == null) continue;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+
+    if (!minX.isFinite || !maxX.isFinite || !minY.isFinite || !maxY.isFinite) {
+      return {'minX': 0, 'maxX': 1, 'minY': 0, 'maxY': 1};
+    }
+
+    if ((maxX - minX).abs() < 0.0001) {
+      minX -= 0.5;
+      maxX += 0.5;
+    }
+    if ((maxY - minY).abs() < 0.0001) {
+      minY -= 0.5;
+      maxY += 0.5;
+    }
+
+    return {'minX': minX, 'maxX': maxX, 'minY': minY, 'maxY': maxY};
+  }
+
+  Offset? _pinPercentOffset(Map<String, dynamic> pin) {
+    final percentX = (pin['pin_x_percent'] ?? pin['pinXPercent']) as num?;
+    final percentY = (pin['pin_y_percent'] ?? pin['pinYPercent']) as num?;
+    if (percentX == null || percentY == null) return null;
+    return Offset(
+      percentX.toDouble().clamp(0.0, 1.0),
+      percentY.toDouble().clamp(0.0, 1.0),
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _imageProvider = widget.imageBytes != null
+        ? MemoryImage(widget.imageBytes!) as ImageProvider<Object>
+        : widget.imageUrl != null
+            ? NetworkImage(widget.imageUrl!) as ImageProvider<Object>
+            : null;
+    _resolveImageSize();
+  }
+
+  @override
+  void didUpdateWidget(covariant _FloorPlanPreviewWithPins oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.imageUrl != widget.imageUrl ||
+        oldWidget.imageBytes != widget.imageBytes) {
+      _imageProvider = widget.imageBytes != null
+          ? MemoryImage(widget.imageBytes!) as ImageProvider<Object>
+          : widget.imageUrl != null
+              ? NetworkImage(widget.imageUrl!) as ImageProvider<Object>
+              : null;
+      _imageSize = null;
+      _resolveImageSize();
+    }
+  }
+
+  @override
+  void dispose() {
+    if (_imageStream != null && _imageStreamListener != null) {
+      _imageStream!.removeListener(_imageStreamListener!);
+    }
+    super.dispose();
+  }
+
+  void _resolveImageSize() {
+    final provider = _imageProvider;
+    if (provider == null) return;
+
+    final stream = provider.resolve(const ImageConfiguration());
+    final listener = ImageStreamListener((info, _) {
+      if (!mounted) return;
+      setState(() {
+        _imageSize = Size(
+          info.image.width.toDouble(),
+          info.image.height.toDouble(),
+        );
+      });
+    });
+
+    if (_imageStream != null && _imageStreamListener != null) {
+      _imageStream!.removeListener(_imageStreamListener!);
+    }
+    _imageStream = stream;
+    _imageStreamListener = listener;
+    stream.addListener(listener);
+  }
+
+  Rect _containRect(Size boxSize, Size imageSize) {
+    final boxAspect = boxSize.width / boxSize.height;
+    final imageAspect = imageSize.width / imageSize.height;
+
+    if (imageAspect > boxAspect) {
+      final width = boxSize.width;
+      final height = width / imageAspect;
+      return Rect.fromLTWH(0, (boxSize.height - height) / 2, width, height);
+    }
+
+    final height = boxSize.height;
+    final width = height * imageAspect;
+    return Rect.fromLTWH((boxSize.width - width) / 2, 0, width, height);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = _imageProvider;
+    if (provider == null) {
+      return Container(
+        color: Colors.grey.shade100,
+        alignment: Alignment.center,
+        child: const Text('無圖片'),
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bounds = _resolveBounds();
+        final minX = bounds['minX']!;
+        final maxX = bounds['maxX']!;
+        final minY = bounds['minY']!;
+        final maxY = bounds['maxY']!;
+        final spanX = (maxX - minX).abs() < 0.0001 ? 1.0 : (maxX - minX);
+        final spanY = (maxY - minY).abs() < 0.0001 ? 1.0 : (maxY - minY);
+        final rect = _imageSize == null
+            ? Rect.fromLTWH(0, 0, constraints.maxWidth, constraints.maxHeight)
+            : _containRect(
+                Size(constraints.maxWidth, constraints.maxHeight),
+                _imageSize!,
+              );
+
+        return Container(
+          width: constraints.maxWidth,
+          height: constraints.maxHeight,
+          color: Colors.grey.shade100,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: Image(
+                  image: provider,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Center(
+                    child: Text('樓層圖載入失敗'),
+                  ),
+                ),
+              ),
+              if (_imageSize != null)
+                ...widget.pins.map((pin) {
+                  final percentOffset = _pinPercentOffset(pin);
+                  final xValue = (pin['x'] as num?)?.toDouble();
+                  final yValue = (pin['y'] as num?)?.toDouble();
+                  if (percentOffset == null &&
+                      (xValue == null || yValue == null)) {
+                    return const SizedBox.shrink();
+                  }
+
+                  final nx = percentOffset?.dx ??
+                      ((xValue! - minX) / spanX).clamp(0.0, 1.0);
+                  final ny = percentOffset?.dy ??
+                      ((yValue! - minY) / spanY).clamp(0.0, 1.0);
+                  final left = rect.left + rect.width * nx;
+                  final top = percentOffset == null
+                      ? rect.top + rect.height * (1 - ny)
+                      : rect.top + rect.height * ny;
+
+                  return Positioned(
+                    left: left - 9,
+                    top: top - 9,
+                    child: Tooltip(
+                      message: percentOffset != null
+                          ? 'Pin ${pin['id'] ?? ''} (${(nx * 100).toStringAsFixed(1)}%, ${(ny * 100).toStringAsFixed(1)}%)'
+                          : 'Pin ${pin['id'] ?? ''} (${xValue!.toStringAsFixed(1)}, ${yValue!.toStringAsFixed(1)})',
+                      child: GestureDetector(
+                        onTap: widget.onPinTap == null
+                            ? null
+                            : () => widget.onPinTap!(pin),
+                        child: Container(
+                          width: 18,
+                          height: 18,
+                          decoration: BoxDecoration(
+                            color: widget.selectedPinId == pin['id']?.toString()
+                                ? AppTheme.primaryColor
+                                : Colors.red,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white,
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+            ],
+          ),
+        );
+      },
+    );
   }
 }
