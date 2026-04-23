@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 
+import 'package:ai_api_classifier/l10n/app_i18n.dart';
 import 'package:ai_api_classifier/models/analysis_record.dart';
 import 'package:ai_api_classifier/services/analysis_record_storage.dart';
 import 'package:ai_api_classifier/services/defect_classifier_service.dart';
 
 class ReportScreen extends StatefulWidget {
-  const ReportScreen({super.key});
+  const ReportScreen({super.key, required this.language});
 
   static const String routeName = '/report';
+  final AppLanguage language;
 
   @override
   State<ReportScreen> createState() => _ReportScreenState();
@@ -43,6 +45,7 @@ class _ReportScreenState extends State<ReportScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final i18n = AppI18n(widget.language);
     final total = _records.length;
     final counts = <String, int>{
       for (final label in DefectClassifierService.supportedLabels) label: 0,
@@ -59,7 +62,7 @@ class _ReportScreenState extends State<ReportScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('統計報表'),
+        title: Text(i18n.report),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -70,7 +73,8 @@ class _ReportScreenState extends State<ReportScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('總記錄: $total', style: const TextStyle(fontSize: 16)),
+                      Text('${i18n.totalRecords}: $total',
+                          style: const TextStyle(fontSize: 16)),
                       const SizedBox(height: 8),
                       Wrap(
                         spacing: 8,
@@ -84,23 +88,26 @@ class _ReportScreenState extends State<ReportScreen> {
                             .toList(),
                       ),
                       const SizedBox(height: 12),
-                      Text('Unknown 比例: ${unknownRatio.toStringAsFixed(1)}%'),
-                      Text('Other 比例: ${otherRatio.toStringAsFixed(1)}%'),
+                      Text(i18n.unknownRatio(unknownRatio.toStringAsFixed(1))),
+                      Text(i18n.otherRatio(otherRatio.toStringAsFixed(1))),
                     ],
                   ),
                 ),
                 const Divider(height: 1),
                 Expanded(
                   child: _records.isEmpty
-                      ? const Center(child: Text('目前沒有分析記錄'))
+                      ? Center(child: Text(i18n.noRecords))
                       : ListView.separated(
                           itemCount: _records.length,
                           separatorBuilder: (_, __) => const Divider(height: 1),
                           itemBuilder: (context, i) {
                             final r = _records[i];
                             final subtitle = r.hasError
-                                ? '結果: ${r.result} | 錯誤: ${r.error}'
-                                : '結果: ${r.result}';
+                                ? i18n.resultErrorText(
+                                    r.result,
+                                    r.error ?? 'Unknown error',
+                                  )
+                                : i18n.resultText(r.result);
                             return ListTile(
                               title: Text(
                                 r.imageName,
@@ -114,7 +121,7 @@ class _ReportScreenState extends State<ReportScreen> {
                               trailing: IconButton(
                                 onPressed: () => _deleteRecord(r),
                                 icon: const Icon(Icons.delete_outline),
-                                tooltip: '刪除記錄',
+                                tooltip: i18n.deleteRecord,
                               ),
                             );
                           },

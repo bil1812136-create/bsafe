@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:bsafe_app/models/report_model.dart';
 import 'package:bsafe_app/services/api_service.dart';
@@ -23,9 +25,43 @@ class ReportProvider extends ChangeNotifier {
 
   final ApiService _api = ApiService.instance;
   final RealtimeService _realtime = RealtimeService.instance;
+  StreamSubscription<List<Map<String, dynamic>>>? _reportsRealtimeSubscription;
 
   ReportProvider() {
     loadReports();
+    _subscribeToReportsRealtime();
+  }
+
+  void _subscribeToReportsRealtime() {
+    if (!SupabaseService.isConfigured) return;
+
+    _reportsRealtimeSubscription?.cancel();
+    _reportsRealtimeSubscription = SupabaseService.instance.client
+        .from('reports')
+        .stream(primaryKey: ['id']).listen(
+      (rows) {
+        final nextReports = rows
+            .map((data) => SupabaseService.mapToReportModel(data))
+            .toList()
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+        _reports = nextReports;
+        _statistics = _computeStatistics(_reports);
+        _trendData = _computeTrendData(_reports);
+
+        if (_currentReport?.id != null) {
+          final idx = _reports.indexWhere((r) => r.id == _currentReport!.id);
+          if (idx >= 0) {
+            _currentReport = _reports[idx];
+          }
+        }
+
+        notifyListeners();
+      },
+      onError: (e) {
+        debugPrint('⚠️ 報告實時訂閱失敗: $e');
+      },
+    );
   }
 
   /// 從 Supabase 載入所有報告
@@ -427,5 +463,12 @@ class ReportProvider extends ChangeNotifier {
       _reports[index] = updated;
     }
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _reportsRealtimeSubscription?.cancel();
+    _realtime.unsubscribeAll();
+    super.dispose();
   }
 }

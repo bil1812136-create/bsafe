@@ -2350,37 +2350,19 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
   String _buildLocationSummary(String? location) {
     if (location == null || location.isEmpty) return '未指定';
 
-    final ref = _extractInspectionRefFromLocation(location);
-    final sessionId = ref['sessionId']?.toString();
-    final pinId = ref['pinId']?.toString();
-    final floor = ref['floor']?.toString();
-    final legacyPinX = (ref['legacyPinX'] as num?)?.toDouble();
-    final legacyPinY = (ref['legacyPinY'] as num?)?.toDouble();
-    final pinXPercent = (ref['pinXPercent'] as num?)?.toDouble();
-    final pinYPercent = (ref['pinYPercent'] as num?)?.toDouble();
-    final displayPinX = pinXPercent != null ? (pinXPercent * 100) : legacyPinX;
-    final displayPinY =
-        pinYPercent != null ? ((1 - pinYPercent) * 100) : legacyPinY;
+    final trimmed = location.trim();
+    final refIndex = trimmed.indexOf('ref:');
+    final baseLocation = refIndex >= 0
+        ? trimmed.substring(0, refIndex).replaceAll(RegExp(r'[;\s]+$'), '')
+        : trimmed;
 
-    final lines = <String>[location];
-    if (sessionId != null) lines.add('Session: $sessionId');
-    if (pinId != null) lines.add('Pin: $pinId');
-    if (floor != null) lines.add('Floor: $floor');
-    if (displayPinX != null || displayPinY != null) {
-      lines.add(
-        '畫布座標: '
-        '${displayPinX != null ? displayPinX.toStringAsFixed(1) : '-'}, '
-        '${displayPinY != null ? displayPinY.toStringAsFixed(1) : '-'}',
-      );
+    final ref = _extractInspectionRefFromLocation(location);
+    final floor = ref['floor'];
+    if (floor != null) {
+      final base = baseLocation.isEmpty ? '未指定位置' : baseLocation;
+      return '$base (F$floor)';
     }
-    if (pinXPercent != null || pinYPercent != null) {
-      lines.add(
-        'Normalized: '
-        'x=${pinXPercent?.toStringAsFixed(6) ?? '-'}, '
-        'y=${pinYPercent?.toStringAsFixed(6) ?? '-'}',
-      );
-    }
-    return lines.join('\n');
+    return baseLocation.isEmpty ? '未指定位置' : baseLocation;
   }
 
   String _categoryLabel(String category) {

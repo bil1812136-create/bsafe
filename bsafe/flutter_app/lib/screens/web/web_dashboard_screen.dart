@@ -19,9 +19,11 @@ class WebDashboardScreen extends StatefulWidget {
 class _WebDashboardScreenState extends State<WebDashboardScreen> {
   List<Map<String, dynamic>> _reports = [];
   List<Map<String, dynamic>> _floorPlans = [];
+  final Set<String> _selectedReportIds = <String>{};
   bool _isLoading = true;
   bool _isFloorPlanLoading = true;
   bool _isUploadingFloorPlan = false;
+  bool _isBatchDeletingReports = false;
   String? _selectedFloorPlanFolder;
   String? _deletingSessionId;
   String? _error;
@@ -31,7 +33,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
   final TextEditingController _buildingNameController = TextEditingController();
   final TextEditingController _floorNumberController = TextEditingController();
   final ImagePicker _picker = ImagePicker();
-  Timer? _refreshTimer;
+  StreamSubscription<List<Map<String, dynamic>>>? _reportsSubscription;
 
   SupabaseClient get _supabase => Supabase.instance.client;
 
@@ -40,19 +42,24 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
     super.initState();
     _loadReports();
     _loadFloorPlans();
-    // 每 15 秒自動刷新（接收手機端新報告）
-    _refreshTimer = Timer.periodic(
-      const Duration(seconds: 15),
-      (_) => _loadReports(silent: true),
-    );
+    _subscribeToReportsRealtime();
   }
 
   @override
   void dispose() {
-    _refreshTimer?.cancel();
+    _reportsSubscription?.cancel();
     _buildingNameController.dispose();
     _floorNumberController.dispose();
     super.dispose();
+  }
+
+  void _subscribeToReportsRealtime() {
+    _reportsSubscription?.cancel();
+    _reportsSubscription =
+        _supabase.from('reports').stream(primaryKey: ['id']).listen((_) {
+      if (!mounted) return;
+      _loadReports(silent: true);
+    });
   }
 
   Future<void> _loadFloorPlans({bool silent = false}) async {
@@ -345,12 +352,25 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                                 imageBytes: imageBytes,
                                 pins: pins,
                                 selectedPinId: selectedPin?['id']?.toString(),
-                                onPinTap: (pin) {
+                                onPinTap: (pin) async {
                                   setLocalState(() {
                                     selectedPin = pin;
-                                    selectedReport =
-                                        _findReportByPin(row: row, pin: pin);
+                                    selectedReport = null;
                                   });
+
+                                  final linkedReport =
+                                      await _findReportByPinAcrossData(
+                                    row: row,
+                                    pin: pin,
+                                  );
+                                  if (!mounted) return;
+                                  if (linkedReport != null) {
+                                    if (Navigator.of(ctx).canPop()) {
+                                      Navigator.pop(ctx);
+                                    }
+                                    _openDetail(linkedReport);
+                                    return;
+                                  }
                                 },
                               ),
                             ),
@@ -423,6 +443,10 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                                               crossAxisAlignment:
                                                   CrossAxisAlignment.start,
                                               children: [
+                                                _buildReportImagePreview(
+                                                  selectedReport!,
+                                                ),
+                                                const SizedBox(height: 8),
                                                 Text(
                                                   selectedReport!['title']
                                                           ?.toString() ??
@@ -448,6 +472,47 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                                                     color: Colors.grey.shade700,
                                                     fontSize: 12,
                                                   ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  '類別: ${_categoryLabel((selectedReport!["category"] ?? "").toString())}',
+                                                  style: TextStyle(
+                                                    color: Colors.grey.shade700,
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 6),
+                                                Text(
+                                                  '基本資料: ${_singleLine(selectedReport!["description"]?.toString() ?? "")}',
+                                                  style: TextStyle(
+                                                    color: Colors.grey.shade700,
+                                                    fontSize: 12,
+                                                  ),
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                                const SizedBox(height: 6),
+                                                Text(
+                                                  'AI 報告: ${_singleLine(selectedReport!["ai_analysis"]?.toString() ?? "")}',
+                                                  style: TextStyle(
+                                                    color: Colors.grey.shade700,
+                                                    fontSize: 12,
+                                                  ),
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                                const SizedBox(height: 6),
+                                                Text(
+                                                  '跟進對話: ${_conversationSummary(selectedReport!)}',
+                                                  style: TextStyle(
+                                                    color: Colors.grey.shade700,
+                                                    fontSize: 12,
+                                                  ),
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
                                                 ),
                                               ],
                                             ),
@@ -495,15 +560,54 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
     required Map<String, dynamic> row,
     required Map<String, dynamic> pin,
   }) {
+    return _findReportByPinInSource(
+      source: _reports,
+      row: row,
+      pin: pin,
+    );
+  }
+
+  Future<Map<String, dynamic>?> _findReportByPinAcrossData({
+    required Map<String, dynamic> row,
+    required Map<String, dynamic> pin,
+  }) async {
+    final local =
+        _findReportByPinInSource(source: _reports, row: row, pin: pin);
+    if (local != null) return local;
+
+    try {
+      final rows = await _supabase
+          .from('reports')
+          .select()
+          .order('created_at', ascending: false)
+          .limit(500);
+      final allReports = List<Map<String, dynamic>>.from(rows);
+      return _findReportByPinInSource(source: allReports, row: row, pin: pin);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Map<String, dynamic>? _findReportByPinInSource({
+    required List<Map<String, dynamic>> source,
+    required Map<String, dynamic> row,
+    required Map<String, dynamic> pin,
+  }) {
     final sessionId = row['session_id']?.toString();
     final pinId = pin['id']?.toString();
+    final pinPercentX =
+        ((pin['pin_x_percent'] ?? pin['pinXPercent']) as num?)?.toDouble();
+    final pinPercentY =
+        ((pin['pin_y_percent'] ?? pin['pinYPercent']) as num?)?.toDouble();
+    final pinLegacyX = (pin['x'] as num?)?.toDouble();
+    final pinLegacyY = (pin['y'] as num?)?.toDouble();
 
     if ((sessionId == null || sessionId.isEmpty) &&
         (pinId == null || pinId.isEmpty)) {
       return null;
     }
 
-    for (final report in _reports) {
+    for (final report in source) {
       final ref = _extractInspectionRefFromLocation(
         report['location']?.toString(),
       );
@@ -516,12 +620,38 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
       if (sameSession && samePin) return report;
     }
 
-    for (final report in _reports) {
+    for (final report in source) {
       final ref = _extractInspectionRefFromLocation(
         report['location']?.toString(),
       );
       final reportPinId = ref['pinId'] as String?;
       if (pinId != null && pinId == reportPinId) {
+        return report;
+      }
+    }
+
+    for (final report in source) {
+      final reportPinX = (report['pin_x_percent'] as num?)?.toDouble();
+      final reportPinY = (report['pin_y_percent'] as num?)?.toDouble();
+      if (pinPercentX == null || pinPercentY == null) continue;
+      if (reportPinX == null || reportPinY == null) continue;
+
+      final dx = (reportPinX - pinPercentX).abs();
+      final dy = (reportPinY - pinPercentY).abs();
+      if (dx <= 0.003 && dy <= 0.003) {
+        return report;
+      }
+    }
+
+    for (final report in source) {
+      final reportX = (report['latitude'] as num?)?.toDouble();
+      final reportY = (report['longitude'] as num?)?.toDouble();
+      if (pinLegacyX == null || pinLegacyY == null) continue;
+      if (reportX == null || reportY == null) continue;
+
+      final dx = (reportX - pinLegacyX).abs();
+      final dy = (reportY - pinLegacyY).abs();
+      if (dx <= 0.8 && dy <= 0.8) {
         return report;
       }
     }
@@ -626,6 +756,11 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
       if (mounted) {
         setState(() {
           _reports = List<Map<String, dynamic>>.from(data);
+          final validIds = _reports
+              .map((r) => r['id']?.toString())
+              .whereType<String>()
+              .toSet();
+          _selectedReportIds.removeWhere((id) => !validIds.contains(id));
           _isLoading = false;
         });
       }
@@ -1531,6 +1666,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
   // ═══════════ 篩選欄 ═══════════
 
   Widget _buildFilterBar() {
+    final selectedCount = _selectedReportIds.length;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
       child: Row(
@@ -1553,6 +1689,38 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
             setState(() => _filterRiskLevel = v);
             _loadReports();
           }),
+          const Spacer(),
+          if (_reports.isNotEmpty)
+            TextButton.icon(
+              onPressed: _toggleSelectAllReports,
+              icon: Icon(
+                _areAllReportsSelected
+                    ? Icons.check_box
+                    : Icons.check_box_outline_blank,
+                size: 18,
+              ),
+              label: Text(_areAllReportsSelected ? '取消全選' : '全選'),
+            ),
+          const SizedBox(width: 8),
+          if (selectedCount > 0)
+            ElevatedButton.icon(
+              onPressed:
+                  _isBatchDeletingReports ? null : _confirmBatchDeleteReports,
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              icon: _isBatchDeletingReports
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.delete_sweep_outlined, size: 18),
+              label: Text(
+                _isBatchDeletingReports ? '刪除中...' : '刪除已選取 ($selectedCount)',
+              ),
+            ),
         ],
       ),
     );
@@ -1639,14 +1807,22 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
             child: SingleChildScrollView(
               scrollDirection: Axis.vertical,
               child: DataTable(
+                showCheckboxColumn: false,
                 headingRowColor: WidgetStateProperty.all(
                   AppTheme.primaryColor.withOpacity(0.05),
                 ),
                 columnSpacing: 16,
                 dataRowMinHeight: 48,
                 dataRowMaxHeight: 56,
-                columns: const [
+                columns: [
                   DataColumn(
+                    label: Checkbox(
+                      value: _areAllReportsSelected,
+                      tristate: false,
+                      onChanged: (_) => _toggleSelectAllReports(),
+                    ),
+                  ),
+                  const DataColumn(
                       label: Text('#',
                           style: TextStyle(fontWeight: FontWeight.bold))),
                   DataColumn(
@@ -1682,6 +1858,9 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
   }
 
   DataRow _buildRow(int index, Map<String, dynamic> report) {
+    final reportId = report['id']?.toString();
+    final isSelected =
+        reportId != null && _selectedReportIds.contains(reportId);
     final riskLevel = report['risk_level'] ?? 'low';
     final riskColor = AppTheme.getRiskColor(riskLevel);
     final status = report['status'] ?? 'pending';
@@ -1692,7 +1871,35 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
     final category = _categoryLabel(report['category'] ?? '');
 
     return DataRow(
+      selected: isSelected,
+      onSelectChanged: reportId == null
+          ? null
+          : (selected) {
+              setState(() {
+                if (selected == true) {
+                  _selectedReportIds.add(reportId);
+                } else {
+                  _selectedReportIds.remove(reportId);
+                }
+              });
+            },
       cells: [
+        DataCell(
+          Checkbox(
+            value: isSelected,
+            onChanged: reportId == null
+                ? null
+                : (selected) {
+                    setState(() {
+                      if (selected == true) {
+                        _selectedReportIds.add(reportId);
+                      } else {
+                        _selectedReportIds.remove(reportId);
+                      }
+                    });
+                  },
+          ),
+        ),
         DataCell(Text('${index + 1}',
             style: const TextStyle(color: AppTheme.textSecondary))),
         DataCell(
@@ -1790,6 +1997,99 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
     }
   }
 
+  bool get _areAllReportsSelected {
+    if (_reports.isEmpty) return false;
+    for (final report in _reports) {
+      final id = report['id']?.toString();
+      if (id == null || !_selectedReportIds.contains(id)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  void _toggleSelectAllReports() {
+    setState(() {
+      if (_areAllReportsSelected) {
+        _selectedReportIds.clear();
+      } else {
+        _selectedReportIds
+          ..clear()
+          ..addAll(
+            _reports
+                .map((report) => report['id']?.toString())
+                .whereType<String>(),
+          );
+      }
+    });
+  }
+
+  Future<void> _confirmBatchDeleteReports() async {
+    final selectedReports = _reports
+        .where(
+            (report) => _selectedReportIds.contains(report['id']?.toString()))
+        .toList();
+    if (selectedReports.isEmpty) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('確認批次刪除'),
+        content: Text(
+          '確定要刪除 ${selectedReports.length} 筆報告嗎？\n\n將同時刪除這些報告對應的 Pin，且無法復原。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await _deleteReportsInBatch(selectedReports);
+            },
+            child: const Text('刪除'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteReportsInBatch(
+    List<Map<String, dynamic>> reports,
+  ) async {
+    setState(() => _isBatchDeletingReports = true);
+    int success = 0;
+    int failed = 0;
+
+    for (final report in reports) {
+      try {
+        await _deleteSingleReportWithPin(report);
+        success++;
+      } catch (_) {
+        failed++;
+      }
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _selectedReportIds.clear();
+      _isBatchDeletingReports = false;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          failed == 0
+              ? '已刪除 $success 筆報告與對應 Pin'
+              : '已刪除 $success 筆，失敗 $failed 筆',
+        ),
+      ),
+    );
+    _loadReports(silent: true);
+  }
+
   void _confirmDelete(Map<String, dynamic> report) {
     showDialog(
       context: context,
@@ -1805,8 +2105,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
             onPressed: () async {
               Navigator.pop(ctx);
               try {
-                await _deleteRelatedPinForReport(report);
-                await _supabase.from('reports').delete().eq('id', report['id']);
+                await _deleteSingleReportWithPin(report);
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('報告與對應 Pin 已刪除')),
@@ -1827,6 +2126,98 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _deleteSingleReportWithPin(Map<String, dynamic> report) async {
+    await _deleteRelatedPinForReport(report);
+    await _supabase.from('reports').delete().eq('id', report['id']);
+  }
+
+  Widget _buildReportImagePreview(Map<String, dynamic> report) {
+    final imageUrl = report['image_url']?.toString();
+    final imageBase64 = report['image_base64']?.toString();
+    final decoded = _decodeBase64Safe(imageBase64);
+    if ((imageUrl == null || imageUrl.isEmpty) && decoded == null) {
+      return Container(
+        height: 110,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppTheme.borderColor),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          '此報告無現場照片',
+          style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+        ),
+      );
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: SizedBox(
+        height: 110,
+        width: double.infinity,
+        child: imageUrl != null && imageUrl.isNotEmpty
+            ? Image.network(
+                imageUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) {
+                  if (decoded == null) {
+                    return Container(
+                      color: Colors.grey.shade100,
+                      alignment: Alignment.center,
+                      child: Text(
+                        '照片載入失敗',
+                        style: TextStyle(
+                            color: Colors.grey.shade600, fontSize: 12),
+                      ),
+                    );
+                  }
+                  return Image.memory(decoded, fit: BoxFit.cover);
+                },
+              )
+            : Image.memory(decoded!, fit: BoxFit.cover),
+      ),
+    );
+  }
+
+  String _singleLine(String text) {
+    final normalized = text.trim().replaceAll(RegExp(r'\s+'), ' ');
+    return normalized.isEmpty ? '未填寫' : normalized;
+  }
+
+  String _conversationSummary(Map<String, dynamic> report) {
+    final rawConversation = report['conversation'];
+    if (rawConversation is List && rawConversation.isNotEmpty) {
+      final last = rawConversation.last;
+      if (last is Map) {
+        final text = last['text']?.toString() ?? '';
+        if (text.trim().isNotEmpty) return _singleLine(text);
+      }
+    }
+
+    if (rawConversation is String && rawConversation.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(rawConversation);
+        if (decoded is List && decoded.isNotEmpty) {
+          final last = decoded.last;
+          if (last is Map) {
+            final text = last['text']?.toString() ?? '';
+            if (text.trim().isNotEmpty) return _singleLine(text);
+          }
+        }
+      } catch (_) {
+        // Ignore invalid conversation JSON and fallback to legacy fields.
+      }
+    }
+
+    final notes = report['company_notes']?.toString() ?? '';
+    if (notes.trim().isNotEmpty) return _singleLine(notes);
+    final worker = report['worker_response']?.toString() ?? '';
+    if (worker.trim().isNotEmpty) return _singleLine(worker);
+    return '尚無對話';
   }
 
   Future<void> _deleteRelatedPinForReport(Map<String, dynamic> report) async {
@@ -1937,7 +2328,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
     if (refIndex < 0) return {};
 
     final refText = location.substring(refIndex + 4).trim();
-    final parts = refText.split(';');
+    final parts = refText.split(RegExp(r'[;,&]'));
     String? sessionId;
     String? pinId;
     int? floor;
@@ -1947,9 +2338,11 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
       if (kv.length != 2) continue;
       final key = kv[0].trim();
       final value = kv[1].trim();
-      if (key == 'session' && value.isNotEmpty) {
+      if ((key == 'session' || key == 'session_id' || key == 'sessionId') &&
+          value.isNotEmpty) {
         sessionId = value;
-      } else if (key == 'pin' && value.isNotEmpty) {
+      } else if ((key == 'pin' || key == 'pin_id' || key == 'pinId') &&
+          value.isNotEmpty) {
         pinId = value;
       } else if (key == 'floor') {
         floor = int.tryParse(value);

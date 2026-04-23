@@ -307,7 +307,12 @@ class _ReportScreenState extends State<ReportScreen> {
             ),
 
             Padding(
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.fromLTRB(
+                20,
+                20,
+                20,
+                MediaQuery.of(context).padding.bottom + 120,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [

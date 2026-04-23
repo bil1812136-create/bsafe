@@ -265,37 +265,19 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
   String _buildLocationSummary(String? location) {
     if (location == null || location.isEmpty) return '未指定';
 
-    final ref = _extractInspectionRefFromLocation(location);
-    final sessionId = ref['sessionId']?.toString();
-    final pinId = ref['pinId']?.toString();
-    final floor = ref['floor']?.toString();
-    final legacyPinX = (ref['legacyPinX'] as num?)?.toDouble();
-    final legacyPinY = (ref['legacyPinY'] as num?)?.toDouble();
-    final pinXPercent = (ref['pinXPercent'] as num?)?.toDouble();
-    final pinYPercent = (ref['pinYPercent'] as num?)?.toDouble();
-    final displayPinX = pinXPercent != null ? (pinXPercent * 100) : legacyPinX;
-    final displayPinY =
-        pinYPercent != null ? ((1 - pinYPercent) * 100) : legacyPinY;
+    final trimmed = location.trim();
+    final refIndex = trimmed.indexOf('ref:');
+    final baseLocation = refIndex >= 0
+        ? trimmed.substring(0, refIndex).replaceAll(RegExp(r'[;\s]+$'), '')
+        : trimmed;
 
-    final lines = <String>[location];
-    if (sessionId != null) lines.add('Session: $sessionId');
-    if (pinId != null) lines.add('Pin: $pinId');
-    if (floor != null) lines.add('Floor: $floor');
-    if (displayPinX != null || displayPinY != null) {
-      lines.add(
-        '畫布座標: '
-        '${displayPinX != null ? displayPinX.toStringAsFixed(1) : '-'}, '
-        '${displayPinY != null ? displayPinY.toStringAsFixed(1) : '-'}',
-      );
+    final ref = _extractInspectionRefFromLocation(location);
+    final floor = ref['floor'];
+    if (floor != null) {
+      final base = baseLocation.isEmpty ? '未指定位置' : baseLocation;
+      return '$base (F$floor)';
     }
-    if (pinXPercent != null || pinYPercent != null) {
-      lines.add(
-        'Normalized: '
-        'x=${pinXPercent?.toStringAsFixed(6) ?? '-'}, '
-        'y=${pinYPercent?.toStringAsFixed(6) ?? '-'}',
-      );
-    }
-    return lines.join('\n');
+    return baseLocation.isEmpty ? '未指定位置' : baseLocation;
   }
 
   @override
@@ -405,93 +387,27 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
 
                   const SizedBox(height: 20),
 
-                  // Risk Score Card
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppTheme.getRiskColor(_report.riskLevel)
-                          .withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: AppTheme.getRiskColor(_report.riskLevel)
-                            .withValues(alpha: 0.3),
+                  if (_report.isUrgent) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppTheme.riskHigh,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        '⚠️ 需緊急處理',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.white,
-                            border: Border.all(
-                              color: AppTheme.getRiskColor(_report.riskLevel),
-                              width: 4,
-                            ),
-                          ),
-                          child: Center(
-                            child: Text(
-                              '${_report.riskScore}',
-                              style: TextStyle(
-                                fontSize: 28,
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.getRiskColor(_report.riskLevel),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                '風險評分',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                AppTheme.getRiskLabel(_report.riskLevel),
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                  color:
-                                      AppTheme.getRiskColor(_report.riskLevel),
-                                ),
-                              ),
-                              if (_report.isUrgent)
-                                Container(
-                                  margin: const EdgeInsets.only(top: 8),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppTheme.riskHigh,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: const Text(
-                                    '⚠️ 需緊急處理',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
+                    const SizedBox(height: 20),
+                  ],
 
                   // Details Section
                   _DetailSection(
@@ -543,8 +459,9 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
         ),
       ),
       bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.only(bottom: 12),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
           child: Row(
             children: [
               Expanded(

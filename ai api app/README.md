@@ -50,3 +50,7 @@ flutter run -d R5CR30PFFTN --dart-define=GEMINI_API_KEY=$env:GEMINI_API_KEY
 ## 與 B-SAFE 的關係
 
 此為獨立項目，不依賴原有的 bsafe 專案。可獨立開發和部署。
+
+$env:GEMINI_API_KEY="AIzaSyBegENl97-wl_ql44wwgCk7fQfcEvSCCGQ"
+
+Set-Location "C:\Users\student\Downloads\bsafe\ai api app" ; flutter run -d chrome
