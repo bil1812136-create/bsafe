@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -1845,9 +1845,9 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                           style: TextStyle(fontWeight: FontWeight.bold))),
                 ],
                 rows: _reports.asMap().entries.map((entry) {
-                  final idx = entry.key;
                   final report = entry.value;
-                  return _buildRow(idx, report);
+                  final displayNumber = _getDisplayNumberByReportId(report);
+                  return _buildRow(displayNumber, report);
                 }).toList(),
               ),
             ),
@@ -1855,6 +1855,21 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
         ),
       ),
     );
+  }
+
+  int _getDisplayNumberByReportId(Map<String, dynamic> report) {
+    final reportId = report['id'];
+    if (reportId == null) return 1;
+
+    final sorted = List<Map<String, dynamic>>.from(_reports);
+    sorted.sort((a, b) {
+      final ai = a['id'] ?? 0;
+      final bi = b['id'] ?? 0;
+      return ai.compareTo(bi);
+    });
+
+    final idx = sorted.indexWhere((r) => r['id'] == reportId);
+    return idx >= 0 ? idx + 1 : 1;
   }
 
   DataRow _buildRow(int index, Map<String, dynamic> report) {
@@ -1900,7 +1915,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                   },
           ),
         ),
-        DataCell(Text('${index + 1}',
+        DataCell(Text('$index',
             style: const TextStyle(color: AppTheme.textSecondary))),
         DataCell(
           ConstrainedBox(

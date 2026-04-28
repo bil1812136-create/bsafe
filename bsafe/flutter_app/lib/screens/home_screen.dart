@@ -295,59 +295,6 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
         .toList();
   }
 
-  List<Map<String, dynamic>> get _selectedSessionPins {
-    final floorPlan = _selectedFloorPlan;
-    if (floorPlan == null) return const [];
-    final payload = floorPlan['payload'];
-    if (payload is! Map) return const [];
-    final pinsRaw = payload['pins'];
-    if (pinsRaw is! List) return const [];
-    return pinsRaw
-        .whereType<Map>()
-        .map((pin) => Map<String, dynamic>.from(pin))
-        .toList();
-  }
-
-  Offset? _pinOffsetOnCanvas({
-    required Map<String, dynamic> pin,
-    required double width,
-    required double height,
-  }) {
-    final percentX = _toDouble(pin['pin_x_percent'] ?? pin['pinXPercent']);
-    final percentY = _toDouble(pin['pin_y_percent'] ?? pin['pinYPercent']);
-    if (percentX != null && percentY != null) {
-      final nx = percentX.clamp(0.0, 1.0);
-      final ny = percentY.clamp(0.0, 1.0);
-      return Offset(width * nx, height * ny);
-    }
-
-    final x = _toDouble(pin['x']);
-    final y = _toDouble(pin['y']);
-    if (x == null || y == null) return null;
-    final nx = (x / 100.0).clamp(0.0, 1.0);
-    final ny = (1.0 - (y / 100.0)).clamp(0.0, 1.0);
-    return Offset(width * nx, height * ny);
-  }
-
-  void _selectExistingPin(Map<String, dynamic> pin) {
-    final percentX = _toDouble(pin['pin_x_percent'] ?? pin['pinXPercent']);
-    final percentY = _toDouble(pin['pin_y_percent'] ?? pin['pinYPercent']);
-    final x = percentX != null
-        ? (percentX.clamp(0.0, 1.0) * 100.0)
-        : _toDouble(pin['x']);
-    final y = percentY != null
-        ? ((1.0 - percentY.clamp(0.0, 1.0)) * 100.0)
-        : _toDouble(pin['y']);
-    if (x == null || y == null || _selectedFloorPlan == null) return;
-
-    setState(() {
-      _selectedPinX = x;
-      _selectedPinY = y;
-      _locationTextController.text =
-          '${_selectedFloorPlan!['buildingName']} / ${_selectedFloorPlan!['label']} - Pin(${x.toStringAsFixed(1)}, ${y.toStringAsFixed(1)})';
-    });
-  }
-
   String _extractBuildingName(
     Map<String, dynamic> payload,
     String? floorPlanPath,
@@ -1100,7 +1047,6 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
                 aspectRatio: 16 / 9,
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    final pins = _selectedSessionPins;
                     return GestureDetector(
                       onTapDown: (details) {
                         final local = details.localPosition;
@@ -1190,43 +1136,6 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
                                 ),
                               ),
                             ),
-                          ...pins.map((pin) {
-                            final offset = _pinOffsetOnCanvas(
-                              pin: pin,
-                              width: constraints.maxWidth,
-                              height: constraints.maxHeight,
-                            );
-                            if (offset == null) return const SizedBox.shrink();
-
-                            final pinId = pin['id']?.toString();
-                            final isSelected = pinId != null &&
-                                _locationTextController.text
-                                    .contains('pin=$pinId');
-                            return Positioned(
-                              left: offset.dx - 7,
-                              top: offset.dy - 7,
-                              child: Tooltip(
-                                message: '既有 Pin ${pin['id'] ?? ''}',
-                                child: GestureDetector(
-                                  onTap: () => _selectExistingPin(pin),
-                                  child: Container(
-                                    width: 14,
-                                    height: 14,
-                                    decoration: BoxDecoration(
-                                      color: isSelected
-                                          ? AppTheme.primaryColor
-                                          : Colors.orange,
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: Colors.white,
-                                        width: 1.5,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            );
-                          }),
                         ],
                       ),
                     );
@@ -1243,11 +1152,6 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
               if (_selectedPinX != null && _selectedPinY != null)
                 Text(
                   'normalized: x=${(_selectedPinX! / 100).toStringAsFixed(4)}, y=${(1 - (_selectedPinY! / 100)).toStringAsFixed(4)}',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
-                ),
-              if (_selectedSessionPins.isNotEmpty)
-                Text(
-                  '橘色點為既有 Pin（可點選以重用座標），共 ${_selectedSessionPins.length} 個。',
                   style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
                 ),
             ],
@@ -1277,6 +1181,7 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
                 label: Text(_isSubmitting ? '提交中...' : '生成報告並提交'),
               ),
             ),
+            const SizedBox(height: 24),
           ],
         ],
       ),

@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:bsafe_app/models/report_model.dart';
 import 'package:bsafe_app/providers/report_provider.dart';
+import 'package:bsafe_app/screens/followup_screen.dart';
 import 'package:bsafe_app/theme/app_theme.dart';
 import 'package:intl/intl.dart';
 
@@ -267,9 +268,15 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
 
     final trimmed = location.trim();
     final refIndex = trimmed.indexOf('ref:');
-    final baseLocation = refIndex >= 0
+    var baseLocation = refIndex >= 0
         ? trimmed.substring(0, refIndex).replaceAll(RegExp(r'[;\s]+$'), '')
         : trimmed;
+
+    baseLocation = baseLocation
+        .replaceFirst(
+            RegExp(r'\s*[-–—]?\s*Pin\s*\(.*$', caseSensitive: false), '')
+        .replaceAll(RegExp(r'[;\s]+$'), '')
+        .trim();
 
     final ref = _extractInspectionRefFromLocation(location);
     final floor = ref['floor'];
@@ -466,20 +473,16 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () async {
-                    await context.read<ReportProvider>().refreshFromCloud();
-                    final provider = context.read<ReportProvider>();
-                    final updated =
-                        provider.reports.cast<ReportModel?>().firstWhere(
-                              (r) => r?.id == _report.id,
-                              orElse: () => null,
-                            );
-                    if (updated != null && mounted) {
-                      setState(() => _report = updated);
-                    }
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => FollowUpScreen(initialReport: _report),
+                      ),
+                    );
                   },
-                  icon: const Icon(Icons.cloud_download),
-                  label: const Text('同步雲端'),
+                  icon: const Icon(Icons.chat_bubble_outline),
+                  label: const Text('對話'),
                 ),
               ),
               const SizedBox(width: 12),

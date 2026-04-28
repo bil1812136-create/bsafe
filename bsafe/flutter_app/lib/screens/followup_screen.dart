@@ -1,15 +1,21 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:bsafe_app/models/report_model.dart';
 import 'package:bsafe_app/providers/report_provider.dart';
+import 'package:bsafe_app/providers/language_provider.dart';
+import 'package:bsafe_app/providers/navigation_provider.dart';
 import 'package:bsafe_app/screens/report_detail_screen.dart';
+import 'package:bsafe_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 class FollowUpScreen extends StatefulWidget {
-  const FollowUpScreen({super.key});
+  final ReportModel? initialReport;
+
+  const FollowUpScreen({super.key, this.initialReport});
 
   @override
   State<FollowUpScreen> createState() => _FollowUpScreenState();
@@ -17,21 +23,82 @@ class FollowUpScreen extends StatefulWidget {
 
 class _FollowUpScreenState extends State<FollowUpScreen> {
   final TextEditingController _textController = TextEditingController();
+  Timer? _flashTimer;
   bool _isSending = false;
+  bool _showListView = false;
+  bool _flashOn = false;
+  String? _flashReportId;
   ReportModel? _selected;
 
   @override
+  void initState() {
+    super.initState();
+    _selected = widget.initialReport;
+    if (_selected != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        context.read<ReportProvider>().clearUnreadCompany(_selected!);
+      });
+    }
+  }
+
+  @override
   void dispose() {
+    _flashTimer?.cancel();
     _textController.dispose();
     super.dispose();
+  }
+
+  void _startFlash(String? reportId) {
+    if (reportId == null || reportId.isEmpty) return;
+
+    _flashTimer?.cancel();
+    setState(() {
+      _flashReportId = reportId;
+      _flashOn = true;
+    });
+
+    var ticks = 0;
+    _flashTimer = Timer.periodic(const Duration(milliseconds: 220), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
+      setState(() => _flashOn = !_flashOn);
+      ticks += 1;
+      if (ticks >= 6) {
+        timer.cancel();
+        if (!mounted) return;
+        setState(() {
+          _flashOn = false;
+          _flashReportId = null;
+        });
+      }
+    });
+  }
+
+  void _handleBackPressed() {
+    if (widget.initialReport != null && !_showListView) {
+      setState(() {
+        _showListView = true;
+      });
+      return;
+    }
+
+    if (_selected != null) {
+      setState(() => _selected = null);
+      return;
+    }
+
+    Navigator.pop(context);
   }
 
   List<ReportModel> _threadReports(List<ReportModel> reports) {
     return reports.where((r) {
       final hasWorker =
           r.mergedConversation.any((m) => m.sender.toLowerCase() == 'worker');
-      final hasUnread = r.hasUnreadCompany;
-      return hasWorker || hasUnread;
+      return hasWorker || r.hasUnreadCompany || r.mergedConversation.isNotEmpty;
     }).toList();
   }
 
@@ -58,24 +125,36 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
     }
   }
 
-  String _threadSummary(ReportModel report) {
-    final meta = [
-      '#${report.id ?? '-'}',
+  String _threadSummary(ReportModel report, int displayNumber) {
+    return [
+      '#$displayNumber',
       _categoryLabel(report.category),
       _statusLabel(report.status),
     ].join(' · ');
-    return meta;
+  }
+
+  int _threadDisplayNumber(ReportModel report) {
+    final allReports = context.read<ReportProvider>().reports;
+    final sorted = List<ReportModel>.from(allReports);
+    sorted.sort((a, b) {
+      final ai = a.id ?? 0;
+      final bi = b.id ?? 0;
+      return ai.compareTo(bi);
+    });
+    final index = sorted.indexWhere((r) => r.id == report.id);
+    return index >= 0 ? index + 1 : 1;
   }
 
   String _conversationTitle(ReportModel report) {
-    final location = report.location?.trim();
-    if (location != null && location.isNotEmpty) {
-      return '對話：${report.title} · ${_statusLabel(report.status)}';
-    }
-    return '對話：${report.title}';
+    return '對話：${report.title} · ${_statusLabel(report.status)}';
   }
 
   Future<void> _openReportDetail(ReportModel report) async {
+    if (widget.initialReport != null && widget.initialReport!.id == report.id) {
+      Navigator.pop(context);
+      return;
+    }
+
     await Navigator.push(
       context,
       MaterialPageRoute(
@@ -144,9 +223,7 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
   }
 
   Widget _buildMessageImage(String? imageRaw) {
-    if (imageRaw == null || imageRaw.isEmpty) {
-      return const SizedBox.shrink();
-    }
+    if (imageRaw == null || imageRaw.isEmpty) return const SizedBox.shrink();
 
     if (_isNetworkImage(imageRaw)) {
       return Padding(
@@ -170,9 +247,7 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
     }
 
     final bytes = _decodeBase64Safe(imageRaw);
-    if (bytes == null) {
-      return const SizedBox.shrink();
-    }
+    if (bytes == null) return const SizedBox.shrink();
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
@@ -204,14 +279,8 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
       return message.image;
     }
 
-    // Legacy fallback: some data keeps latest worker image in worker_response_image
-    // while conversation items may only have text.
-    if ((report.workerResponseImage ?? '').trim().isEmpty) {
-      return null;
-    }
-    if (message.sender.toLowerCase() != 'worker') {
-      return null;
-    }
+    if ((report.workerResponseImage ?? '').trim().isEmpty) return null;
+    if (message.sender.toLowerCase() != 'worker') return null;
 
     final isLastMessage = index == messages.length - 1;
     final textMatchesLatest = (report.workerResponse ?? '').trim().isNotEmpty &&
@@ -225,16 +294,17 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
 
   Future<void> _send() async {
     final report = _selected;
-    if (report == null) return;
-    if (report.status == 'resolved') return;
+    if (report == null || report.status == 'resolved') return;
 
     final text = _textController.text.trim();
     if (text.isEmpty) return;
 
     setState(() => _isSending = true);
-    final ok = await context
-        .read<ReportProvider>()
-        .submitWorkerResponse(report, text, null);
+    final ok = await context.read<ReportProvider>().submitWorkerResponse(
+          report,
+          text,
+          null,
+        );
 
     if (!mounted) return;
     setState(() {
@@ -254,310 +324,6 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final provider = context.watch<ReportProvider>();
-    final threads = _threadReports(provider.reports)
-      ..sort((a, b) =>
-          (b.updatedAt ?? b.createdAt).compareTo(a.updatedAt ?? a.createdAt));
-
-    final bottomPadding = MediaQuery.of(context).padding.bottom + 124;
-
-    if (_selected != null) {
-      final latest = threads.cast<ReportModel?>().firstWhere(
-            (r) => r?.id == _selected!.id,
-            orElse: () => _selected,
-          );
-      _selected = latest;
-    }
-
-    if (_selected != null &&
-        threads.isNotEmpty &&
-        !threads.any((r) => r.id == _selected!.id)) {
-      _selected = null;
-    }
-
-    return Column(
-      children: [
-        if (_selected == null)
-          Expanded(
-            child: threads.isEmpty
-                ? const Center(
-                    child: Text('暫無跟進對話'),
-                  )
-                : ListView.separated(
-                    padding: const EdgeInsets.all(12),
-                    itemCount: threads.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
-                    itemBuilder: (context, index) {
-                      final report = threads[index];
-                      final selected = _selected?.id == report.id;
-                      final last = report.mergedConversation.isNotEmpty
-                          ? report.mergedConversation.last
-                          : null;
-                      return ListTile(
-                        tileColor: selected
-                            ? Colors.blue.shade50
-                            : Colors.grey.shade50,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(
-                            color: selected
-                                ? Colors.blue.shade300
-                                : Colors.grey.shade200,
-                          ),
-                        ),
-                        title: Text(
-                          report.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        subtitle: Text(
-                          '${_threadSummary(report)}\n${last?.text ?? '（尚無訊息）'}',
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        isThreeLine: true,
-                        trailing: report.hasUnreadCompany
-                            ? Container(
-                                width: 10,
-                                height: 10,
-                                decoration: const BoxDecoration(
-                                  color: Colors.red,
-                                  shape: BoxShape.circle,
-                                ),
-                              )
-                            : null,
-                        onTap: () => _selectReport(report),
-                      );
-                    },
-                  ),
-          )
-        else
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(12, 12, 12, bottomPadding),
-              child: Column(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.grey.shade200),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    _conversationTitle(_selected!),
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 18,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    _threadSummary(_selected!),
-                                    style: TextStyle(
-                                      color: Colors.grey.shade600,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            IconButton(
-                              tooltip: '回到列表',
-                              onPressed: () => setState(() => _selected = null),
-                              icon: const Icon(Icons.arrow_back_rounded),
-                            ),
-                            OutlinedButton.icon(
-                              onPressed: () => _openReportDetail(_selected!),
-                              icon: const Icon(Icons.open_in_new, size: 18),
-                              label: const Text('查看對應 report'),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            _metaChip(
-                                '類別', _categoryLabel(_selected!.category)),
-                            _metaChip('狀態', _statusLabel(_selected!.status)),
-                            _metaChip('風險', _selected!.riskLevel),
-                            _metaChip(
-                              '更新',
-                              DateFormat('MM/dd HH:mm').format(
-                                (_selected!.updatedAt ?? _selected!.createdAt)
-                                    .toLocal(),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade50,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.grey.shade200),
-                      ),
-                      child: ListView.separated(
-                        itemCount: _selected!.mergedConversation.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
-                        itemBuilder: (context, index) {
-                          final messages = _selected!.mergedConversation;
-                          final m = messages[index];
-                          final messageImage = _resolveMessageImage(
-                            _selected!,
-                            m,
-                            index,
-                            messages,
-                          );
-                          final isCompany = m.sender == 'company';
-                          return Align(
-                            alignment: isCompany
-                                ? Alignment.centerLeft
-                                : Alignment.centerRight,
-                            child: Container(
-                              constraints: const BoxConstraints(maxWidth: 320),
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: isCompany
-                                    ? Colors.blue.shade50
-                                    : Colors.teal.shade50,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: isCompany
-                                      ? Colors.blue.shade200
-                                      : Colors.teal.shade200,
-                                ),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    isCompany ? '公司' : '我',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 11,
-                                      color: isCompany
-                                          ? Colors.blue.shade700
-                                          : Colors.teal.shade700,
-                                    ),
-                                  ),
-                                  _buildMessageImage(messageImage),
-                                  const SizedBox(height: 4),
-                                  Text(m.text),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    DateFormat('MM/dd HH:mm')
-                                        .format(m.timestamp.toLocal()),
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: Colors.grey.shade600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.grey.shade200),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: _textController,
-                                enabled: !_isSending &&
-                                    _selected!.status != 'resolved',
-                                maxLines: 4,
-                                minLines: 2,
-                                decoration: InputDecoration(
-                                  hintText: _selected!.status == 'resolved'
-                                      ? '對話已關閉'
-                                      : '輸入跟進回覆...',
-                                  border: const OutlineInputBorder(),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            SizedBox(
-                              height: 56,
-                              child: ElevatedButton(
-                                onPressed: (_isSending ||
-                                        _selected!.status == 'resolved')
-                                    ? null
-                                    : _send,
-                                style: ElevatedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 18,
-                                  ),
-                                ),
-                                child: _isSending
-                                    ? const SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Colors.white,
-                                        ),
-                                      )
-                                    : const Icon(Icons.send),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _selected!.status == 'resolved'
-                              ? '此 report 已關閉，無法再新增對話。'
-                              : '輸入後可直接送出；若需要完整編輯 report，可按上方按鈕。',
-                          style: TextStyle(
-                            color: Colors.grey.shade600,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
   Widget _metaChip(String label, String value) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -572,6 +338,491 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
           fontSize: 12,
           fontWeight: FontWeight.w600,
         ),
+      ),
+    );
+  }
+
+  Widget _buildBottomNavigationBar() {
+    final navigationProvider = context.read<NavigationProvider>();
+    final languageProvider = context.read<LanguageProvider>();
+    final unreadFollowups = context
+        .watch<ReportProvider>()
+        .reports
+        .where((r) => r.hasUnreadCompany)
+        .length;
+
+    return SafeArea(
+      minimum: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 18,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(30),
+          child: BottomNavigationBar(
+            elevation: 0,
+            backgroundColor: Colors.white.withOpacity(0.94),
+            currentIndex: 4,
+            type: BottomNavigationBarType.fixed,
+            selectedItemColor: AppTheme.primaryColor,
+            unselectedItemColor: Colors.grey.shade400,
+            showUnselectedLabels: true,
+            selectedFontSize: 12,
+            unselectedFontSize: 10,
+            onTap: (index) {
+              if (index == 4) return;
+              navigationProvider.setIndex(index);
+              Navigator.pop(context);
+            },
+            items: [
+              BottomNavigationBarItem(
+                icon: const Icon(Icons.home_rounded),
+                activeIcon: const Icon(Icons.home_rounded),
+                label: languageProvider.t('nav_home'),
+              ),
+              BottomNavigationBarItem(
+                icon: const Icon(Icons.camera_alt_rounded),
+                activeIcon: const Icon(Icons.camera_alt_rounded),
+                label: languageProvider.t('nav_report'),
+              ),
+              BottomNavigationBarItem(
+                icon: const Icon(Icons.history_rounded),
+                activeIcon: const Icon(Icons.history_rounded),
+                label: languageProvider.t('nav_history'),
+              ),
+              BottomNavigationBarItem(
+                icon: const Icon(Icons.bar_chart_rounded),
+                activeIcon: const Icon(Icons.bar_chart_rounded),
+                label: languageProvider.t('nav_analysis'),
+              ),
+              BottomNavigationBarItem(
+                icon: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    const Icon(Icons.forum_rounded),
+                    if (unreadFollowups > 0)
+                      Positioned(
+                        right: -2,
+                        top: -2,
+                        child: Container(
+                          width: 10,
+                          height: 10,
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                activeIcon: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    const Icon(Icons.forum_rounded),
+                    if (unreadFollowups > 0)
+                      Positioned(
+                        right: -2,
+                        top: -2,
+                        child: Container(
+                          width: 10,
+                          height: 10,
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                label: languageProvider.t('nav_followup'),
+              ),
+              BottomNavigationBarItem(
+                icon: const Icon(Icons.place_rounded),
+                activeIcon: const Icon(Icons.place_rounded),
+                label: languageProvider.t('nav_location'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<ReportProvider>();
+    final threads = _threadReports(provider.reports)
+      ..sort((a, b) =>
+          (b.updatedAt ?? b.createdAt).compareTo(a.updatedAt ?? a.createdAt));
+
+    final bottomPadding = MediaQuery.of(context).padding.bottom + 124;
+    final openedFromReportDetail = widget.initialReport != null;
+    final selectedReport = _selected ?? widget.initialReport;
+
+    if (_selected != null && !openedFromReportDetail) {
+      final latest = threads.cast<ReportModel?>().firstWhere(
+            (r) => r?.id == _selected!.id,
+            orElse: () => _selected,
+          );
+      _selected = latest;
+    }
+
+    if (_selected != null &&
+        !openedFromReportDetail &&
+        threads.isNotEmpty &&
+        !threads.any((r) => r.id == _selected!.id)) {
+      _selected = null;
+    }
+
+    final showListView = _showListView || selectedReport == null;
+    final detailFlashActive = selectedReport != null &&
+        _flashReportId == selectedReport.id?.toString() &&
+        _flashOn;
+
+    return PopScope(
+      canPop: !openedFromReportDetail || _showListView,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+        if (openedFromReportDetail && !_showListView) {
+          setState(() {
+            _showListView = true;
+          });
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.grey.shade100,
+        body: SafeArea(
+          child: Column(
+            children: [
+              Expanded(
+                child: showListView
+                    ? (threads.isEmpty
+                        ? const Center(child: Text('暫無跟進對話'))
+                        : ListView.separated(
+                            padding: const EdgeInsets.all(12),
+                            itemCount: threads.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 8),
+                            itemBuilder: (context, index) {
+                              final report = threads[index];
+                              final selected = selectedReport?.id == report.id;
+                              final last = report.mergedConversation.isNotEmpty
+                                  ? report.mergedConversation.last
+                                  : null;
+                              final displayNumber =
+                                  _threadDisplayNumber(report);
+
+                              return ListTile(
+                                tileColor: selected
+                                    ? Colors.blue.shade50
+                                    : Colors.grey.shade50,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  side: BorderSide(
+                                    color: selected
+                                        ? Colors.blue.shade300
+                                        : Colors.grey.shade200,
+                                  ),
+                                ),
+                                title: Text(
+                                  report.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                subtitle: Text(
+                                  '${_threadSummary(report, displayNumber)}\n${last?.text ?? '（尚無訊息）'}',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                isThreeLine: true,
+                                trailing: report.hasUnreadCompany
+                                    ? Container(
+                                        width: 10,
+                                        height: 10,
+                                        decoration: const BoxDecoration(
+                                          color: Colors.red,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      )
+                                    : null,
+                                onTap: () => _selectReport(report),
+                              );
+                            },
+                          ))
+                    : Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          12,
+                          12,
+                          12,
+                          openedFromReportDetail ? 12 : bottomPadding,
+                        ),
+                        child: Column(
+                          children: [
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: detailFlashActive
+                                    ? Colors.blue.shade50
+                                    : Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: detailFlashActive
+                                      ? Colors.blue.shade300
+                                      : Colors.grey.shade200,
+                                  width: detailFlashActive ? 1.6 : 1,
+                                ),
+                                boxShadow: detailFlashActive
+                                    ? [
+                                        BoxShadow(
+                                          color: Colors.blue.shade100,
+                                          blurRadius: 18,
+                                          spreadRadius: 1,
+                                        ),
+                                      ]
+                                    : [],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              _conversationTitle(
+                                                  selectedReport!),
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 18,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              _threadSummary(
+                                                selectedReport!,
+                                                _threadDisplayNumber(
+                                                    selectedReport!),
+                                              ),
+                                              style: TextStyle(
+                                                color: Colors.grey.shade600,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      IconButton(
+                                        tooltip: '回到列表',
+                                        onPressed: _handleBackPressed,
+                                        icon: const Icon(
+                                            Icons.arrow_back_rounded),
+                                      ),
+                                      OutlinedButton.icon(
+                                        onPressed: () =>
+                                            _openReportDetail(selectedReport!),
+                                        icon: const Icon(Icons.open_in_new,
+                                            size: 18),
+                                        label: const Text('查看對應 report'),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: [
+                                      _metaChip(
+                                          '類別',
+                                          _categoryLabel(
+                                              selectedReport!.category)),
+                                      _metaChip('狀態',
+                                          _statusLabel(selectedReport!.status)),
+                                      _metaChip('風險', selectedReport.riskLevel),
+                                      _metaChip(
+                                        '更新',
+                                        DateFormat('MM/dd HH:mm').format(
+                                          (selectedReport.updatedAt ??
+                                                  selectedReport.createdAt)
+                                              .toLocal(),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Expanded(
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: detailFlashActive
+                                      ? Colors.blue.shade50.withOpacity(0.45)
+                                      : Colors.grey.shade50,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: detailFlashActive
+                                        ? Colors.blue.shade200
+                                        : Colors.grey.shade200,
+                                  ),
+                                ),
+                                child: ListView.separated(
+                                  itemCount:
+                                      selectedReport.mergedConversation.length,
+                                  separatorBuilder: (_, __) =>
+                                      const SizedBox(height: 8),
+                                  itemBuilder: (context, index) {
+                                    final messages =
+                                        selectedReport.mergedConversation;
+                                    final m = messages[index];
+                                    final messageImage = _resolveMessageImage(
+                                      selectedReport,
+                                      m,
+                                      index,
+                                      messages,
+                                    );
+                                    final isCompany = m.sender == 'company';
+
+                                    return Align(
+                                      alignment: isCompany
+                                          ? Alignment.centerLeft
+                                          : Alignment.centerRight,
+                                      child: AnimatedContainer(
+                                        duration:
+                                            const Duration(milliseconds: 180),
+                                        constraints:
+                                            const BoxConstraints(maxWidth: 320),
+                                        padding: const EdgeInsets.all(10),
+                                        decoration: BoxDecoration(
+                                          color: isCompany
+                                              ? Colors.blue.shade50
+                                              : Colors.teal.shade50,
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                          border: Border.all(
+                                            color: isCompany
+                                                ? Colors.blue.shade200
+                                                : Colors.teal.shade200,
+                                          ),
+                                          boxShadow: detailFlashActive &&
+                                                  index == 0
+                                              ? [
+                                                  BoxShadow(
+                                                    color: Colors.blue.shade100,
+                                                    blurRadius: 14,
+                                                    spreadRadius: 1,
+                                                  ),
+                                                ]
+                                              : [],
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              isCompany ? '公司' : '我',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 11,
+                                                color: isCompany
+                                                    ? Colors.blue.shade700
+                                                    : Colors.teal.shade700,
+                                              ),
+                                            ),
+                                            _buildMessageImage(messageImage),
+                                            const SizedBox(height: 4),
+                                            Text(m.text),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              DateFormat('MM/dd HH:mm').format(
+                                                  m.timestamp.toLocal()),
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                color: Colors.grey.shade600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: Colors.grey.shade200),
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _textController,
+                                      enabled: !_isSending &&
+                                          selectedReport.status != 'resolved',
+                                      maxLines: 4,
+                                      minLines: 2,
+                                      decoration: InputDecoration(
+                                        hintText:
+                                            selectedReport.status == 'resolved'
+                                                ? '對話已關閉'
+                                                : '輸入跟進回覆...',
+                                        border: const OutlineInputBorder(),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  SizedBox(
+                                    height: 56,
+                                    child: ElevatedButton(
+                                      onPressed: (_isSending ||
+                                              selectedReport.status ==
+                                                  'resolved')
+                                          ? null
+                                          : _send,
+                                      child: _isSending
+                                          ? const SizedBox(
+                                              width: 18,
+                                              height: 18,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                color: Colors.white,
+                                              ),
+                                            )
+                                          : const Text('送出'),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        ),
+        bottomNavigationBar:
+            openedFromReportDetail ? _buildBottomNavigationBar() : null,
       ),
     );
   }

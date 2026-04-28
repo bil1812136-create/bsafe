@@ -8,16 +8,56 @@ import 'package:intl/intl.dart';
 
 class ReportDetailCard extends StatelessWidget {
   final ReportModel report;
+  final int? displayNumber;
   final VoidCallback? onTap;
 
   const ReportDetailCard({
     super.key,
     required this.report,
+    this.displayNumber,
     this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    String _simplifyLocation(String? location) {
+      if (location == null || location.isEmpty) return '';
+      // Remove any 'ref:' suffix and Pin(...) coordinate parts
+      try {
+        // Keep original for pin extraction
+        final original = location;
+
+        // remove ref: and following text
+        var loc = original;
+        final refIndex = loc.toLowerCase().indexOf('ref:');
+        if (refIndex >= 0) loc = loc.substring(0, refIndex).trim();
+
+        // find first Pin(...) in original string
+        final pinMatch = RegExp(r'Pin\s*\([^)]*\)').firstMatch(original);
+        final pinText = pinMatch?.group(0) ?? '';
+
+        // attempt to extract building/floor pattern from loc
+        final bfMatch =
+            RegExp(r'building[^/\\]*\\/\s*F?\d+', caseSensitive: false)
+                .firstMatch(loc);
+        String buildingFloor;
+        if (bfMatch != null) {
+          buildingFloor = bfMatch.group(0)!.trim();
+        } else {
+          // fallback: take text before first '-' or ';' or ':'
+          final parts = loc.split(RegExp(r'[-;:]'));
+          buildingFloor = parts.isNotEmpty ? parts[0].trim() : loc.trim();
+        }
+
+        if (buildingFloor.isEmpty && pinText.isEmpty) return '';
+        if (pinText.isNotEmpty)
+          return '${buildingFloor.isEmpty ? pinText : '$buildingFloor - $pinText'}';
+        return buildingFloor;
+      } catch (_) {
+        return location;
+      }
+    }
+
     return GestureDetector(
       onTap: onTap,
       child: Stack(
@@ -135,6 +175,25 @@ class ReportDetailCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryColor.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          '#${displayNumber ?? report.id ?? '-'}',
+                          style: TextStyle(
+                            color: AppTheme.primaryColor,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
                       // Title
                       Text(
                         report.title,
@@ -195,7 +254,7 @@ class ReportDetailCard extends StatelessWidget {
                             const SizedBox(width: 4),
                             Expanded(
                               child: Text(
-                                report.location!,
+                                _simplifyLocation(report.location!),
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.grey.shade500,

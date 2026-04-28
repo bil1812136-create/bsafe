@@ -48,6 +48,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }).toList();
   }
 
+  int _displayNumberById(ReportModel report) {
+    final provider = context.read<ReportProvider>();
+    final all = provider.reports;
+    final sorted = List<ReportModel>.from(all);
+    sorted.sort((a, b) {
+      final ai = a.id ?? 0;
+      final bi = b.id ?? 0;
+      return ai.compareTo(bi);
+    });
+    final idx = sorted.indexWhere((r) => r.id == report.id);
+    return idx >= 0 ? idx + 1 : 1;
+  }
+
   bool _isSyncing = false;
 
   Future<void> _syncToCloud() async {
@@ -268,7 +281,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 return RefreshIndicator(
                   onRefresh: () => reportProvider.loadReports(),
                   child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 72),
                     itemCount: filteredReports.length,
                     itemBuilder: (context, index) {
                       final report = filteredReports[index];
@@ -276,6 +289,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         padding: const EdgeInsets.only(bottom: 12),
                         child: ReportDetailCard(
                           report: report,
+                          displayNumber: _displayNumberById(report),
                           onTap: () {
                             Navigator.push(
                               context,
