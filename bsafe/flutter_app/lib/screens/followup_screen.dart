@@ -104,12 +104,12 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
 
   String _categoryLabel(String category) {
     const map = {
-      'structural': '結構性問題',
-      'exterior': '外牆問題',
-      'public_area': '公共區域',
-      'electrical': '電氣問題',
-      'plumbing': '水管問題',
-      'other': '其他',
+      'structural': 'Structural Issue',
+      'exterior': 'Exterior Issue',
+      'public_area': 'Public Area',
+      'electrical': 'Electrical Issue',
+      'plumbing': 'Plumbing Issue',
+      'other': 'Other',
     };
     return map[category] ?? category;
   }
@@ -117,11 +117,11 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
   String _statusLabel(String status) {
     switch (status) {
       case 'resolved':
-        return '已解決';
+        return 'Resolved';
       case 'in_progress':
-        return '處理中';
+        return 'In Progress';
       default:
-        return '待處理';
+        return 'Pending';
     }
   }
 
@@ -146,7 +146,7 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
   }
 
   String _conversationTitle(ReportModel report) {
-    return '對話：${report.title} · ${_statusLabel(report.status)}';
+    return 'Conversation: ${report.title} · ${_statusLabel(report.status)}';
   }
 
   Future<void> _openReportDetail(ReportModel report) async {
@@ -314,12 +314,12 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
 
     if (ok) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('已發送跟進回覆')),
+        const SnackBar(content: Text('Follow-up reply sent')),
       );
       await context.read<ReportProvider>().refreshFromCloud();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('發送失敗')),
+        const SnackBar(content: Text('Failed to send')),
       );
     }
   }
@@ -462,7 +462,7 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
       ..sort((a, b) =>
           (b.updatedAt ?? b.createdAt).compareTo(a.updatedAt ?? a.createdAt));
 
-    final bottomPadding = MediaQuery.of(context).padding.bottom + 124;
+    final bottomPadding = MediaQuery.of(context).padding.bottom + 0;
     final openedFromReportDetail = widget.initialReport != null;
     final selectedReport = _selected ?? widget.initialReport;
 
@@ -504,7 +504,8 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
               Expanded(
                 child: showListView
                     ? (threads.isEmpty
-                        ? const Center(child: Text('暫無跟進對話'))
+                        ? const Center(
+                            child: Text('No follow-up conversations'))
                         : ListView.separated(
                             padding: const EdgeInsets.all(12),
                             itemCount: threads.length,
@@ -537,7 +538,7 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                                 subtitle: Text(
-                                  '${_threadSummary(report, displayNumber)}\n${last?.text ?? '（尚無訊息）'}',
+                                  '${_threadSummary(report, displayNumber)}\n${last?.text ?? '(No messages yet)'}',
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -567,7 +568,7 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
                           children: [
                             AnimatedContainer(
                               duration: const Duration(milliseconds: 180),
-                              padding: const EdgeInsets.all(14),
+                              padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
                                 color: detailFlashActive
                                     ? Colors.blue.shade50
@@ -626,7 +627,7 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
                                       ),
                                       const SizedBox(width: 8),
                                       IconButton(
-                                        tooltip: '回到列表',
+                                        tooltip: 'Back to list',
                                         onPressed: _handleBackPressed,
                                         icon: const Icon(
                                             Icons.arrow_back_rounded),
@@ -636,7 +637,7 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
                                             _openReportDetail(selectedReport!),
                                         icon: const Icon(Icons.open_in_new,
                                             size: 18),
-                                        label: const Text('查看對應 report'),
+                                        label: const Text('View linked report'),
                                       ),
                                     ],
                                   ),
@@ -646,14 +647,15 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
                                     runSpacing: 8,
                                     children: [
                                       _metaChip(
-                                          '類別',
+                                          'Category',
                                           _categoryLabel(
                                               selectedReport!.category)),
-                                      _metaChip('狀態',
+                                      _metaChip('Status',
                                           _statusLabel(selectedReport!.status)),
-                                      _metaChip('風險', selectedReport.riskLevel),
                                       _metaChip(
-                                        '更新',
+                                          'Risk', selectedReport.riskLevel),
+                                      _metaChip(
+                                        'Updated',
                                         DateFormat('MM/dd HH:mm').format(
                                           (selectedReport.updatedAt ??
                                                   selectedReport.createdAt)
@@ -706,8 +708,8 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
                                         duration:
                                             const Duration(milliseconds: 180),
                                         constraints:
-                                            const BoxConstraints(maxWidth: 320),
-                                        padding: const EdgeInsets.all(10),
+                                            const BoxConstraints(maxWidth: 500),
+                                        padding: const EdgeInsets.all(12),
                                         decoration: BoxDecoration(
                                           color: isCompany
                                               ? Colors.blue.shade50
@@ -735,7 +737,7 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
                                               CrossAxisAlignment.start,
                                           children: [
                                             Text(
-                                              isCompany ? '公司' : '我',
+                                              isCompany ? 'Company' : 'Me',
                                               style: TextStyle(
                                                 fontWeight: FontWeight.bold,
                                                 fontSize: 11,
@@ -764,9 +766,9 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 10),
                             Container(
-                              padding: const EdgeInsets.all(12),
+                              padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(16),
@@ -779,20 +781,26 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
                                       controller: _textController,
                                       enabled: !_isSending &&
                                           selectedReport.status != 'resolved',
-                                      maxLines: 4,
-                                      minLines: 2,
+                                      maxLines: 3,
+                                      minLines: 1,
                                       decoration: InputDecoration(
-                                        hintText:
-                                            selectedReport.status == 'resolved'
-                                                ? '對話已關閉'
-                                                : '輸入跟進回覆...',
+                                        hintText: selectedReport.status ==
+                                                'resolved'
+                                            ? 'Conversation closed'
+                                            : 'Type your follow-up reply...',
+                                        isDense: true,
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 10,
+                                        ),
                                         border: const OutlineInputBorder(),
                                       ),
                                     ),
                                   ),
                                   const SizedBox(width: 10),
                                   SizedBox(
-                                    height: 56,
+                                    height: 50,
                                     child: ElevatedButton(
                                       onPressed: (_isSending ||
                                               selectedReport.status ==
@@ -808,7 +816,7 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
                                                 color: Colors.white,
                                               ),
                                             )
-                                          : const Text('送出'),
+                                          : const Text('Send'),
                                     ),
                                   ),
                                 ],

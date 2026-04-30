@@ -59,7 +59,7 @@ class ReportProvider extends ChangeNotifier {
         notifyListeners();
       },
       onError: (e) {
-        debugPrint('⚠️ 報告實時訂閱失敗: $e');
+        debugPrint('⚠️ Report realtime subscription failed: $e');
       },
     );
   }
@@ -71,17 +71,17 @@ class ReportProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      debugPrint('☁️ 從 Supabase 載入報告...');
+      debugPrint('☁️ Loading reports from Supabase...');
       final cloudData = await SupabaseService.instance.fetchAllReports();
       _reports = cloudData
           .map((data) => SupabaseService.mapToReportModel(data))
           .toList();
       _statistics = _computeStatistics(_reports);
       _trendData = _computeTrendData(_reports);
-      debugPrint('✅ 載入 ${_reports.length} 筆報告');
+      debugPrint('✅ Loaded ${_reports.length} reports');
     } catch (e) {
-      _error = '載入資料失敗: $e';
-      debugPrint('❌ 載入報告失敗: $e');
+      _error = 'Failed to load data: $e';
+      debugPrint('❌ Failed to load reports: $e');
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -134,9 +134,10 @@ class ReportProvider extends ChangeNotifier {
         'risk_level': 'medium',
         'risk_score': 50,
         'is_urgent': false,
-        'title': '建築安全問題',
-        'analysis': 'AI 分析服務暫時不可用，使用本地評估',
-        'recommendations': ['建議安排專業人員檢查'],
+        'title': 'Building Safety Issue',
+        'analysis':
+            'AI analysis service is temporarily unavailable. Using local assessment.',
+        'recommendations': ['Arrange a professional inspection.'],
       };
     }
   }
@@ -203,16 +204,16 @@ class ReportProvider extends ChangeNotifier {
       );
 
       if (saved != null) {
-        debugPrint('✅ 報告已儲存到 Supabase: id=${saved.id}');
+        debugPrint('✅ Report saved to Supabase: id=${saved.id}');
         await loadReports();
         return saved;
       } else {
-        _error = '儲存報告失敗，請檢查網路連線';
+        _error = 'Failed to save report. Please check your network connection.';
         notifyListeners();
         return null;
       }
     } catch (e) {
-      _error = '提交報告失敗: $e';
+      _error = 'Failed to submit report: $e';
       notifyListeners();
       return null;
     } finally {
@@ -231,7 +232,7 @@ class ReportProvider extends ChangeNotifier {
         'updated_at': DateTime.now().toIso8601String(),
       }).eq('id', report.id!);
 
-      debugPrint('☁️ 狀態已更新: $newStatus');
+      debugPrint('☁️ Status updated: $newStatus');
 
       // 更新本地列表（不需要重新載入整份）
       final index = _reports.indexWhere((r) => r.id == report.id);
@@ -243,7 +244,7 @@ class ReportProvider extends ChangeNotifier {
       }
       return true;
     } catch (e) {
-      _error = '更新狀態失敗: $e';
+      _error = 'Failed to update status: $e';
       notifyListeners();
       return false;
     }
@@ -283,7 +284,7 @@ class ReportProvider extends ChangeNotifier {
       }
       return true;
     } catch (e) {
-      _error = '提交回覆失敗: $e';
+      _error = 'Failed to submit response: $e';
       notifyListeners();
       return false;
     }
@@ -318,7 +319,7 @@ class ReportProvider extends ChangeNotifier {
       }
       return true;
     } catch (e) {
-      _error = '發送訊息失敗: $e';
+      _error = 'Failed to send message: $e';
       notifyListeners();
       return false;
     }
@@ -352,7 +353,7 @@ class ReportProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _error = '刪除報告失敗: $e';
+      _error = 'Failed to delete report: $e';
       notifyListeners();
       return false;
     }
@@ -384,14 +385,15 @@ class ReportProvider extends ChangeNotifier {
   /// 當對話或報告內容更新時，會自動刷新 UI
   void subscribeToReport(ReportModel report) {
     if (report.id == null) {
-      debugPrint('⚠️ 無效的報告 ID，無法訂閱實時更新');
+      debugPrint('⚠️ Invalid report ID. Cannot subscribe to realtime updates.');
       return;
     }
 
     _currentReport = report;
     final reportId = report.id!;
 
-    debugPrint('👁️ 開始訂閱報告 #$reportId 的實時更新');
+    debugPrint(
+        '👁️ Start subscribing to realtime updates for report #$reportId');
 
     // 訂閱到 Realtime Service
     _realtime.subscribeToReport(reportId, (updatedReport) {
@@ -404,7 +406,7 @@ class ReportProvider extends ChangeNotifier {
         _reports[index] = updatedReport;
       }
 
-      debugPrint('🔄 報告 #$reportId 已更新（對話/狀態）');
+      debugPrint('🔄 Report #$reportId updated (conversation/status)');
       notifyListeners(); // 觸發 UI 刷新
     });
   }
@@ -415,7 +417,7 @@ class ReportProvider extends ChangeNotifier {
     final reportId = _currentReport!.id!;
     await _realtime.unsubscribeFromReport(reportId);
     _currentReport = null;
-    debugPrint('✋ 已取消訂閱報告 #$reportId');
+    debugPrint('✋ Unsubscribed from report #$reportId');
   }
 
   /// 更新當前報告（用於接收實時更新）
@@ -427,31 +429,32 @@ class ReportProvider extends ChangeNotifier {
 
       // 比較conversation（最重要的字段 - 包含新消息和圖片）
       if (_currentReport!.conversation != updated.conversation) {
-        debugPrint('🔄 Conversation 更新');
+        debugPrint('🔄 Conversation updated');
         hasChanged = true;
       }
 
       // 比較status
       if (_currentReport!.status != updated.status) {
-        debugPrint('🔄 Status 更新');
+        debugPrint('🔄 Status updated');
         hasChanged = true;
       }
 
       // 比較severity和risk_level
       if (_currentReport!.severity != updated.severity) {
-        debugPrint('🔄 Severity 更新');
+        debugPrint('🔄 Severity updated');
         hasChanged = true;
       }
 
       // 比較description
       if (_currentReport!.description != updated.description) {
-        debugPrint('🔄 Description 更新');
+        debugPrint('🔄 Description updated');
         hasChanged = true;
       }
 
       // 如果沒有改變，就不觸發更新
       if (!hasChanged) {
-        debugPrint('ℹ️ 報告 #${updated.id} 無實際改變，跳過UI更新');
+        debugPrint(
+            'ℹ️ Report #${updated.id} has no actual changes, skipping UI update');
         return;
       }
     }

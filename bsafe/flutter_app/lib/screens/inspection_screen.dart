@@ -259,7 +259,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
                     children: [
                       const Icon(Icons.layers, size: 18),
                       const SizedBox(width: 8),
-                      Text('切換樓層 (目前 ${_currentFloor}F)'),
+                      Text('Switch Floor (Current ${_currentFloor}F)'),
                     ],
                   ),
                 ),
@@ -269,7 +269,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
                   children: [
                     Icon(Icons.add_circle_outline, size: 18),
                     SizedBox(width: 8),
-                    Text('新建巡檢'),
+                    Text('New Inspection'),
                   ],
                 ),
               ),
@@ -279,13 +279,15 @@ class _InspectionScreenState extends State<InspectionScreen> {
                   children: [
                     Icon(Icons.folder_open, size: 18),
                     SizedBox(width: 8),
-                    Text('載入巡檢'),
+                    Text('Load Inspection'),
                   ],
                 ),
               ),
-              const PopupMenuItem(value: 'export_word', child: Text('匯出 Word')),
+              const PopupMenuItem(
+                  value: 'export_word', child: Text('Export Word')),
               const PopupMenuDivider(),
-              const PopupMenuItem(value: 'clear_pins', child: Text('清除所有 Pin')),
+              const PopupMenuItem(
+                  value: 'clear_pins', child: Text('Clear All Pins')),
             ],
           ),
         ],
@@ -316,13 +318,13 @@ class _InspectionScreenState extends State<InspectionScreen> {
               // 巡檢點列表
               _buildBottomBarItem(
                 icon: Icons.push_pin,
-                label: '巡檢點(${inspection.currentPins.length})',
+                label: 'Inspection Points(${inspection.currentPins.length})',
                 onTap: () => _showMobilePinListSheet(inspection),
               ),
               // 快捷設置
               _buildBottomBarItem(
                 icon: Icons.tune,
-                label: '設置',
+                label: 'Settings',
                 onTap: () => _showMobileSettingsSheet(uwbService),
               ),
               // 座標顯示
@@ -330,15 +332,15 @@ class _InspectionScreenState extends State<InspectionScreen> {
                 icon: Icons.my_location,
                 label: uwbService.currentTag != null
                     ? '${uwbService.currentTag!.x.toStringAsFixed(1)},${uwbService.currentTag!.y.toStringAsFixed(1)}'
-                    : '未定位',
+                    : 'Not Positioned',
                 onTap: () {},
                 color:
                     uwbService.currentTag != null ? Colors.indigo : Colors.grey,
               ),
-              // 校正
+              // Calibration
               _buildBottomBarItem(
                 icon: Icons.straighten,
-                label: '校正',
+                label: 'Calibrate',
                 onTap: () {
                   Navigator.push(
                     context,
@@ -419,7 +421,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
                   children: [
                     const Icon(Icons.push_pin, color: AppTheme.primaryColor),
                     const SizedBox(width: 8),
-                    const Text('巡檢點',
+                    const Text('Inspection Points',
                         style: TextStyle(
                             fontWeight: FontWeight.bold, fontSize: 18)),
                     const Spacer(),
@@ -497,7 +499,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
                     children: [
                       const Icon(Icons.tune, color: AppTheme.primaryColor),
                       const SizedBox(width: 8),
-                      const Text('設置',
+                      const Text('Settings',
                           style: TextStyle(
                               fontWeight: FontWeight.bold, fontSize: 18)),
                       const Spacer(),
@@ -520,18 +522,17 @@ class _InspectionScreenState extends State<InspectionScreen> {
                           spacing: 8,
                           runSpacing: 8,
                           children: [
-                            _buildToggle('軌跡', Icons.timeline,
+                            _buildToggle('Trajectory', Icons.timeline,
                                 uwbService.config.showTrajectory, (v) {
                               uwbService.updateConfig(uwbService.config
                                   .copyWith(showTrajectory: v));
                             }),
-                            _buildToggle(
-                                '圍欄', Icons.fence, uwbService.config.showFence,
-                                (v) {
+                            _buildToggle('Fence', Icons.fence,
+                                uwbService.config.showFence, (v) {
                               uwbService.updateConfig(
                                   uwbService.config.copyWith(showFence: v));
                             }),
-                            _buildToggle('平面圖', Icons.map,
+                            _buildToggle('Floor Plan', Icons.map,
                                 uwbService.config.showFloorPlan, (v) {
                               uwbService.updateConfig(
                                   uwbService.config.copyWith(showFloorPlan: v));
@@ -546,7 +547,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
                               child: OutlinedButton.icon(
                                 onPressed: () => uwbService.clearTrajectory(),
                                 icon: const Icon(Icons.delete_sweep, size: 18),
-                                label: const Text('清除軌跡'),
+                                label: const Text('Clear Trajectory'),
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -555,7 +556,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
                                 onPressed: () => _loadFloorPlan(uwbService,
                                     context.read<InspectionProvider>()),
                                 icon: const Icon(Icons.image, size: 18),
-                                label: const Text('載入樓層圖'),
+                                label: const Text('Load Floor Plan'),
                               ),
                             ),
                             if (uwbService.floorPlanImage != null) ...[
@@ -564,7 +565,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
                                 icon: const Icon(Icons.hide_image,
                                     color: Colors.red, size: 20),
                                 onPressed: () => _clearFloorPlan(uwbService),
-                                tooltip: '刪除樓層圖',
+                                tooltip: 'Delete Floor Plan',
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(
                                     minWidth: 36, minHeight: 36),
@@ -574,7 +575,8 @@ class _InspectionScreenState extends State<InspectionScreen> {
                         ),
                         const SizedBox(height: 16),
                         // 基站資訊
-                        _buildSectionHeader('基站管理', Icons.cell_tower),
+                        _buildSectionHeader(
+                            'Anchor Management', Icons.cell_tower),
                         const SizedBox(height: 8),
                         ...uwbService.anchors.asMap().entries.map((entry) {
                           final index = entry.key;
@@ -587,14 +589,15 @@ class _InspectionScreenState extends State<InspectionScreen> {
                           child: OutlinedButton.icon(
                             onPressed: () => _showAddAnchorDialog(uwbService),
                             icon: const Icon(Icons.add, size: 18),
-                            label: const Text('添加基站'),
+                            label: const Text('Add Anchor'),
                           ),
                         ),
 
                         const SizedBox(height: 20),
 
                         // ---- 距離索引映射 ----
-                        _buildSectionHeader('距離索引映射', Icons.swap_horiz),
+                        _buildSectionHeader(
+                            'Distance Index Mapping', Icons.swap_horiz),
                         const SizedBox(height: 8),
                         Container(
                           padding: const EdgeInsets.all(12),
@@ -607,14 +610,14 @@ class _InspectionScreenState extends State<InspectionScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                '可同時選擇多組交換。例如：選 D0↔D1 再選 D2↔D3。',
+                                'You can select multiple groups at once. For example: select D0↔D1 then D2↔D3.',
                                 style: TextStyle(
                                     fontSize: 12,
                                     color: Colors.orange.shade800),
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                '目前映射: ${_describeDistanceMapping(uwbService.config.distanceIndexMap)}',
+                                'Current Mapping: ${_describeDistanceMapping(uwbService.config.distanceIndexMap)}',
                                 style: const TextStyle(
                                     fontSize: 12, fontWeight: FontWeight.bold),
                               ),
@@ -647,7 +650,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
                               setState(() {});
                             },
                             icon: const Icon(Icons.restore, size: 16),
-                            label: const Text('重置為預設 [0,1,2,3]'),
+                            label: const Text('Reset to Default [0,1,2,3]'),
                           ),
                         ),
                       ],
@@ -763,7 +766,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
               color:
                   _showSettings ? AppTheme.primaryColor : Colors.grey.shade600,
             ),
-            tooltip: '顯示設置',
+            tooltip: 'Show Settings',
           ),
           IconButton(
             onPressed: () =>
@@ -772,7 +775,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
               Icons.tune,
               color: _showFullSettings ? Colors.orange : Colors.grey.shade600,
             ),
-            tooltip: '完整設置',
+            tooltip: 'Full Settings',
           ),
           IconButton(
             onPressed: () => setState(() => _showPinList = !_showPinList),
@@ -781,7 +784,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
               color:
                   _showPinList ? AppTheme.primaryColor : Colors.grey.shade600,
             ),
-            tooltip: '巡檢點列表',
+            tooltip: 'Inspection Points List',
           ),
           const SizedBox(width: 4),
           // 連接按鈕
@@ -799,7 +802,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
                     children: [
                       const Icon(Icons.layers, size: 18),
                       const SizedBox(width: 8),
-                      Text('切換樓層 (目前 ${_currentFloor}F)'),
+                      Text('Switch Floor (Current ${_currentFloor}F)'),
                     ],
                   ),
                 ),
@@ -809,7 +812,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
                   children: [
                     Icon(Icons.add_circle_outline, size: 18),
                     SizedBox(width: 8),
-                    Text('新建巡檢'),
+                    Text('New Inspection'),
                   ],
                 ),
               ),
@@ -819,13 +822,15 @@ class _InspectionScreenState extends State<InspectionScreen> {
                   children: [
                     Icon(Icons.folder_open, size: 18),
                     SizedBox(width: 8),
-                    Text('載入巡檢'),
+                    Text('Load Inspection'),
                   ],
                 ),
               ),
-              const PopupMenuItem(value: 'export_word', child: Text('匯出 Word')),
+              const PopupMenuItem(
+                  value: 'export_word', child: Text('Export Word')),
               const PopupMenuDivider(),
-              const PopupMenuItem(value: 'clear_pins', child: Text('清除所有 Pin')),
+              const PopupMenuItem(
+                  value: 'clear_pins', child: Text('Clear All Pins')),
             ],
           ),
         ],
@@ -858,8 +863,10 @@ class _InspectionScreenState extends State<InspectionScreen> {
           const SizedBox(width: 6),
           Text(
             isConnected
-                ? (uwbService.isRealDevice ? 'UWB 已連接' : '模擬模式')
-                : 'UWB 未連接',
+                ? (uwbService.isRealDevice
+                    ? 'UWB Connected'
+                    : 'Simulation Mode')
+                : 'UWB Not Connected',
             style: TextStyle(
               color: isConnected ? Colors.green.shade700 : Colors.grey.shade600,
               fontSize: 12,
@@ -904,7 +911,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
         ? OutlinedButton.icon(
             onPressed: () => uwbService.disconnect(),
             icon: const Icon(Icons.stop, size: 16),
-            label: const Text('斷開'),
+            label: const Text('Disconnect'),
             style: OutlinedButton.styleFrom(
               foregroundColor: Colors.red,
               side: const BorderSide(color: Colors.red),
@@ -914,7 +921,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
         : ElevatedButton.icon(
             onPressed: () => _showConnectDialog(uwbService),
             icon: const Icon(Icons.usb, size: 16),
-            label: const Text('連接'),
+            label: const Text('Connect'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.primaryColor,
               foregroundColor: Colors.white,
@@ -970,8 +977,8 @@ class _InspectionScreenState extends State<InspectionScreen> {
                             const SizedBox(width: 8),
                             Text(
                               MediaQuery.of(context).size.width < 600
-                                  ? '點擊畫布放置 Pin'
-                                  : '點擊畫布放置 Pin，或按「使用當前位置」',
+                                  ? 'Click canvas to place Pin'
+                                  : 'Click canvas to place Pin, or press "Use Current Position"',
                               style: const TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.w600,
@@ -991,7 +998,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
                     child: ElevatedButton.icon(
                       onPressed: () => _loadFloorPlan(uwbService, inspection),
                       icon: const Icon(Icons.map, size: 18),
-                      label: const Text('載入樓層圖'),
+                      label: const Text('Load Floor Plan'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
                         foregroundColor: AppTheme.primaryColor,
@@ -1008,7 +1015,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
                     child: ElevatedButton.icon(
                       onPressed: () => _clearFloorPlan(uwbService),
                       icon: const Icon(Icons.hide_image, size: 18),
-                      label: const Text('刪除樓層圖'),
+                      label: const Text('Delete Floor Plan'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
                         foregroundColor: Colors.red,
@@ -1032,7 +1039,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Text('距離 Debug',
+                          const Text('Distance Debug',
                               style: TextStyle(
                                   color: Colors.yellow,
                                   fontSize: 10,
@@ -1272,19 +1279,19 @@ class _InspectionScreenState extends State<InspectionScreen> {
                 IconButton(
                   icon: const Icon(Icons.delete_sweep, color: Colors.orange),
                   onPressed: () => uwbService.clearTrajectory(),
-                  tooltip: '清除軌跡',
+                  tooltip: 'Clear Trajectory',
                 ),
                 IconButton(
                   icon: const Icon(Icons.image, color: AppTheme.primaryColor),
                   onPressed: () => _loadFloorPlan(
                       uwbService, context.read<InspectionProvider>()),
-                  tooltip: '載入樓層圖',
+                  tooltip: 'Load Floor Plan',
                 ),
                 if (uwbService.floorPlanImage != null)
                   IconButton(
                     icon: const Icon(Icons.hide_image, color: Colors.red),
                     onPressed: () => _clearFloorPlan(uwbService),
-                    tooltip: '刪除樓層圖',
+                    tooltip: 'Delete Floor Plan',
                   ),
               ],
             ),
@@ -1390,13 +1397,13 @@ class _InspectionScreenState extends State<InspectionScreen> {
       child: Row(
         children: [
           _buildStatBadge(
-              '低風險', session.lowRiskDefects.toString(), Colors.blue),
+              'Low Risk', session.lowRiskDefects.toString(), Colors.blue),
+          const SizedBox(width: 8),
+          _buildStatBadge('Medium Risk', session.mediumRiskDefects.toString(),
+              Colors.orange),
           const SizedBox(width: 8),
           _buildStatBadge(
-              '中風險', session.mediumRiskDefects.toString(), Colors.orange),
-          const SizedBox(width: 8),
-          _buildStatBadge(
-              '高風險', session.highRiskDefects.toString(), Colors.red),
+              'High Risk', session.highRiskDefects.toString(), Colors.red),
         ],
       ),
     );
@@ -1534,7 +1541,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
-                                pin.isAnalyzed ? '已分析' : pin.statusLabel,
+                                pin.isAnalyzed ? 'Analyzed' : pin.statusLabel,
                                 style: TextStyle(
                                   fontSize: 11,
                                   color: pin.isAnalyzed
@@ -1705,19 +1712,20 @@ class _InspectionScreenState extends State<InspectionScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('刪除巡檢點'),
+        title: const Text('Delete Inspection Point'),
         content: Text(
-            '確定要刪除座標 (${pin.x.toStringAsFixed(2)}, ${pin.y.toStringAsFixed(2)}) 的巡檢點嗎？'),
+            'Are you sure you want to delete the inspection point at coordinates (${pin.x.toStringAsFixed(2)}, ${pin.y.toStringAsFixed(2)})?'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context), child: const Text('取消')),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () {
               inspection.removePin(pin.id);
               Navigator.pop(context);
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('刪除', style: TextStyle(color: Colors.white)),
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -2061,7 +2069,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(ctx),
-                  child: const Text('取消'),
+                  child: const Text('Cancel'),
                 ),
                 ElevatedButton(
                   onPressed: () {
@@ -2079,7 +2087,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
                     backgroundColor: AppTheme.primaryColor,
                     foregroundColor: Colors.white,
                   ),
-                  child: const Text('確認'),
+                  child: const Text('Confirm'),
                 ),
               ],
             );
@@ -2251,7 +2259,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('確定')),
+                child: const Text('OK')),
           ],
         ),
       );
@@ -2263,7 +2271,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('選擇串口'),
+          title: const Text('Select COM Port'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -2276,7 +2284,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
                   if (v != null) setDialogState(() => selectedPort = v);
                 },
                 decoration: const InputDecoration(
-                  labelText: '串口',
+                  labelText: 'COM Port',
                   border: OutlineInputBorder(),
                 ),
               ),
@@ -2290,7 +2298,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
                   if (v != null) setDialogState(() => _baudRate = v);
                 },
                 decoration: const InputDecoration(
-                  labelText: '波特率',
+                  labelText: 'Baud Rate',
                   border: OutlineInputBorder(),
                 ),
               ),
@@ -2299,7 +2307,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('取消')),
+                child: const Text('Cancel')),
             ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);
@@ -2309,7 +2317,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
                   baudRate: _baudRate,
                 );
               },
-              child: const Text('連接'),
+              child: const Text('Connect'),
             ),
           ],
         ),
@@ -3107,7 +3115,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
               actions: [
                 TextButton(
                     onPressed: () => Navigator.pop(ctx),
-                    child: const Text('取消')),
+                    child: const Text('Cancel')),
                 ElevatedButton(
                   onPressed: () {
                     for (final pin in List.from(inspection.currentPins)) {
@@ -3764,7 +3772,7 @@ class _PinDetailDialogState extends State<_PinDetailDialog> {
                             }
                             Navigator.pop(context);
                           },
-                    child: const Text('確定'),
+                    child: const Text('OK'),
                   ),
                 ],
               ),

@@ -184,9 +184,7 @@ flutter devices
 flutter run -d <R5CR30PFFTN>
 ```
 # mobile app flutter run
-flutter run -d chrome --target lib/main.dart
-
---dart-define=GEMINI_API_KEY=AIza
+flutter run -d chrome --target lib/main.dart --dart-define=GEMINI_API_KEY=AIz
 
 ### Web dashboard
 

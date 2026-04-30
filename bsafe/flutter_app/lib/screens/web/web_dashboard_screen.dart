@@ -91,7 +91,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
       if (!mounted) return;
       setState(() {
         _isFloorPlanLoading = false;
-        _floorPlanError = '載入樓層圖失敗: $e';
+        _floorPlanError = 'Failed to load floor plans: $e';
       });
     }
   }
@@ -102,13 +102,14 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
     final floorNumber = int.tryParse(floorText);
     if (buildingName.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('請先輸入建築名稱（folder）')),
+        const SnackBar(
+            content: Text('Please enter a building name (folder) first')),
       );
       return;
     }
     if (floorNumber == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('請先輸入正確樓層（數字）')),
+        const SnackBar(content: Text('Please enter a valid floor number')),
       );
       return;
     }
@@ -155,7 +156,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                'Storage 無權限，已改為資料庫儲存樓層圖: $storageError',
+                'No Storage permission; floor plan saved in database instead: $storageError',
               ),
             ),
           );
@@ -189,12 +190,13 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
       await _loadFloorPlans(silent: true);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('樓層圖已上傳並建立成功')),
+        const SnackBar(
+            content: Text('Floor plan uploaded and created successfully')),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('上傳失敗: $e')),
+        SnackBar(content: Text('Upload failed: $e')),
       );
     } finally {
       if (mounted) setState(() => _isUploadingFloorPlan = false);
@@ -326,7 +328,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                       Row(
                         children: [
                           const Text(
-                            '樓層圖預覽與 Pin',
+                            'Floor Plan Preview & Pins',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 18,
@@ -386,7 +388,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                               child: selectedPin == null
                                   ? Center(
                                       child: Text(
-                                        '點擊地圖上的 Pin 可查看對應報告',
+                                        'Click a pin on the map to view its linked report',
                                         style: TextStyle(
                                           color: Colors.grey.shade600,
                                         ),
@@ -406,7 +408,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                                         ),
                                         const SizedBox(height: 6),
                                         Text(
-                                          '座標: (${((selectedPin!['pin_x_percent'] ?? selectedPin!['pinXPercent']) as num?) != null ? (((selectedPin!['pin_x_percent'] ?? selectedPin!['pinXPercent']) as num).toDouble() * 100).toStringAsFixed(1) : (selectedPin!['x'] as num?)?.toStringAsFixed(1) ?? '-'}, ${((selectedPin!['pin_y_percent'] ?? selectedPin!['pinYPercent']) as num?) != null ? (((selectedPin!['pin_y_percent'] ?? selectedPin!['pinYPercent']) as num).toDouble() * 100).toStringAsFixed(1) : (selectedPin!['y'] as num?)?.toStringAsFixed(1) ?? '-'})',
+                                          'Coordinates: (${((selectedPin!['pin_x_percent'] ?? selectedPin!['pinXPercent']) as num?) != null ? (((selectedPin!['pin_x_percent'] ?? selectedPin!['pinXPercent']) as num).toDouble() * 100).toStringAsFixed(1) : (selectedPin!['x'] as num?)?.toStringAsFixed(1) ?? '-'}, ${((selectedPin!['pin_y_percent'] ?? selectedPin!['pinYPercent']) as num?) != null ? (((selectedPin!['pin_y_percent'] ?? selectedPin!['pinYPercent']) as num).toDouble() * 100).toStringAsFixed(1) : (selectedPin!['y'] as num?)?.toStringAsFixed(1) ?? '-'})',
                                           style: TextStyle(
                                             color: Colors.grey.shade700,
                                           ),
@@ -424,7 +426,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                                                       Colors.orange.shade200),
                                             ),
                                             child: const Text(
-                                              '此 Pin 尚未找到對應報告。',
+                                              'No linked report found for this pin yet.',
                                               style: TextStyle(fontSize: 12),
                                             ),
                                           )
@@ -450,7 +452,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                                                 Text(
                                                   selectedReport!['title']
                                                           ?.toString() ??
-                                                      '未命名報告',
+                                                      'Untitled Report',
                                                   style: const TextStyle(
                                                     fontWeight: FontWeight.w700,
                                                   ),
@@ -460,14 +462,14 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                                                 ),
                                                 const SizedBox(height: 6),
                                                 Text(
-                                                  '狀態: ${selectedReport!['status'] ?? 'pending'}',
+                                                  'Status: ${selectedReport!['status'] ?? 'pending'}',
                                                   style: TextStyle(
                                                     color: Colors.grey.shade700,
                                                     fontSize: 12,
                                                   ),
                                                 ),
                                                 Text(
-                                                  '風險: ${selectedReport!['risk_level'] ?? '-'}',
+                                                  'Risk: ${selectedReport!['risk_level'] ?? '-'}',
                                                   style: TextStyle(
                                                     color: Colors.grey.shade700,
                                                     fontSize: 12,
@@ -475,7 +477,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                                                 ),
                                                 const SizedBox(height: 4),
                                                 Text(
-                                                  '類別: ${_categoryLabel((selectedReport!["category"] ?? "").toString())}',
+                                                  'Category: ${_categoryLabel((selectedReport!["category"] ?? "").toString())}',
                                                   style: TextStyle(
                                                     color: Colors.grey.shade700,
                                                     fontSize: 12,
@@ -483,18 +485,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                                                 ),
                                                 const SizedBox(height: 6),
                                                 Text(
-                                                  '基本資料: ${_singleLine(selectedReport!["description"]?.toString() ?? "")}',
-                                                  style: TextStyle(
-                                                    color: Colors.grey.shade700,
-                                                    fontSize: 12,
-                                                  ),
-                                                  maxLines: 2,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                ),
-                                                const SizedBox(height: 6),
-                                                Text(
-                                                  'AI 報告: ${_singleLine(selectedReport!["ai_analysis"]?.toString() ?? "")}',
+                                                  'Details: ${_singleLine(selectedReport!["description"]?.toString() ?? "")}',
                                                   style: TextStyle(
                                                     color: Colors.grey.shade700,
                                                     fontSize: 12,
@@ -505,7 +496,18 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                                                 ),
                                                 const SizedBox(height: 6),
                                                 Text(
-                                                  '跟進對話: ${_conversationSummary(selectedReport!)}',
+                                                  'AI Report: ${_singleLine(selectedReport!["ai_analysis"]?.toString() ?? "")}',
+                                                  style: TextStyle(
+                                                    color: Colors.grey.shade700,
+                                                    fontSize: 12,
+                                                  ),
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                                const SizedBox(height: 6),
+                                                Text(
+                                                  'Follow-up: ${_conversationSummary(selectedReport!)}',
                                                   style: TextStyle(
                                                     color: Colors.grey.shade700,
                                                     fontSize: 12,
@@ -527,12 +529,13 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                                               },
                                               icon:
                                                   const Icon(Icons.open_in_new),
-                                              label: const Text('開啟完整報告（可編輯）'),
+                                              label: const Text(
+                                                  'Open Full Report (Editable)'),
                                             ),
                                           ),
                                           const SizedBox(height: 6),
                                           Text(
-                                            '可編輯內容：基本資料、處理狀態、AI 報告、跟進對話、對應照片。',
+                                            'Editable fields: details, processing status, AI report, follow-up conversation, linked photos.',
                                             style: TextStyle(
                                               color: Colors.grey.shade600,
                                               fontSize: 12,
@@ -679,7 +682,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
       }
     }
 
-    return '未分類';
+    return 'Uncategorized';
   }
 
   Map<String, List<Map<String, dynamic>>> _groupFloorPlansByBuilding(
@@ -721,13 +724,13 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('樓層圖已刪除')),
+        const SnackBar(content: Text('Floor plan deleted')),
       );
       await _loadFloorPlans(silent: true);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('刪除失敗: $e')),
+        SnackBar(content: Text('Delete failed: $e')),
       );
     } finally {
       if (mounted) {
@@ -767,7 +770,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = '載入失敗: $e';
+          _error = 'Load failed: $e';
           _isLoading = false;
         });
       }
@@ -833,7 +836,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Text(
-              '公司管理後台',
+              'Admin Dashboard',
               style: TextStyle(
                 color: Colors.white.withOpacity(0.7),
                 fontSize: 13,
@@ -844,23 +847,21 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
           // Nav items
           _sidebarItem(
             Icons.dashboard,
-            '報告總覽',
+            'Report Overview',
             _activeSection == 'reports',
             onTap: () {
               setState(() => _activeSection = 'reports');
             },
           ),
-          _sidebarItem(Icons.analytics, '統計分析', false),
           _sidebarItem(
             Icons.map,
-            '樓層圖管理',
+            'Floor Plan Management',
             _activeSection == 'floor_plans',
             onTap: () {
               setState(() => _activeSection = 'floor_plans');
               _loadFloorPlans();
             },
           ),
-          _sidebarItem(Icons.settings, '設定', false),
           const Spacer(),
           // Connection status
           Padding(
@@ -883,7 +884,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                   ),
                   const SizedBox(width: 8),
                   const Text(
-                    'Supabase 已連接',
+                    'Supabase connected',
                     style: TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                 ],
@@ -942,12 +943,12 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '樓層圖管理',
+                    'Floor Plan Management',
                     style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                   ),
                   SizedBox(height: 4),
                   Text(
-                    '上傳樓層圖供手機端選擇、加 pin 並上報',
+                    'Upload floor plans for mobile selection, pinning, and reporting',
                     style:
                         TextStyle(color: AppTheme.textSecondary, fontSize: 14),
                   ),
@@ -957,7 +958,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
               OutlinedButton.icon(
                 onPressed: _loadFloorPlans,
                 icon: const Icon(Icons.refresh, size: 18),
-                label: const Text('刷新'),
+                label: const Text('Refresh'),
               ),
             ],
           ),
@@ -971,8 +972,8 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                 child: TextField(
                   controller: _buildingNameController,
                   decoration: const InputDecoration(
-                    labelText: '建築名稱 / Folder',
-                    hintText: '例如: Building_A',
+                    labelText: 'Building Name / Folder',
+                    hintText: 'e.g. Building_A',
                     border: OutlineInputBorder(),
                   ),
                 ),
@@ -984,7 +985,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                   controller: _floorNumberController,
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
-                    labelText: '樓層 (例如 3)',
+                    labelText: 'Floor (e.g. 3)',
                     border: OutlineInputBorder(),
                   ),
                 ),
@@ -1003,7 +1004,9 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                         ),
                       )
                     : const Icon(Icons.upload_file),
-                label: Text(_isUploadingFloorPlan ? '上傳中...' : '上傳樓層圖'),
+                label: Text(_isUploadingFloorPlan
+                    ? 'Uploading...'
+                    : 'Upload Floor Plan'),
               ),
             ],
           ),
@@ -1014,7 +1017,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
               : _floorPlanError != null
                   ? Center(child: Text(_floorPlanError!))
                   : _floorPlans.isEmpty
-                      ? const Center(child: Text('尚未有樓層圖'))
+                      ? const Center(child: Text('No floor plans yet'))
                       : Column(
                           children: [
                             Padding(
@@ -1045,11 +1048,13 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                             Expanded(
                               child: _selectedFloorPlanFolder == null
                                   ? const Center(
-                                      child: Text('請先點選一個 folder 查看對應樓層圖'),
+                                      child: Text(
+                                          'Select a folder to view floor plans'),
                                     )
                                   : selectedRows.isEmpty
                                       ? const Center(
-                                          child: Text('此 folder 暫無樓層圖'))
+                                          child: Text(
+                                              'No floor plans in this folder'))
                                       : ListView.separated(
                                           padding: const EdgeInsets.fromLTRB(
                                               32, 8, 32, 24),
@@ -1069,7 +1074,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                                                             'building_name'] ??
                                                         payload['buildingName'])
                                                     ?.toString() ??
-                                                '未命名建築';
+                                                'Unnamed Building';
                                             final imageUrl =
                                                 _resolveFloorPlanUrl(row);
                                             final imageBase64 =
@@ -1143,7 +1148,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                                                                           Alignment
                                                                               .center,
                                                                       child: const Text(
-                                                                          '載入失敗'),
+                                                                          'Load failed'),
                                                                     ),
                                                                   );
                                                                 }
@@ -1159,9 +1164,8 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                                                                   alignment:
                                                                       Alignment
                                                                           .center,
-                                                                  child:
-                                                                      const Text(
-                                                                          '載入失敗'),
+                                                                  child: const Text(
+                                                                      'Load failed'),
                                                                 );
                                                               },
                                                             )
@@ -1191,7 +1195,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                                                                         Alignment
                                                                             .center,
                                                                     child: const Text(
-                                                                        '載入失敗'),
+                                                                        'Load failed'),
                                                                   ),
                                                                 )
                                                               : Container(
@@ -1206,9 +1210,8 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                                                                   alignment:
                                                                       Alignment
                                                                           .center,
-                                                                  child:
-                                                                      const Text(
-                                                                          '無圖片'),
+                                                                  child: const Text(
+                                                                      'No image'),
                                                                 ),
                                                     ),
                                                   );
@@ -1257,22 +1260,22 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                                                                           builder: (ctx) =>
                                                                               AlertDialog(
                                                                             title:
-                                                                                const Text('刪除樓層圖'),
+                                                                                const Text('Delete floor plan'),
                                                                             content:
                                                                                 Text(
-                                                                              '確定刪除「$buildingName - $floor F」嗎？',
+                                                                              'Delete "$buildingName - $floor F"?',
                                                                             ),
                                                                             actions: [
                                                                               TextButton(
                                                                                 onPressed: () => Navigator.pop(ctx, false),
-                                                                                child: const Text('取消'),
+                                                                                child: const Text('Cancel'),
                                                                               ),
                                                                               ElevatedButton(
                                                                                 style: ElevatedButton.styleFrom(
                                                                                   backgroundColor: Colors.red,
                                                                                 ),
                                                                                 onPressed: () => Navigator.pop(ctx, true),
-                                                                                child: const Text('刪除'),
+                                                                                child: const Text('Delete'),
                                                                               ),
                                                                             ],
                                                                           ),
@@ -1299,8 +1302,8 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                                                     label: Text(
                                                       _deletingSessionId ==
                                                               row['session_id']
-                                                          ? '刪除中'
-                                                          : '刪除',
+                                                          ? 'Deleting...'
+                                                          : 'Delete',
                                                     ),
                                                   );
 
@@ -1356,17 +1359,19 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 760;
-          const titleBlock = Column(
+          final titleBlock = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '報告總覽',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                'Report Overview',
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
               ),
-              SizedBox(height: 4),
+              SizedBox(height: 6),
               Text(
-                '手機端上報的 AI 分析報告會自動同步到此頁面',
+                'AI analysis reports submitted from mobile will sync here automatically',
                 style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           );
@@ -1379,10 +1384,10 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
               OutlinedButton.icon(
                 onPressed: _loadReports,
                 icon: const Icon(Icons.refresh, size: 18),
-                label: const Text('刷新'),
+                label: const Text('Refresh'),
               ),
               Text(
-                '共 ${_reports.length} 筆報告',
+                'Total ${_reports.length} reports',
                 style: const TextStyle(
                   color: AppTheme.textSecondary,
                   fontSize: 14,
@@ -1404,8 +1409,10 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
 
           return Row(
             children: [
-              titleBlock,
-              const Spacer(),
+              Expanded(
+                child: titleBlock,
+              ),
+              const SizedBox(width: 24),
               actions,
             ],
           );
@@ -1424,7 +1431,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
 
     final cards = [
       _clickableStatCard(
-        label: '全部報告',
+        label: 'All Reports',
         value: '$total',
         color: AppTheme.primaryColor,
         icon: Icons.description,
@@ -1435,7 +1442,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
         },
       ),
       _clickableStatCard(
-        label: '高風險',
+        label: 'High Risk',
         value: '$high',
         color: AppTheme.riskHigh,
         icon: Icons.warning,
@@ -1446,7 +1453,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
         },
       ),
       _clickableStatCard(
-        label: '中風險',
+        label: 'Medium Risk',
         value: '$medium',
         color: AppTheme.riskMedium,
         icon: Icons.info,
@@ -1457,7 +1464,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
         },
       ),
       _clickableStatCard(
-        label: '低風險',
+        label: 'Low Risk',
         value: '$low',
         color: AppTheme.riskLow,
         icon: Icons.check_circle,
@@ -1671,21 +1678,22 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
       child: Row(
         children: [
-          const Text('風險等級:', style: TextStyle(fontWeight: FontWeight.w600)),
+          const Text('Risk level:',
+              style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(width: 12),
-          _filterChip('全部', 'all', _filterRiskLevel, (v) {
+          _filterChip('All', 'all', _filterRiskLevel, (v) {
             setState(() => _filterRiskLevel = v);
             _loadReports();
           }),
-          _filterChip('高風險', 'high', _filterRiskLevel, (v) {
+          _filterChip('High Risk', 'high', _filterRiskLevel, (v) {
             setState(() => _filterRiskLevel = v);
             _loadReports();
           }),
-          _filterChip('中風險', 'medium', _filterRiskLevel, (v) {
+          _filterChip('Medium Risk', 'medium', _filterRiskLevel, (v) {
             setState(() => _filterRiskLevel = v);
             _loadReports();
           }),
-          _filterChip('低風險', 'low', _filterRiskLevel, (v) {
+          _filterChip('Low Risk', 'low', _filterRiskLevel, (v) {
             setState(() => _filterRiskLevel = v);
             _loadReports();
           }),
@@ -1699,7 +1707,8 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                     : Icons.check_box_outline_blank,
                 size: 18,
               ),
-              label: Text(_areAllReportsSelected ? '取消全選' : '全選'),
+              label:
+                  Text(_areAllReportsSelected ? 'Unselect All' : 'Select All'),
             ),
           const SizedBox(width: 8),
           if (selectedCount > 0)
@@ -1718,7 +1727,9 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                     )
                   : const Icon(Icons.delete_sweep_outlined, size: 18),
               label: Text(
-                _isBatchDeletingReports ? '刪除中...' : '刪除已選取 ($selectedCount)',
+                _isBatchDeletingReports
+                    ? 'Deleting...'
+                    : 'Delete Selected ($selectedCount)',
               ),
             ),
         ],
@@ -1760,7 +1771,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
             const SizedBox(height: 12),
             Text(_error!, style: const TextStyle(color: Colors.red)),
             const SizedBox(height: 12),
-            ElevatedButton(onPressed: _loadReports, child: const Text('重試')),
+            ElevatedButton(onPressed: _loadReports, child: const Text('Retry')),
           ],
         ),
       );
@@ -1773,12 +1784,12 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
             Icon(Icons.inbox, size: 64, color: AppTheme.textSecondary),
             SizedBox(height: 16),
             Text(
-              '尚無報告',
+              'No reports yet',
               style: TextStyle(fontSize: 18, color: AppTheme.textSecondary),
             ),
             SizedBox(height: 8),
             Text(
-              '手機端上報後會自動同步到此頁面（每15秒刷新一次）',
+              'Reports from mobile will sync to this page automatically (refreshes every 15 seconds)',
               style: TextStyle(color: AppTheme.textSecondary),
             ),
           ],
@@ -1826,22 +1837,22 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                       label: Text('#',
                           style: TextStyle(fontWeight: FontWeight.bold))),
                   DataColumn(
-                      label: Text('標題',
+                      label: Text('Title',
                           style: TextStyle(fontWeight: FontWeight.bold))),
                   DataColumn(
-                      label: Text('類別',
+                      label: Text('Category',
                           style: TextStyle(fontWeight: FontWeight.bold))),
                   DataColumn(
-                      label: Text('風險等級',
+                      label: Text('Risk Level',
                           style: TextStyle(fontWeight: FontWeight.bold))),
                   DataColumn(
-                      label: Text('狀態',
+                      label: Text('Status',
                           style: TextStyle(fontWeight: FontWeight.bold))),
                   DataColumn(
-                      label: Text('日期',
+                      label: Text('Date',
                           style: TextStyle(fontWeight: FontWeight.bold))),
                   DataColumn(
-                      label: Text('操作',
+                      label: Text('Actions',
                           style: TextStyle(fontWeight: FontWeight.bold))),
                 ],
                 rows: _reports.asMap().entries.map((entry) {
@@ -1921,7 +1932,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 200),
             child: Text(
-              report['title'] ?? '無標題',
+              report['title'] ?? 'Untitled',
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
@@ -1944,13 +1955,13 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
               IconButton(
                 icon: const Icon(Icons.visibility, size: 20),
                 color: AppTheme.primaryColor,
-                tooltip: '查看 / 編輯',
+                tooltip: 'View / Edit',
                 onPressed: () => _openDetail(report),
               ),
               IconButton(
                 icon: const Icon(Icons.delete_outline, size: 20),
                 color: Colors.red.shade300,
-                tooltip: '刪除',
+                tooltip: 'Delete',
                 onPressed: () => _confirmDelete(report),
               ),
             ],
@@ -1966,15 +1977,15 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
     switch (status) {
       case 'resolved':
         color = Colors.green;
-        label = '已解決';
+        label = 'Resolved';
         break;
       case 'in_progress':
         color = Colors.orange;
-        label = '處理中';
+        label = 'In Progress';
         break;
       default:
         color = Colors.grey;
-        label = '待處理';
+        label = 'Pending';
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -1990,12 +2001,12 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
 
   String _categoryLabel(String category) {
     const map = {
-      'structural': '結構性問題',
-      'exterior': '外牆問題',
-      'public_area': '公共區域',
-      'electrical': '電氣問題',
-      'plumbing': '水管問題',
-      'other': '其他',
+      'structural': 'Structural Issue',
+      'exterior': 'Exterior Issue',
+      'public_area': 'Public Area',
+      'electrical': 'Electrical Issue',
+      'plumbing': 'Plumbing Issue',
+      'other': 'Other',
     };
     return map[category] ?? category;
   }
@@ -2049,14 +2060,14 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('確認批次刪除'),
+        title: const Text('Confirm batch delete'),
         content: Text(
-          '確定要刪除 ${selectedReports.length} 筆報告嗎？\n\n將同時刪除這些報告對應的 Pin，且無法復原。',
+          'Delete ${selectedReports.length} reports?\n\nLinked pins will also be deleted and cannot be restored.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
+            child: const Text('Cancel'),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
@@ -2064,7 +2075,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
               Navigator.pop(ctx);
               await _deleteReportsInBatch(selectedReports);
             },
-            child: const Text('刪除'),
+            child: const Text('Delete'),
           ),
         ],
       ),
@@ -2097,8 +2108,8 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
       SnackBar(
         content: Text(
           failed == 0
-              ? '已刪除 $success 筆報告與對應 Pin'
-              : '已刪除 $success 筆，失敗 $failed 筆',
+              ? 'Deleted $success reports and linked pins'
+              : 'Deleted $success reports, failed $failed',
         ),
       ),
     );
@@ -2109,12 +2120,12 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('確認刪除'),
-        content:
-            Text('確定要刪除報告「${report['title']}」嗎？\n\n將同時刪除此報告對應的 Pin，且無法復原。'),
+        title: const Text('Confirm delete'),
+        content: Text(
+            'Delete report "${report['title']}"?\n\nIts linked pin will also be deleted and cannot be restored.'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () async {
@@ -2123,20 +2134,21 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                 await _deleteSingleReportWithPin(report);
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('報告與對應 Pin 已刪除')),
+                    const SnackBar(
+                        content: Text('Report and linked pin deleted')),
                   );
                 }
               } catch (e) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('刪除失敗: $e')),
+                    SnackBar(content: Text('Delete failed: $e')),
                   );
                 }
               } finally {
                 _loadReports();
               }
             },
-            child: const Text('刪除'),
+            child: const Text('Delete'),
           ),
         ],
       ),
@@ -2163,7 +2175,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
         ),
         alignment: Alignment.center,
         child: Text(
-          '此報告無現場照片',
+          'No site photo for this report',
           style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
         ),
       );
@@ -2184,7 +2196,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                       color: Colors.grey.shade100,
                       alignment: Alignment.center,
                       child: Text(
-                        '照片載入失敗',
+                        'Failed to load image',
                         style: TextStyle(
                             color: Colors.grey.shade600, fontSize: 12),
                       ),
@@ -2200,7 +2212,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
 
   String _singleLine(String text) {
     final normalized = text.trim().replaceAll(RegExp(r'\s+'), ' ');
-    return normalized.isEmpty ? '未填寫' : normalized;
+    return normalized.isEmpty ? 'Not provided' : normalized;
   }
 
   String _conversationSummary(Map<String, dynamic> report) {
@@ -2232,7 +2244,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
     if (notes.trim().isNotEmpty) return _singleLine(notes);
     final worker = report['worker_response']?.toString() ?? '';
     if (worker.trim().isNotEmpty) return _singleLine(worker);
-    return '尚無對話';
+    return 'No conversation yet';
   }
 
   Future<void> _deleteRelatedPinForReport(Map<String, dynamic> report) async {
@@ -2523,7 +2535,7 @@ class _FloorPlanPreviewWithPinsState extends State<_FloorPlanPreviewWithPins> {
       return Container(
         color: Colors.grey.shade100,
         alignment: Alignment.center,
-        child: const Text('無圖片'),
+        child: const Text('No image'),
       );
     }
 
@@ -2554,7 +2566,7 @@ class _FloorPlanPreviewWithPinsState extends State<_FloorPlanPreviewWithPins> {
                   image: provider,
                   fit: BoxFit.contain,
                   errorBuilder: (_, __, ___) => const Center(
-                    child: Text('樓層圖載入失敗'),
+                    child: Text('Failed to load floor plan'),
                   ),
                 ),
               ),

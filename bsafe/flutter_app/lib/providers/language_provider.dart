@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 enum AppLanguage { zh, en }
 
 class LanguageProvider extends ChangeNotifier {
-  AppLanguage _language = AppLanguage.zh;
+  AppLanguage _language = AppLanguage.en;
 
   AppLanguage get language => _language;
   bool get isEnglish => _language == AppLanguage.en;
@@ -15,98 +15,13 @@ class LanguageProvider extends ChangeNotifier {
   }
 
   String t(String key) {
-    final table = isEnglish ? _en : _zh;
-    return table[key] ?? key;
+    return _en[key] ?? key;
   }
-
-  static const Map<String, String> _zh = {
-    'settings': '設定',
-    'language': '語言',
-    'chinese': '中文',
-    'english': 'English',
-    'online': '在線',
-    'offline': '離線',
-    'switched_online': '已切換到在線模式',
-    'switched_offline': '已切換到離線模式',
-    'manual_offline_hint': '手動離線模式 - 點擊右上角圖標切換',
-    'offline_sync_hint': '離線模式 - 資料將在恢復連線後同步',
-    'nav_home': '首頁',
-    'nav_report': '上報',
-    'nav_history': '記錄',
-    'nav_analysis': '分析',
-    'nav_followup': '跟進',
-    'nav_location': '位置',
-    'monitor_title': '建築安全監測',
-    'monitor_count_prefix': '共監測',
-    'monitor_count_suffix': '個問題報告',
-    'pending_sync_suffix': '個待同步',
-    'risk_overview': '風險概覽',
-    'high_risk': '高風險',
-    'medium_risk': '中風險',
-    'low_risk': '低風險',
-    'pending': '待處理',
-    'in_progress': '處理中',
-    'resolved': '已解決',
-    'quick_report': '快速上報',
-    // Report Screen
-    'take_photo': '拍照',
-    'take_photo_desc': '開啟相機',
-    'gallery': '相簿',
-    'select_photo_desc': '選擇照片',
-    'take_building_photo': '拍攝建築損壞照片',
-    'ai_analyze_category_severity': 'AI 將自動分析問題類別和嚴重程度',
-    'ai_analyzing': '🤖 AI 正在分析環境...',
-    'identify_safety_risks': '智能識別安全風險',
-    'upload_photo': '請先上傳照片',
-    'wait_ai_analysis': '請等待 AI 分析完成',
-    'no_defect_detected': '目前結果為「未檢測到明顯缺陷 / 證據不足」，不建議提交問題單',
-    'ai_complete': '✨ AI 分析完成！',
-    'ai_defect_found': '✅ AI 分析完成（已檢測到問題）',
-    'ai_no_defect': 'ℹ️ AI 分析完成（未檢測到明顯缺陷）',
-    'ai_invalid_result': 'AI 未返回有效結果，請重試',
-    'ai_analysis_failed': 'AI 分析失敗: ',
-    'submit_success': '✅ 報告已成功提交！正在跳轉到紀錄頁面...',
-    'submit_failed': '提交失敗: ',
-    'building_safety_issue': '建築安全問題',
-    'ai_auto_detect': 'AI 自動檢測',
-    'positioning': '定位中（UWB）',
-    'ai_no_obvious_defect': '影像證據不足 / 未檢測到缺陷',
-    'ai_building_damage': '建築損壞',
-    'ai_auto_detect_building_damage': 'AI 自動檢測到建築損壞',
-    // History Screen
-    'history': '歷史記錄',
-    'sync_to_cloud': '同步到雲端',
-    'synced_success': '已同步',
-    'synced_count': '筆報告到雲端',
-    'all_updated': '所有報告已是最新',
-    'search_report': '搜索報告...',
-    'all': '全部',
-    'filter_conditions': '篩選條件',
-    'status': '狀態',
-    'confirm': '確定',
-    'no_matching_report': '沒有符合條件的報告',
-    'no_report_yet': '暫無報告記錄',
-    // Analysis Screen
-    'risk_distribution': '📊 風險分佈',
-    'trend_7days': '📈 近7天趨勢',
-    'processing_status': '📋 處理狀態',
-    'summary_stats': '📊 彙總統計',
-    'high_abbr': '高',
-    'medium_abbr': '中',
-    'low_abbr': '低',
-    'empty_data': '暫無數據',
-    // Location Screen
-    'positioning_map': '定位地圖',
-    'data_details': '數據詳情',
-    'device_settings': '設備設定',
-    'error_occurred': '發生錯誤',
-    'dismiss': '關閉',
-  };
 
   static const Map<String, String> _en = {
     'settings': 'Settings',
     'language': 'Language',
-    'chinese': '中文',
+    'chinese': 'Chinese',
     'english': 'English',
     'online': 'Online',
     'offline': 'Offline',

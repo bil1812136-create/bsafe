@@ -24,7 +24,7 @@
 cd "C:\bsafe-1\ai api app"
 
 # 設定 Gemini API Key
-$env:GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
+$env:GEMINI_API_KEY=""
 
 # 執行應用程式
 flutter run -d R5CR30PFFTN --dart-define=GEMINI_API_KEY=$env:GEMINI_API_KEY

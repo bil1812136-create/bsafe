@@ -273,7 +273,7 @@ class _FloorPlanPinCanvasState extends State<_FloorPlanPinCanvas> {
               children: [
                 const Positioned.fill(
                   child: Center(
-                    child: Text('無樓層圖 / 無定位圖',
+                    child: Text('No floor plan / No location map',
                         style: TextStyle(color: Colors.grey)),
                   ),
                 ),
@@ -330,7 +330,7 @@ class _FloorPlanPinCanvasState extends State<_FloorPlanPinCanvas> {
                   errorBuilder: (_, __, ___) => Container(
                     color: Colors.grey.shade100,
                     alignment: Alignment.center,
-                    child: const Text('樓層圖載入失敗'),
+                    child: const Text('Failed to load floor plan'),
                   ),
                 ),
               ),
@@ -978,7 +978,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
                   children: [
                     Icon(Icons.message, color: Colors.white),
                     SizedBox(width: 8),
-                    Text('收到新消息'),
+                    Text('New message received'),
                   ],
                 ),
                 backgroundColor: Colors.blue,
@@ -1183,7 +1183,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
               children: [
                 Icon(Icons.check_circle, color: Colors.white),
                 SizedBox(width: 8),
-                Text('報告已儲存'),
+                Text('Report saved'),
               ],
             ),
             backgroundColor: Colors.green,
@@ -1195,7 +1195,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
         setState(() => _isSaving = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('儲存失敗: $e'),
+            content: Text('Save failed: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -1259,7 +1259,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
               children: [
                 Icon(Icons.check_circle, color: Colors.white),
                 SizedBox(width: 8),
-                Text('訊息已發送'),
+                Text('Message sent'),
               ],
             ),
             backgroundColor: Colors.green,
@@ -1271,7 +1271,8 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
       if (mounted) {
         setState(() => _isSendingMessage = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('發送失敗: $e'), backgroundColor: Colors.red),
+          SnackBar(
+              content: Text('Send failed: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -1293,7 +1294,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF0F2F5),
       appBar: AppBar(
-        title: const Text('報告詳情 / 編輯'),
+        title: const Text('Report Details / Edit'),
         actions: [
           if (_hasChanges)
             Padding(
@@ -1308,7 +1309,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
                             strokeWidth: 2, color: Colors.white))
                     : const Icon(Icons.save, color: Colors.white),
                 label: Text(
-                  _isSaving ? '儲存中...' : '儲存變更',
+                  _isSaving ? 'Saving...' : 'Save changes',
                   style: const TextStyle(color: Colors.white),
                 ),
               ),
@@ -1348,14 +1349,14 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildEditableSection(
-                    title: '報告標題',
+                    title: 'Report Title',
                     icon: Icons.title,
                     controller: _titleController,
                     maxLines: 1,
                   ),
                   const SizedBox(height: 24),
                   _buildEditableSection(
-                    title: 'AI 分析結果（可修改）',
+                    title: 'AI Analysis (Editable)',
                     icon: Icons.smart_toy,
                     controller: _analysisController,
                     maxLines: 1,
@@ -1379,7 +1380,8 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
                                 child: CircularProgressIndicator(
                                     strokeWidth: 2, color: Colors.white))
                             : const Icon(Icons.save),
-                        label: Text(_isSaving ? '儲存中...' : '儲存所有變更'),
+                        label:
+                            Text(_isSaving ? 'Saving...' : 'Save all changes'),
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
@@ -1409,7 +1411,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
               Icon(Icons.forum, color: Colors.blue.shade700, size: 20),
               const SizedBox(width: 8),
               Text(
-                '跟進對話',
+                'Follow-up Conversation',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
@@ -1424,7 +1426,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  '${_conversation.length} 條訊息',
+                  '${_conversation.length} messages',
                   style: TextStyle(
                     color: Colors.blue.shade700,
                     fontSize: 11,
@@ -1448,7 +1450,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
                     padding: EdgeInsets.all(32),
                     child: Center(
                       child: Text(
-                        '尚無對話記錄\n在下方輸入跟進任務開始對話',
+                        'No conversation yet\nType below to start a follow-up task',
                         textAlign: TextAlign.center,
                         style: TextStyle(color: Colors.grey, fontSize: 14),
                       ),
@@ -1474,7 +1476,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
                   controller: _convoInputController,
                   maxLines: 2,
                   decoration: InputDecoration(
-                    hintText: '輸入跟進任務或回覆...',
+                    hintText: 'Type follow-up task or reply...',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide(color: Colors.blue.shade200),
@@ -1506,7 +1508,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
                           child: CircularProgressIndicator(
                               strokeWidth: 2, color: Colors.white))
                       : const Icon(Icons.send, size: 18),
-                  label: Text(_isSendingMessage ? '...' : '發送'),
+                  label: Text(_isSendingMessage ? '...' : 'Send'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue.shade600,
                     foregroundColor: Colors.white,
@@ -1565,7 +1567,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        isCompany ? '公司' : '工人',
+                        isCompany ? 'Company' : 'Inspector',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
@@ -1711,7 +1713,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
             children: [
               Icon(Icons.photo, color: AppTheme.primaryColor, size: 20),
               SizedBox(width: 8),
-              Text('現場照片',
+              Text('Site Photo',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             ],
           ),
@@ -1766,7 +1768,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
         children: [
           Icon(Icons.image_not_supported, size: 48, color: Colors.grey),
           SizedBox(height: 8),
-          Text('無照片', style: TextStyle(color: Colors.grey)),
+          Text('No photo', style: TextStyle(color: Colors.grey)),
         ],
       ),
     );
@@ -1781,14 +1783,15 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
             children: [
               Icon(Icons.info_outline, color: AppTheme.primaryColor, size: 20),
               SizedBox(width: 8),
-              Text('基本資訊',
+              Text('Basic Information',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             ],
           ),
           const SizedBox(height: 16),
-          _infoRow('類別', _categoryLabel(widget.report['category'] ?? '')),
-          _infoRow('位置', _buildLocationSummary(widget.report['location'])),
-          _infoRow('建立時間', createdAt),
+          _infoRow('Category', _categoryLabel(widget.report['category'] ?? '')),
+          _infoRow(
+              'Location', _buildLocationSummary(widget.report['location'])),
+          _infoRow('Created At', createdAt),
           const Divider(height: 24),
           // 風險指標
           Container(
@@ -1810,7 +1813,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                const Text('風險等級',
+                const Text('Risk Level',
                     style:
                         TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
               ],
@@ -1834,7 +1837,9 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
               const Icon(Icons.map, color: AppTheme.primaryColor, size: 20),
               const SizedBox(width: 8),
               Text(
-                _floorNumber != null ? '樓層圖（${_floorNumber}F）' : '樓層圖',
+                _floorNumber != null
+                    ? 'Floor Plan (${_floorNumber}F)'
+                    : 'Floor Plan',
                 style:
                     const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
@@ -1856,11 +1861,11 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
               const Icon(Icons.photo_library_outlined,
                   color: AppTheme.primaryColor, size: 18),
               const SizedBox(width: 8),
-              const Text('Pin 對應現場照片',
+              const Text('Pin-linked Site Photo',
                   style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
               const Spacer(),
               IconButton(
-                tooltip: _showLinkedPhoto ? '縮小照片' : '展開照片',
+                tooltip: _showLinkedPhoto ? 'Shrink photo' : 'Expand photo',
                 onPressed: () {
                   setState(() {
                     _showLinkedPhoto = !_showLinkedPhoto;
@@ -1909,7 +1914,8 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
         return Container(
           color: Colors.grey.shade100,
           child: const Center(
-            child: Text('無樓層圖 / 無定位圖', style: TextStyle(color: Colors.grey)),
+            child: Text('No floor plan / No location map',
+                style: TextStyle(color: Colors.grey)),
           ),
         );
       }
@@ -1931,8 +1937,8 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
                 errorBuilder: (_, __, ___) => Container(
                   color: Colors.grey.shade100,
                   child: const Center(
-                    child:
-                        Text('樓層圖載入失敗', style: TextStyle(color: Colors.grey)),
+                    child: Text('Failed to load floor plan',
+                        style: TextStyle(color: Colors.grey)),
                   ),
                 ),
               );
@@ -1940,7 +1946,8 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
             return Container(
               color: Colors.grey.shade100,
               child: const Center(
-                child: Text('樓層圖載入失敗', style: TextStyle(color: Colors.grey)),
+                child: Text('Failed to load floor plan',
+                    style: TextStyle(color: Colors.grey)),
               ),
             );
           },
@@ -1952,7 +1959,8 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
           errorBuilder: (_, __, ___) => Container(
             color: Colors.grey.shade100,
             child: const Center(
-              child: Text('樓層圖載入失敗', style: TextStyle(color: Colors.grey)),
+              child: Text('Failed to load floor plan',
+                  style: TextStyle(color: Colors.grey)),
             ),
           ),
         );
@@ -1960,7 +1968,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
       return Container(
         color: Colors.grey.shade100,
         child: const Center(
-          child: Text('無樓層圖', style: TextStyle(color: Colors.grey)),
+          child: Text('No floor plan', style: TextStyle(color: Colors.grey)),
         ),
       );
     }
@@ -1976,7 +1984,8 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
       return Container(
         color: Colors.grey.shade100,
         child: const Center(
-          child: Text('無樓層圖 / 無定位圖', style: TextStyle(color: Colors.grey)),
+          child: Text('No floor plan / No location map',
+              style: TextStyle(color: Colors.grey)),
         ),
       );
     }
@@ -2014,25 +2023,27 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
             children: [
               Icon(Icons.flag, color: AppTheme.primaryColor, size: 20),
               SizedBox(width: 8),
-              Text('處理狀態',
+              Text('Processing Status',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             ],
           ),
           const SizedBox(height: 16),
-          _statusOption('pending', '待處理', Icons.pending, Colors.grey),
-          _statusOption('in_progress', '處理中', Icons.engineering, Colors.orange),
-          _statusOption('resolved', '已解決', Icons.check_circle, Colors.green),
+          _statusOption('pending', 'Pending', Icons.pending, Colors.grey),
+          _statusOption(
+              'in_progress', 'In Progress', Icons.engineering, Colors.orange),
+          _statusOption(
+              'resolved', 'Resolved', Icons.check_circle, Colors.green),
           const Divider(height: 24),
-          const Text('嚴重程度',
+          const Text('Severity',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
           const SizedBox(height: 8),
           Row(
             children: [
-              _severityOption('mild', '輕微', Colors.green),
+              _severityOption('mild', 'Mild', Colors.green),
               const SizedBox(width: 8),
-              _severityOption('moderate', '中度', Colors.orange),
+              _severityOption('moderate', 'Moderate', Colors.orange),
               const SizedBox(width: 8),
-              _severityOption('severe', '嚴重', Colors.red),
+              _severityOption('severe', 'Severe', Colors.red),
             ],
           ),
         ],
@@ -2111,7 +2122,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
-                      '風險等級已更新',
+                      'Risk level updated',
                       style: TextStyle(
                         fontSize: 11,
                         color: color,
@@ -2163,7 +2174,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    '可編輯',
+                    'Editable',
                     style: TextStyle(
                       color: color,
                       fontSize: 11,
@@ -2208,7 +2219,8 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
                 filled: true,
                 fillColor:
                     highlight ? color.withOpacity(0.03) : Colors.grey.shade50,
-                hintText: hintText ?? (highlight ? '在此修改 AI 分析內容...' : null),
+                hintText:
+                    hintText ?? (highlight ? 'Edit AI analysis here...' : null),
               ),
               style: TextStyle(
                 fontSize: 14,
@@ -2247,7 +2259,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
           minLines: 4,
           maxLines: 10,
           decoration: InputDecoration(
-            hintText: '請輸入或修改 Image Defect Analysis 內容...',
+            hintText: 'Please enter or edit Image Defect Analysis content...',
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide(color: Colors.deepOrange.withOpacity(0.3)),
@@ -2285,7 +2297,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
           minLines: 2,
           maxLines: 4,
           decoration: InputDecoration(
-            hintText: '請輸入或修改 $label 內容...',
+            hintText: 'Please enter or edit $label content...',
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide(color: Colors.deepOrange.withOpacity(0.3)),
@@ -2348,7 +2360,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
   }
 
   String _buildLocationSummary(String? location) {
-    if (location == null || location.isEmpty) return '未指定';
+    if (location == null || location.isEmpty) return 'Unspecified';
 
     final trimmed = location.trim();
     final refIndex = trimmed.indexOf('ref:');
@@ -2359,20 +2371,20 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
     final ref = _extractInspectionRefFromLocation(location);
     final floor = ref['floor'];
     if (floor != null) {
-      final base = baseLocation.isEmpty ? '未指定位置' : baseLocation;
+      final base = baseLocation.isEmpty ? 'Unspecified location' : baseLocation;
       return '$base (F$floor)';
     }
-    return baseLocation.isEmpty ? '未指定位置' : baseLocation;
+    return baseLocation.isEmpty ? 'Unspecified location' : baseLocation;
   }
 
   String _categoryLabel(String category) {
     const map = {
-      'structural': '結構性問題',
-      'exterior': '外牆問題',
-      'public_area': '公共區域',
-      'electrical': '電氣問題',
-      'plumbing': '水管問題',
-      'other': '其他',
+      'structural': 'Structural Issue',
+      'exterior': 'Exterior Issue',
+      'public_area': 'Public Area',
+      'electrical': 'Electrical Issue',
+      'plumbing': 'Plumbing Issue',
+      'other': 'Other',
     };
     return map[category] ?? category;
   }

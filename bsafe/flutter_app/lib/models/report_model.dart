@@ -344,17 +344,17 @@ class ReportModel {
   static String getCategoryLabel(String category) {
     switch (category) {
       case 'structural':
-        return '結構性問題';
+        return 'Structural Issue';
       case 'exterior':
-        return '外牆問題';
+        return 'Exterior Issue';
       case 'public_area':
-        return '公共區域';
+        return 'Public Area';
       case 'electrical':
-        return '電氣問題';
+        return 'Electrical Issue';
       case 'plumbing':
-        return '水管問題';
+        return 'Plumbing Issue';
       case 'other':
-        return '其他';
+        return 'Other';
       default:
         return category;
     }
@@ -364,11 +364,11 @@ class ReportModel {
   static String getSeverityLabel(String severity) {
     switch (severity) {
       case 'mild':
-        return '輕微';
+        return 'Mild';
       case 'moderate':
-        return '中度';
+        return 'Moderate';
       case 'severe':
-        return '嚴重';
+        return 'Severe';
       default:
         return severity;
     }
@@ -376,18 +376,18 @@ class ReportModel {
 
   // All categories
   static List<Map<String, String>> get categories => [
-        {'value': 'structural', 'label': '結構性問題', 'icon': '🏗️'},
-        {'value': 'exterior', 'label': '外牆問題', 'icon': '🧱'},
-        {'value': 'public_area', 'label': '公共區域', 'icon': '🚪'},
-        {'value': 'electrical', 'label': '電氣問題', 'icon': '⚡'},
-        {'value': 'plumbing', 'label': '水管問題', 'icon': '🚰'},
-        {'value': 'other', 'label': '其他', 'icon': '📋'},
+        {'value': 'structural', 'label': 'Structural Issue', 'icon': '🏗️'},
+        {'value': 'exterior', 'label': 'Exterior Issue', 'icon': '🧱'},
+        {'value': 'public_area', 'label': 'Public Area', 'icon': '🚪'},
+        {'value': 'electrical', 'label': 'Electrical Issue', 'icon': '⚡'},
+        {'value': 'plumbing', 'label': 'Plumbing Issue', 'icon': '🚰'},
+        {'value': 'other', 'label': 'Other', 'icon': '📋'},
       ];
 
   // All severities
   static List<Map<String, String>> get severities => [
-        {'value': 'mild', 'label': '輕微'},
-        {'value': 'moderate', 'label': '中度'},
-        {'value': 'severe', 'label': '嚴重'},
+        {'value': 'mild', 'label': 'Mild'},
+        {'value': 'moderate', 'label': 'Moderate'},
+        {'value': 'severe', 'label': 'Severe'},
       ];
 }

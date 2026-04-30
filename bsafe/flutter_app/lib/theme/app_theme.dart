@@ -39,13 +39,13 @@ class AppTheme {
   static String getRiskLabel(String level) {
     switch (level.toLowerCase()) {
       case 'high':
-        return '高風險';
+        return 'High Risk';
       case 'medium':
-        return '中風險';
+        return 'Medium Risk';
       case 'low':
-        return '低風險';
+        return 'Low Risk';
       default:
-        return '未評估';
+        return 'Not Assessed';
     }
   }
 

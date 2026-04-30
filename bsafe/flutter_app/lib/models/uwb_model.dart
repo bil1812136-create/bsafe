@@ -131,8 +131,8 @@ class UwbConfig {
   final List<int> distanceIndexMap; // 距離索引映射 [0,1,2,3] = 預設, 可調整數據D0~D3對應哪個基站
 
   UwbConfig({
-    this.positioningMode = '二維定位',
-    this.algorithm = '卡爾曼/平均算法',
+    this.positioningMode = '2D Positioning',
+    this.algorithm = 'Kalman/Average Algorithm',
     this.areaRadius1 = 2.0,
     this.areaRadius2 = 4.0,
     this.showTrajectory = true,

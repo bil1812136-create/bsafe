@@ -18,7 +18,7 @@ void main() async {
       url: SupabaseService.supabaseUrl,
       anonKey: SupabaseService.supabaseAnonKey,
     );
-    debugPrint('✅ Web Dashboard: Supabase 已連接');
+    debugPrint('✅ Web Dashboard: Supabase connected');
   }
 
   runApp(const BSafeWebApp());
@@ -30,7 +30,7 @@ class BSafeWebApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'B-SAFE 管理後台',
+      title: 'B-SAFE Admin Dashboard',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme.copyWith(
         scaffoldBackgroundColor: const Color(0xFFF0F2F5),

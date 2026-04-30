@@ -9,7 +9,6 @@ import 'package:bsafe_app/providers/inspection_provider.dart';
 import 'package:bsafe_app/providers/language_provider.dart';
 import 'package:bsafe_app/providers/navigation_provider.dart';
 import 'package:bsafe_app/screens/home_screen.dart';
-import 'package:bsafe_app/screens/report_screen.dart';
 import 'package:bsafe_app/screens/history_screen.dart';
 import 'package:bsafe_app/screens/analysis_screen.dart';
 import 'package:bsafe_app/screens/inspection_screen.dart';
@@ -35,12 +34,12 @@ void main() async {
         url: SupabaseService.supabaseUrl,
         anonKey: SupabaseService.supabaseAnonKey,
       );
-      debugPrint('✅ Supabase 雲端已連接');
+      debugPrint('✅ Supabase connected');
     } catch (e) {
-      debugPrint('⚠️ Supabase 初始化失敗（離線模式）: $e');
+      debugPrint('⚠️ Supabase initialization failed (offline mode): $e');
     }
   } else {
-    debugPrint('ℹ️ Supabase 未設定，使用純本地模式');
+    debugPrint('ℹ️ Supabase not configured, using local-only mode');
   }
 
   runApp(const BSafeApp());
@@ -60,7 +59,7 @@ class BSafeApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => NavigationProvider()),
       ],
       child: MaterialApp(
-        title: 'B-SAFE 建築安全',
+        title: 'B-SAFE Building Safety',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
         home: const MainNavigationScreen(),
@@ -79,7 +78,6 @@ class MainNavigationScreen extends StatefulWidget {
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   final List<Widget> _screens = [
     const HomeScreen(),
-    const ReportScreen(),
     const HistoryScreen(),
     const AnalysisScreen(),
     const FollowUpScreen(),
@@ -97,7 +95,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         reportProvider.reports.where((r) => r.hasUnreadCompany).length;
 
     return Scaffold(
-      appBar: currentIndex == 5
+      appBar: currentIndex == 4
           ? null // 位置頁面（InspectionScreen）有自己的 AppBar
           : AppBar(
               title: Row(
@@ -189,7 +187,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       body: Column(
         children: [
           // Offline Banner（位置頁面不顯示，因為它有自己的 UI）
-          if (!connectivityProvider.isOnline && currentIndex != 5)
+          if (!connectivityProvider.isOnline && currentIndex != 4)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
@@ -268,11 +266,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                     icon: const Icon(Icons.home_rounded),
                     activeIcon: const Icon(Icons.home_rounded),
                     label: languageProvider.t('nav_home'),
-                  ),
-                  BottomNavigationBarItem(
-                    icon: const Icon(Icons.camera_alt_rounded),
-                    activeIcon: const Icon(Icons.camera_alt_rounded),
-                    label: languageProvider.t('nav_report'),
                   ),
                   BottomNavigationBarItem(
                     icon: const Icon(Icons.history_rounded),

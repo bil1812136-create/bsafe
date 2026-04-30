@@ -264,7 +264,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
   }
 
   String _buildLocationSummary(String? location) {
-    if (location == null || location.isEmpty) return '未指定';
+    if (location == null || location.isEmpty) return 'Unspecified';
 
     final trimmed = location.trim();
     final refIndex = trimmed.indexOf('ref:');
@@ -281,10 +281,10 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     final ref = _extractInspectionRefFromLocation(location);
     final floor = ref['floor'];
     if (floor != null) {
-      final base = baseLocation.isEmpty ? '未指定位置' : baseLocation;
+      final base = baseLocation.isEmpty ? 'Unspecified location' : baseLocation;
       return '$base (F$floor)';
     }
-    return baseLocation.isEmpty ? '未指定位置' : baseLocation;
+    return baseLocation.isEmpty ? 'Unspecified location' : baseLocation;
   }
 
   @override
@@ -298,11 +298,11 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('報告詳情'),
+        title: const Text('Report Details'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            tooltip: '從雲端刷新',
+            tooltip: 'Refresh from cloud',
             onPressed: () async {
               await context.read<ReportProvider>().refreshFromCloud();
               // 重新取得最新報告
@@ -315,7 +315,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                 setState(() => _report = updated);
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text('已從雲端刷新'),
+                    content: Text('Refreshed from cloud'),
                     duration: Duration(seconds: 1),
                   ),
                 );
@@ -382,7 +382,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          '未同步',
+                          'Not Synced',
                           style: TextStyle(
                             color: Colors.orange.shade600,
                             fontSize: 14,
@@ -405,7 +405,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Text(
-                        '⚠️ 需緊急處理',
+                        '⚠️ Urgent Action Required',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 12,
@@ -418,20 +418,20 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
 
                   // Details Section
                   _DetailSection(
-                    title: '問題類別',
+                    title: 'Issue Category',
                     icon: Icons.category,
                     content: ReportModel.getCategoryLabel(_report.category),
                   ),
 
                   _DetailSection(
-                    title: '嚴重程度',
+                    title: 'Severity',
                     icon: Icons.warning_amber,
                     content: ReportModel.getSeverityLabel(_report.severity),
                   ),
 
                   if (_report.location != null && _report.location!.isNotEmpty)
                     _DetailSection(
-                      title: '位置資訊',
+                      title: 'Location',
                       icon: Icons.location_on,
                       content: _buildLocationSummary(_report.location),
                     ),
@@ -439,7 +439,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                   if (_report.aiAnalysis != null &&
                       _report.aiAnalysis!.isNotEmpty)
                     _DetailSection(
-                      title: 'AI 分析結果',
+                      title: 'AI Analysis',
                       icon: Icons.auto_awesome,
                       content: _report.aiAnalysis!,
                     ),
@@ -449,7 +449,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
 
                   // Status Section
                   const Text(
-                    '處理狀態',
+                    'Processing Status',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -482,7 +482,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                     );
                   },
                   icon: const Icon(Icons.chat_bubble_outline),
-                  label: const Text('對話'),
+                  label: const Text('Conversation'),
                 ),
               ),
               const SizedBox(width: 12),
@@ -490,7 +490,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                 child: ElevatedButton.icon(
                   onPressed: _showUpdateForm,
                   icon: const Icon(Icons.edit_note),
-                  label: const Text('更新資料'),
+                  label: const Text('Update'),
                 ),
               ),
             ],
@@ -636,7 +636,7 @@ class _ConversationSection extends StatelessWidget {
               Icon(Icons.forum, size: 18, color: Colors.blue.shade700),
               const SizedBox(width: 6),
               Text(
-                '跟進對話（${messages.length}）',
+                'Follow-up Conversation (${messages.length})',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -704,7 +704,7 @@ class _ConversationSection extends StatelessWidget {
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  isCompany ? '公司' : '工人',
+                  isCompany ? 'Company' : 'Worker',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 11,
@@ -777,9 +777,9 @@ class _StatusStepper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statuses = [
-      {'key': 'pending', 'label': '待處理', 'icon': Icons.pending_actions},
-      {'key': 'in_progress', 'label': '處理中', 'icon': Icons.autorenew},
-      {'key': 'resolved', 'label': '已解決', 'icon': Icons.check_circle},
+      {'key': 'pending', 'label': 'Pending', 'icon': Icons.pending_actions},
+      {'key': 'in_progress', 'label': 'In Progress', 'icon': Icons.autorenew},
+      {'key': 'resolved', 'label': 'Resolved', 'icon': Icons.check_circle},
     ];
 
     final currentIndex = statuses.indexWhere((s) => s['key'] == status);
@@ -886,7 +886,7 @@ class _WorkerResponseFormState extends State<_WorkerResponseForm> {
         _imageBase64 = base64Encode(bytes);
       });
     } catch (e) {
-      debugPrint('選取圖片失敗: $e');
+      debugPrint('Failed to pick image: $e');
     }
   }
 
@@ -895,7 +895,7 @@ class _WorkerResponseFormState extends State<_WorkerResponseForm> {
     if (text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('請輸入回覆內容'),
+          content: Text('Please enter reply content'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -940,7 +940,7 @@ class _WorkerResponseFormState extends State<_WorkerResponseForm> {
             children: [
               Icon(Icons.check_circle, color: Colors.white),
               SizedBox(width: 8),
-              Text('回覆已發送，狀態更新為「處理中」'),
+              Text('Reply sent. Status updated to "In Progress"'),
             ],
           ),
           backgroundColor: Colors.green,
@@ -949,7 +949,7 @@ class _WorkerResponseFormState extends State<_WorkerResponseForm> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('發送失敗，請稍後再試'),
+          content: Text('Send failed, please try again later'),
           backgroundColor: Colors.red,
         ),
       );
@@ -976,7 +976,7 @@ class _WorkerResponseFormState extends State<_WorkerResponseForm> {
               const SizedBox(width: 8),
               const Expanded(
                 child: Text(
-                  '更新資料',
+                  'Update',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
               ),
@@ -1015,7 +1015,7 @@ class _WorkerResponseFormState extends State<_WorkerResponseForm> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '最新公司跟進：',
+                            'Latest company follow-up:',
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
@@ -1039,7 +1039,8 @@ class _WorkerResponseFormState extends State<_WorkerResponseForm> {
             }),
 
           // 上傳圖片區域
-          const Text('📷 上傳圖片', style: TextStyle(fontWeight: FontWeight.w600)),
+          const Text('📷 Upload Image',
+              style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           GestureDetector(
             onTap: () => _showImageSourceDialog(),
@@ -1090,7 +1091,7 @@ class _WorkerResponseFormState extends State<_WorkerResponseForm> {
                         Icon(Icons.add_a_photo,
                             size: 40, color: Colors.grey.shade400),
                         const SizedBox(height: 8),
-                        Text('點擊上傳現場照片',
+                        Text('Tap to upload a site photo',
                             style: TextStyle(color: Colors.grey.shade500)),
                       ],
                     ),
@@ -1099,13 +1100,14 @@ class _WorkerResponseFormState extends State<_WorkerResponseForm> {
           const SizedBox(height: 16),
 
           // 文字輸入
-          const Text('📝 回覆內容', style: TextStyle(fontWeight: FontWeight.w600)),
+          const Text('📝 Reply Content',
+              style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           TextField(
             controller: _textController,
             maxLines: 4,
             decoration: InputDecoration(
-              hintText: '輸入處理情況、進度說明...',
+              hintText: 'Describe handling progress and notes...',
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -1135,7 +1137,7 @@ class _WorkerResponseFormState extends State<_WorkerResponseForm> {
                           strokeWidth: 2, color: Colors.white),
                     )
                   : const Icon(Icons.send),
-              label: Text(_isSending ? '發送中...' : '發送回覆'),
+              label: Text(_isSending ? 'Sending...' : 'Send Reply'),
             ),
           ),
         ],
@@ -1151,7 +1153,7 @@ class _WorkerResponseFormState extends State<_WorkerResponseForm> {
           children: [
             ListTile(
               leading: const Icon(Icons.camera_alt),
-              title: const Text('拍照'),
+              title: const Text('Take Photo'),
               onTap: () {
                 Navigator.pop(ctx);
                 _pickImage(ImageSource.camera);
@@ -1159,7 +1161,7 @@ class _WorkerResponseFormState extends State<_WorkerResponseForm> {
             ),
             ListTile(
               leading: const Icon(Icons.photo_library),
-              title: const Text('從相簿選擇'),
+              title: const Text('Choose from Gallery'),
               onTap: () {
                 Navigator.pop(ctx);
                 _pickImage(ImageSource.gallery);

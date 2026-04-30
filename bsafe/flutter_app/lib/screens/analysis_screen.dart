@@ -162,7 +162,7 @@ class AnalysisScreen extends StatelessWidget {
 
                 // Summary Cards
                 const Text(
-                  '📌 重點數據',
+                  '📌 Key Metrics',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -173,7 +173,7 @@ class AnalysisScreen extends StatelessWidget {
                   children: [
                     Expanded(
                       child: _SummaryCard(
-                        title: '需緊急處理',
+                        title: 'Urgent Actions',
                         value: '${stats['urgent'] ?? 0}',
                         icon: Icons.warning_amber_rounded,
                         color: AppTheme.riskHigh,
@@ -182,7 +182,7 @@ class AnalysisScreen extends StatelessWidget {
                     const SizedBox(width: 12),
                     Expanded(
                       child: _SummaryCard(
-                        title: '本月新增',
+                        title: 'New This Month',
                         value: '${stats['total'] ?? 0}',
                         icon: Icons.add_chart,
                         color: AppTheme.primaryColor,
@@ -197,7 +197,7 @@ class AnalysisScreen extends StatelessWidget {
                   children: [
                     Expanded(
                       child: _SummaryCard(
-                        title: '處理中',
+                        title: 'In Progress',
                         value:
                             '${(stats['total'] ?? 0) - (stats['pending'] ?? 0) - (stats['resolved'] ?? 0)}',
                         icon: Icons.autorenew,
@@ -207,7 +207,7 @@ class AnalysisScreen extends StatelessWidget {
                     const SizedBox(width: 12),
                     Expanded(
                       child: _SummaryCard(
-                        title: '完成率',
+                        title: 'Completion Rate',
                         value: _calculateCompletionRate(stats),
                         icon: Icons.check_circle,
                         color: AppTheme.riskLow,
@@ -241,7 +241,7 @@ class AnalysisScreen extends StatelessWidget {
     if (total == 0) {
       return const Center(
         child: Text(
-          '暫無數據',
+          'No data yet',
           style: TextStyle(color: Colors.grey),
         ),
       );
@@ -297,7 +297,7 @@ class AnalysisScreen extends StatelessWidget {
     if (trendData.isEmpty) {
       return const Center(
         child: Text(
-          '暫無數據',
+          'No data yet',
           style: TextStyle(color: Colors.grey),
         ),
       );
@@ -475,7 +475,7 @@ class AnalysisScreen extends StatelessWidget {
             sideTitles: SideTitles(
               showTitles: true,
               getTitlesWidget: (value, meta) {
-                final titles = ['待處理', '處理中', '已解決'];
+                final titles = ['Pending', 'In Progress', 'Resolved'];
                 return Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(

@@ -10,7 +10,7 @@ class ApiService {
   // Gemini API for AI image analysis
   static const String geminiApiKey =
       String.fromEnvironment('GEMINI_API_KEY', defaultValue: '');
-  static const String geminiModel = 'gemini-2.5-flash';
+  static const String geminiModel = 'gemini-2.0-pro';
   static const String geminiApiUrl =
       'https://generativelanguage.googleapis.com/v1beta/models';
 

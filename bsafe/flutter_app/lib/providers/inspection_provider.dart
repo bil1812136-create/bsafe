@@ -116,7 +116,7 @@ class InspectionProvider extends ChangeNotifier {
 
       await _saveSessions(syncCloud: false);
     } catch (e) {
-      debugPrint('載入巡檢會話失敗: $e');
+      debugPrint('Failed to load inspection sessions: $e');
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -131,7 +131,8 @@ class InspectionProvider extends ChangeNotifier {
       final json = jsonEncode(compactSessions);
       final ok = await prefs.setString(_sessionsKey, json);
       if (!ok) {
-        debugPrint('❌ 保存巡檢會話失敗: SharedPreferences setString 回傳 false');
+        debugPrint(
+            '❌ Failed to save inspection sessions: SharedPreferences setString returned false');
       }
 
       if (_currentSession != null) {
@@ -142,7 +143,7 @@ class InspectionProvider extends ChangeNotifier {
         _triggerCloudSync();
       }
     } catch (e) {
-      debugPrint('保存巡檢會話失敗: $e');
+      debugPrint('Failed to save inspection sessions: $e');
     }
   }
 
@@ -200,7 +201,7 @@ class InspectionProvider extends ChangeNotifier {
   /// 在指定位置添加 pin
   InspectionPin addPin(double x, double y) {
     if (_currentSession == null) {
-      createSession('巡檢 ${DateTime.now().toString().substring(0, 16)}');
+      createSession('Inspection ${DateTime.now().toString().substring(0, 16)}');
     }
 
     final pin = InspectionPin(
@@ -316,15 +317,16 @@ class InspectionProvider extends ChangeNotifier {
       updatePin(updatedPin);
       return updatedPin;
     } catch (e) {
-      debugPrint('AI 分析失敗: $e');
+      debugPrint('AI analysis failed: $e');
       // 返回帶有基本分析的 pin
       final fallbackPin = pin.copyWith(
         imagePath: imagePath,
         imageBase64: imageBase64,
         riskScore: 50,
         riskLevel: 'medium',
-        description: 'AI 分析服務暫時不可用，使用本地評估',
-        recommendations: ['建議安排專業人員檢查'],
+        description:
+            'AI analysis service is temporarily unavailable. Using local assessment.',
+        recommendations: ['Arrange a professional inspection.'],
         status: 'analyzed',
       );
       updatePin(fallbackPin);
@@ -362,7 +364,7 @@ class InspectionProvider extends ChangeNotifier {
       chatMessages.add(ChatMessage(
         id: _uuid.v4(),
         role: 'ai',
-        content: analysis['analysis'] as String? ?? '分析完成。',
+        content: analysis['analysis'] as String? ?? 'Analysis completed.',
       ));
 
       return defect.copyWith(
@@ -382,14 +384,15 @@ class InspectionProvider extends ChangeNotifier {
         chatMessages: chatMessages,
       );
     } catch (e) {
-      debugPrint('AI 缺陷分析失敗: $e');
+      debugPrint('AI defect analysis failed: $e');
       return defect.copyWith(
         imagePath: imagePath ?? defect.imagePath,
         imageBase64: imageBase64,
         riskScore: 50,
         riskLevel: 'medium',
-        description: 'AI 分析服務暫時不可用，使用本地評估',
-        recommendations: ['建議安排專業人員檢查'],
+        description:
+            'AI analysis service is temporarily unavailable. Using local assessment.',
+        recommendations: ['Arrange a professional inspection.'],
         status: 'analyzed',
       );
     } finally {
@@ -501,7 +504,7 @@ class InspectionProvider extends ChangeNotifier {
         }
       } while (_pendingCloudSync);
     } catch (e) {
-      debugPrint('同步巡檢會話到 Supabase 失敗: $e');
+      debugPrint('Failed to sync inspection sessions to Supabase: $e');
     } finally {
       _isCloudSyncing = false;
     }

@@ -48,7 +48,7 @@ class Project {
   factory Project.fromJson(Map<String, dynamic> json) {
     return Project(
       id: json['id'] as String? ?? '',
-      buildingName: json['buildingName'] as String? ?? '未命名',
+      buildingName: json['buildingName'] as String? ?? 'Untitled',
       floorCount: json['floorCount'] as int? ?? 1,
       currentFloor: json['currentFloor'] as int? ?? 1,
       createdAt: json['createdAt'] != null

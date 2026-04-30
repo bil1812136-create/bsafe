@@ -192,7 +192,7 @@ class _LocationScreenState extends State<LocationScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'UWB 精準定位',
+                          'UWB Precise Positioning',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 22,
@@ -216,9 +216,9 @@ class _LocationScreenState extends State<LocationScreen>
                             Text(
                               uwbService.isConnected
                                   ? (uwbService.isRealDevice
-                                      ? '已連接 BU04 (${uwbService.dataReceiveCount})'
-                                      : '模擬模式')
-                                  : '未連接',
+                                      ? 'BU04 Connected (${uwbService.dataReceiveCount})'
+                                      : 'Simulation Mode')
+                                  : 'Not Connected',
                               style: const TextStyle(
                                 color: Colors.white70,
                                 fontSize: 14,
@@ -264,7 +264,9 @@ class _LocationScreenState extends State<LocationScreen>
                         uwbService.isConnected ? Icons.stop : Icons.usb,
                         size: 18,
                       ),
-                      label: Text(uwbService.isConnected ? '斷開' : '連接設備'),
+                      label: Text(uwbService.isConnected
+                          ? 'Disconnect'
+                          : 'Connect Device'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
                         foregroundColor: uwbService.isConnected
@@ -286,7 +288,7 @@ class _LocationScreenState extends State<LocationScreen>
                               uwbService.connect(simulate: true);
                             },
                       icon: const Icon(Icons.play_arrow, size: 18),
-                      label: const Text('模擬演示'),
+                      label: const Text('Simulation Demo'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white.withValues(alpha: 0.2),
                         foregroundColor: Colors.white,
@@ -383,7 +385,7 @@ class _LocationScreenState extends State<LocationScreen>
                                 : Icons.settings_outlined,
                             color: AppTheme.primaryColor,
                           ),
-                          tooltip: '快捷設置',
+                          tooltip: 'Quick Settings',
                         ),
                         // 完整设置面板按钮
                         IconButton(
@@ -399,7 +401,7 @@ class _LocationScreenState extends State<LocationScreen>
                             color:
                                 _showFullSettings ? Colors.orange : Colors.grey,
                           ),
-                          tooltip: '完整設置',
+                          tooltip: 'Full Settings',
                         ),
                         // 清除轨迹
                         IconButton(
@@ -408,7 +410,7 @@ class _LocationScreenState extends State<LocationScreen>
                           },
                           icon: const Icon(Icons.delete_sweep),
                           color: Colors.orange,
-                          tooltip: '清除軌跡',
+                          tooltip: 'Clear Trajectory',
                         ),
                         const Spacer(),
                         // 基站数量
@@ -427,7 +429,7 @@ class _LocationScreenState extends State<LocationScreen>
                                   size: 16, color: Colors.green.shade700),
                               const SizedBox(width: 6),
                               Text(
-                                '${uwbService.anchors.length} 基站',
+                                '${uwbService.anchors.length} Anchors',
                                 style: TextStyle(
                                   color: Colors.green.shade700,
                                   fontWeight: FontWeight.bold,
@@ -496,7 +498,7 @@ class _LocationScreenState extends State<LocationScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            '顯示設置',
+            'Display Settings',
             style: TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 16,
@@ -507,7 +509,7 @@ class _LocationScreenState extends State<LocationScreen>
             children: [
               Expanded(
                 child: _buildSwitchTile(
-                  '顯示軌跡',
+                  'Show Trajectory',
                   Icons.timeline,
                   uwbService.config.showTrajectory,
                   (value) {
@@ -520,7 +522,7 @@ class _LocationScreenState extends State<LocationScreen>
               const SizedBox(width: 16),
               Expanded(
                 child: _buildSwitchTile(
-                  '顯示圍欄',
+                  'Show Fence',
                   Icons.fence,
                   uwbService.config.showFence,
                   (value) {
@@ -539,7 +541,7 @@ class _LocationScreenState extends State<LocationScreen>
               children: [
                 Expanded(
                   child: _buildRadiusSlider(
-                    '內圍欄',
+                    'Inner Fence',
                     uwbService.config.areaRadius1,
                     0.5,
                     5.0,
@@ -554,7 +556,7 @@ class _LocationScreenState extends State<LocationScreen>
                 const SizedBox(width: 16),
                 Expanded(
                   child: _buildRadiusSlider(
-                    '外圍欄',
+                    'Outer Fence',
                     uwbService.config.areaRadius2,
                     1.0,
                     10.0,
@@ -654,30 +656,30 @@ class _LocationScreenState extends State<LocationScreen>
 
               // 标签数据卡片
               _buildInfoCard(
-                title: '標籤數據',
+                title: 'Tag Data',
                 icon: Icons.person_pin_circle,
                 child: uwbService.currentTag != null
                     ? Column(
                         children: [
-                          _buildDataRow('標籤 ID', uwbService.currentTag!.id),
+                          _buildDataRow('Tag ID', uwbService.currentTag!.id),
                           const Divider(),
-                          _buildDataRow('X 坐標',
+                          _buildDataRow('X Coordinate',
                               '${uwbService.currentTag!.x.toStringAsFixed(3)} m'),
                           const Divider(),
-                          _buildDataRow('Y 坐標',
+                          _buildDataRow('Y Coordinate',
                               '${uwbService.currentTag!.y.toStringAsFixed(3)} m'),
                           const Divider(),
-                          _buildDataRow('Z 坐標',
+                          _buildDataRow('Z Coordinate',
                               '${uwbService.currentTag!.z.toStringAsFixed(3)} m'),
                           const Divider(),
-                          _buildDataRow('定位精度 (R95)',
+                          _buildDataRow('Positioning Accuracy (R95)',
                               '${uwbService.currentTag!.r95.toStringAsFixed(3)} m'),
                         ],
                       )
                     : const Center(
                         child: Padding(
                           padding: EdgeInsets.all(20),
-                          child: Text('未檢測到標籤',
+                          child: Text('No Tag Detected',
                               style: TextStyle(color: Colors.grey)),
                         ),
                       ),
@@ -686,7 +688,7 @@ class _LocationScreenState extends State<LocationScreen>
 
               // 距离数据卡片
               _buildInfoCard(
-                title: '基站距離',
+                title: 'Anchor Distance',
                 icon: Icons.radar,
                 child: uwbService.currentTag != null &&
                         uwbService.currentTag!.anchorDistances.isNotEmpty
@@ -710,8 +712,8 @@ class _LocationScreenState extends State<LocationScreen>
                     : const Center(
                         child: Padding(
                           padding: EdgeInsets.all(20),
-                          child:
-                              Text('無數據', style: TextStyle(color: Colors.grey)),
+                          child: Text('No Data',
+                              style: TextStyle(color: Colors.grey)),
                         ),
                       ),
               ),
@@ -719,7 +721,7 @@ class _LocationScreenState extends State<LocationScreen>
 
               // 基站配置卡片
               _buildInfoCard(
-                title: '基站配置',
+                title: 'Anchor Configuration',
                 icon: Icons.settings_input_antenna,
                 child: Column(
                   children: [
@@ -742,30 +744,31 @@ class _LocationScreenState extends State<LocationScreen>
 
               // 操作卡片
               _buildInfoCard(
-                title: '操作',
+                title: 'Operations',
                 icon: Icons.tune,
                 child: Column(
                   children: [
                     _buildActionButton(
                       icon: Icons.refresh,
-                      label: '重置基站配置',
+                      label: 'Reset Anchor Configuration',
                       color: AppTheme.primaryColor,
                       onTap: () {
                         uwbService.initializeDefaultAnchors();
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('基站配置已重置')),
+                          const SnackBar(
+                              content: Text('Anchor configuration reset')),
                         );
                       },
                     ),
                     const SizedBox(height: 12),
                     _buildActionButton(
                       icon: Icons.delete_sweep,
-                      label: '清除軌跡記錄',
+                      label: 'Clear Trajectory Records',
                       color: Colors.orange,
                       onTap: () {
                         uwbService.clearTrajectory();
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('軌跡已清除')),
+                          const SnackBar(content: Text('Trajectory cleared')),
                         );
                       },
                     ),
@@ -788,7 +791,7 @@ class _LocationScreenState extends State<LocationScreen>
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        '此功能使用 UWB 超寬帶定位技術，可在室內環境提供釐米級精準定位，用於建築安全巡檢時的位置追蹤。',
+                        'This feature uses UWB ultra-wideband positioning technology to provide centimeter-level precise positioning in indoor environments for location tracking during building safety inspections.',
                         style: TextStyle(
                           color: Colors.blue.shade900,
                           fontSize: 13,
@@ -860,23 +863,24 @@ class _LocationScreenState extends State<LocationScreen>
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('編輯 ${anchor.id}'),
+        title: Text('Edit ${anchor.id}'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: xController,
-              decoration: const InputDecoration(labelText: 'X 坐標 (m)'),
+              decoration: const InputDecoration(labelText: 'X Coordinate (m)'),
               keyboardType: TextInputType.number,
             ),
             TextField(
               controller: yController,
-              decoration: const InputDecoration(labelText: 'Y 坐標 (m)'),
+              decoration: const InputDecoration(labelText: 'Y Coordinate (m)'),
               keyboardType: TextInputType.number,
             ),
             TextField(
               controller: zController,
-              decoration: const InputDecoration(labelText: 'Z 坐標/高度 (m)'),
+              decoration:
+                  const InputDecoration(labelText: 'Z Coordinate/Height (m)'),
               keyboardType: TextInputType.number,
             ),
           ],
@@ -884,7 +888,7 @@ class _LocationScreenState extends State<LocationScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
+            child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () {
@@ -898,7 +902,7 @@ class _LocationScreenState extends State<LocationScreen>
               uwbService.updateAnchor(index, newAnchor);
               Navigator.pop(context);
             },
-            child: const Text('保存'),
+            child: const Text('Save'),
           ),
         ],
       ),
@@ -1038,7 +1042,7 @@ class _LocationScreenState extends State<LocationScreen>
                 const Icon(Icons.usb, color: AppTheme.primaryColor),
                 const SizedBox(width: 12),
                 const Text(
-                  '連接 UWB 設備',
+                  'Connect UWB Device',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -1057,8 +1061,8 @@ class _LocationScreenState extends State<LocationScreen>
             // 连接选项
             _buildConnectOption(
               icon: Icons.wifi_tethering,
-              title: '自動連接 BU04',
-              subtitle: '通過 USB 串口自動連接安信可 UWB 設備',
+              title: 'Auto-Connect BU04',
+              subtitle: 'Auto-connect Anxin UWB device via USB serial port',
               color: AppTheme.primaryColor,
               onTap: () async {
                 Navigator.pop(context);
@@ -1069,8 +1073,8 @@ class _LocationScreenState extends State<LocationScreen>
 
             _buildConnectOption(
               icon: Icons.edit_location_alt,
-              title: '手動輸入坐標',
-              subtitle: '手動輸入 BU04 標籤的 X, Y, Z 坐標',
+              title: 'Manual Coordinate Entry',
+              subtitle: 'Manually enter X, Y, Z coordinates of BU04 tag',
               color: Colors.orange,
               onTap: () {
                 Navigator.pop(context);
@@ -1081,8 +1085,8 @@ class _LocationScreenState extends State<LocationScreen>
 
             _buildConnectOption(
               icon: Icons.play_circle_outline,
-              title: '模擬演示模式',
-              subtitle: '使用模擬數據演示 UWB 定位功能',
+              title: 'Simulation Demo Mode',
+              subtitle: 'Demonstrate UWB positioning with simulated data',
               color: Colors.green,
               onTap: () {
                 Navigator.pop(context);
@@ -1106,7 +1110,7 @@ class _LocationScreenState extends State<LocationScreen>
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      '確保 BU04 已通過 USB 連接到電腦，並安裝了相應的驅動程序。',
+                      'Ensure BU04 is connected to your computer via USB and the appropriate drivers are installed.',
                       style: TextStyle(
                         color: Colors.blue.shade900,
                         fontSize: 12,
@@ -1186,7 +1190,8 @@ class _LocationScreenState extends State<LocationScreen>
     if (kIsWeb) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Web 平台請使用瀏覽器串口選擇功能'),
+          content: Text(
+              'On web platform, use browser serial port selection feature'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -1209,25 +1214,26 @@ class _LocationScreenState extends State<LocationScreen>
             children: [
               Icon(Icons.usb_off, color: Colors.red),
               SizedBox(width: 8),
-              Text('未找到串口'),
+              Text('No Serial Port Found'),
             ],
           ),
           content: const Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('未檢測到任何串口設備。'),
+              Text('No serial port devices detected.'),
               SizedBox(height: 12),
-              Text('請確認：', style: TextStyle(fontWeight: FontWeight.bold)),
-              Text('• BU04 設備已通過 USB 連接'),
-              Text('• 已安裝 CH340 或 CP210x 驅動'),
-              Text('• 設備在設備管理器中顯示正常'),
+              Text('Please confirm:',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              Text('• BU04 device is connected via USB'),
+              Text('• CH340 or CP210x driver is installed'),
+              Text('• Device shows normal in Device Manager'),
             ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('確定'),
+              child: const Text('Confirm'),
             ),
             ElevatedButton(
               onPressed: () {
@@ -1235,7 +1241,7 @@ class _LocationScreenState extends State<LocationScreen>
                 // 重新检测
                 _showSerialConnectDialog(context, uwbService);
               },
-              child: const Text('重新檢測'),
+              child: const Text('Re-detect'),
             ),
           ],
         ),
@@ -1264,7 +1270,7 @@ class _LocationScreenState extends State<LocationScreen>
                 const Icon(Icons.usb, color: AppTheme.primaryColor),
                 const SizedBox(width: 12),
                 const Text(
-                  '選擇串口',
+                  'Select Serial Port',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -1278,7 +1284,7 @@ class _LocationScreenState extends State<LocationScreen>
                     _showSerialConnectDialog(context, uwbService);
                   },
                   icon: const Icon(Icons.refresh),
-                  tooltip: '刷新串口列表',
+                  tooltip: 'Refresh Serial Port List',
                 ),
                 IconButton(
                   onPressed: () => Navigator.pop(context),
@@ -1292,7 +1298,7 @@ class _LocationScreenState extends State<LocationScreen>
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Text(
-                '找到 ${ports.length} 個串口設備',
+                'Found ${ports.length} serial port devices',
                 style: TextStyle(
                   color: Colors.grey.shade600,
                   fontSize: 14,
@@ -1323,7 +1329,7 @@ class _LocationScreenState extends State<LocationScreen>
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      '如果連接多個 BU04，請根據設備管理器中的端口號選擇對應設備。',
+                      'If multiple BU04 units are connected, select the corresponding device based on the port number in Device Manager.',
                       style: TextStyle(
                         color: Colors.blue.shade900,
                         fontSize: 12,
@@ -1348,17 +1354,17 @@ class _LocationScreenState extends State<LocationScreen>
   }) {
     // 解析端口信息
     final String portName = port;
-    String portDescription = '串口設備';
+    String portDescription = 'Serial Port Device';
 
     // 尝试识别常见设备
     if (port.contains('COM')) {
-      portDescription = 'Windows 串口';
+      portDescription = 'Windows Serial Port';
     } else if (port.contains('ttyUSB')) {
-      portDescription = 'Linux USB 串口';
+      portDescription = 'Linux USB Serial Port';
     } else if (port.contains('ttyACM')) {
-      portDescription = 'Linux ACM 串口';
+      portDescription = 'Linux ACM Serial Port';
     } else if (port.contains('cu.')) {
-      portDescription = 'macOS 串口';
+      portDescription = 'macOS Serial Port';
     }
 
     return Container(
@@ -1437,7 +1443,7 @@ class _LocationScreenState extends State<LocationScreen>
           children: [
             const Icon(Icons.usb, color: AppTheme.primaryColor),
             const SizedBox(width: 8),
-            Text('連接 $portName'),
+            Text('Connect $portName'),
           ],
         ),
         content: Column(
@@ -1445,10 +1451,10 @@ class _LocationScreenState extends State<LocationScreen>
           children: [
             const CircularProgressIndicator(),
             const SizedBox(height: 16),
-            Text('正在連接 $portName...'),
+            Text('Connecting to $portName...'),
             const SizedBox(height: 8),
             Text(
-              '波特率: 115200',
+              'Baud Rate: 115200',
               style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
             ),
           ],
@@ -1466,7 +1472,7 @@ class _LocationScreenState extends State<LocationScreen>
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('已成功連接到 $portName'),
+            content: Text('Successfully connected to $portName'),
             backgroundColor: Colors.green,
           ),
         );
@@ -1475,7 +1481,8 @@ class _LocationScreenState extends State<LocationScreen>
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(uwbService.lastError ?? '連接 $portName 失敗'),
+            content:
+                Text(uwbService.lastError ?? 'Failed to connect to $portName'),
             backgroundColor: Colors.red,
           ),
         );
@@ -1496,7 +1503,7 @@ class _LocationScreenState extends State<LocationScreen>
           children: [
             Icon(Icons.edit_location, color: Colors.orange),
             SizedBox(width: 8),
-            Text('手動輸入坐標'),
+            Text('Manual Coordinate Entry'),
           ],
         ),
         content: Column(
@@ -1505,8 +1512,8 @@ class _LocationScreenState extends State<LocationScreen>
             TextField(
               controller: xController,
               decoration: const InputDecoration(
-                labelText: 'X 坐標 (米)',
-                hintText: '例如: 4.533',
+                labelText: 'X Coordinate (meters)',
+                hintText: 'E.g.: 4.533',
                 prefixIcon: Icon(Icons.arrow_right),
               ),
               keyboardType:
@@ -1516,8 +1523,8 @@ class _LocationScreenState extends State<LocationScreen>
             TextField(
               controller: yController,
               decoration: const InputDecoration(
-                labelText: 'Y 坐標 (米)',
-                hintText: '例如: 1.868',
+                labelText: 'Y Coordinate (meters)',
+                hintText: 'E.g.: 1.868',
                 prefixIcon: Icon(Icons.arrow_upward),
               ),
               keyboardType:
@@ -1527,8 +1534,8 @@ class _LocationScreenState extends State<LocationScreen>
             TextField(
               controller: zController,
               decoration: const InputDecoration(
-                labelText: 'Z 坐標 (米)',
-                hintText: '例如: 0.0',
+                labelText: 'Z Coordinate (meters)',
+                hintText: 'E.g.: 0.0',
                 prefixIcon: Icon(Icons.height),
               ),
               keyboardType:
@@ -1547,7 +1554,7 @@ class _LocationScreenState extends State<LocationScreen>
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      '輸入從 BU04 設備讀取的坐標值',
+                      'Enter coordinate values read from BU04 device',
                       style:
                           TextStyle(fontSize: 12, color: Colors.grey.shade600),
                     ),
@@ -1560,7 +1567,7 @@ class _LocationScreenState extends State<LocationScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
+            child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () {
@@ -1583,20 +1590,20 @@ class _LocationScreenState extends State<LocationScreen>
 
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('已更新位置: X=$x, Y=$y, Z=$z'),
+                    content: Text('Location updated: X=$x, Y=$y, Z=$z'),
                     backgroundColor: Colors.green,
                   ),
                 );
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text('請輸入有效的坐標值'),
+                    content: Text('Please enter valid coordinate values'),
                     backgroundColor: Colors.red,
                   ),
                 );
               }
             },
-            child: const Text('確定'),
+            child: const Text('Confirm'),
           ),
         ],
       ),

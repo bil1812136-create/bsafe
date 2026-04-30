@@ -1,4 +1,3 @@
-
 /// AI 聊天訊息
 class ChatMessage {
   final String id;
@@ -126,8 +125,7 @@ class Defect {
             [],
         status: json['status'] as String? ?? 'pending',
         chatMessages: (json['chatMessages'] as List<dynamic>?)
-                ?.map(
-                    (e) => ChatMessage.fromJson(e as Map<String, dynamic>))
+                ?.map((e) => ChatMessage.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [],
         createdAt: json['createdAt'] != null
@@ -140,13 +138,13 @@ class Defect {
   String get riskLevelLabel {
     switch (riskLevel) {
       case 'high':
-        return '高風險';
+        return 'High Risk';
       case 'medium':
-        return '中風險';
+        return 'Medium Risk';
       case 'low':
-        return '低風險';
+        return 'Low Risk';
       default:
-        return '未評估';
+        return 'Not Assessed';
     }
   }
 }
@@ -282,13 +280,13 @@ class InspectionPin {
   String get riskLevelLabel {
     switch (riskLevel) {
       case 'high':
-        return '高風險';
+        return 'High Risk';
       case 'medium':
-        return '中風險';
+        return 'Medium Risk';
       case 'low':
-        return '低風險';
+        return 'Low Risk';
       default:
-        return '未評估';
+        return 'Not Assessed';
     }
   }
 
@@ -296,11 +294,11 @@ class InspectionPin {
   String get statusLabel {
     switch (status) {
       case 'pending':
-        return '待拍照';
+        return 'Pending Photo';
       case 'analyzed':
-        return '已分析';
+        return 'Analyzed';
       case 'reviewed':
-        return '已審查';
+        return 'Reviewed';
       default:
         return status;
     }
@@ -405,7 +403,7 @@ class InspectionSession {
   factory InspectionSession.fromJson(Map<String, dynamic> json) {
     return InspectionSession(
       id: json['id'] as String? ?? '',
-      name: json['name'] as String? ?? '未命名',
+      name: json['name'] as String? ?? 'Untitled',
       projectId: json['projectId'] as String?,
       floor: json['floor'] as int? ?? 1,
       floorPlanPath: json['floorPlanPath'] as String?,
@@ -430,12 +428,10 @@ class InspectionSession {
   int get analyzedPins => pins.where((p) => p.isAnalyzed).length;
 
   /// 高風險 pin 數
-  int get highRiskPins =>
-      pins.where((p) => p.riskLevel == 'high').length;
+  int get highRiskPins => pins.where((p) => p.riskLevel == 'high').length;
 
   /// 全部缺陷列表
-  List<Defect> get allDefects =>
-      pins.expand((p) => p.defects).toList();
+  List<Defect> get allDefects => pins.expand((p) => p.defects).toList();
 
   /// 低風險缺陷數
   int get lowRiskDefects =>

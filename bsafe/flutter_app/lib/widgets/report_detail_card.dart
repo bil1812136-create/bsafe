@@ -155,7 +155,7 @@ class ReportDetailCard extends StatelessWidget {
                                 ),
                                 SizedBox(width: 4),
                                 Text(
-                                  '緊急',
+                                  'Urgent',
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontSize: 12,

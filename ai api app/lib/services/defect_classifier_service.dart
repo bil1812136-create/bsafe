@@ -6,7 +6,7 @@ import 'package:http/http.dart' as http;
 class DefectClassifierService {
   static const String _geminiApiKey =
       String.fromEnvironment('GEMINI_API_KEY', defaultValue: '');
-  static const String _geminiModel = 'gemini-2.5-flash';
+  static const String _geminiModel = 'gemini-2.0-pro';
   static const String _geminiApiUrl =
       'https://generativelanguage.googleapis.com/v1beta/models';
 

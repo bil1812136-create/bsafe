@@ -313,7 +313,7 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
       }
     }
 
-    return '未分類';
+    return 'Uncategorized';
   }
 
   String? _normalizeFloorPlanUrl(String? value) {
@@ -358,7 +358,7 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
 
       await _analyzeImage();
     } catch (e) {
-      _showMessage('無法選擇圖片: $e', isError: true);
+      _showMessage('Unable to select image: $e', isError: true);
     }
   }
 
@@ -377,12 +377,14 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
 
       // Different feedback based on analysis mode
       if (result != null && result['_ai_mode'] == 'local_fallback') {
-        _showMessage('✓ 已使用本地評估（因網絡或地區限制）', isError: false);
+        _showMessage('✓ Local assessment used (network or region limitation)',
+            isError: false);
       } else {
-        _showMessage('✓ AI 分析完成，可直接提交', isError: false);
+        _showMessage('✓ AI analysis completed, ready to submit',
+            isError: false);
       }
     } catch (e) {
-      _showMessage('分析中遇到問題: $e', isError: true);
+      _showMessage('Analysis encountered an issue: $e', isError: true);
     } finally {
       if (mounted) setState(() => _isAnalyzing = false);
     }
@@ -451,7 +453,7 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
         _selectedPinY = null;
         if (_selectedFloorPlan != null) {
           _locationTextController.text =
-              '${_selectedFloorPlan!['buildingName']} / ${_selectedFloorPlan!['label']} - 未選 pin';
+              '${_selectedFloorPlan!['buildingName']} / ${_selectedFloorPlan!['label']} - No pin selected';
         } else {
           _locationTextController.clear();
         }
@@ -716,19 +718,21 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
 
   Future<void> _submit() async {
     if (_selectedImage == null || _imageBase64 == null) {
-      _showMessage('請先拍照或從相簿選擇圖片', isError: true);
+      _showMessage('Please take a photo or select one from gallery first',
+          isError: true);
       return;
     }
     if (_aiResult == null) {
-      _showMessage('請先等待 AI 生成結果', isError: true);
+      _showMessage('Please wait for AI results first', isError: true);
       return;
     }
     if (_selectedFloorPlan == null) {
-      _showMessage('請先選擇樓層圖', isError: true);
+      _showMessage('Please select a floor plan first', isError: true);
       return;
     }
     if (_selectedPinX == null || _selectedPinY == null) {
-      _showMessage('請在樓層圖上點選 pin 位置', isError: true);
+      _showMessage('Please tap a pin location on the floor plan',
+          isError: true);
       return;
     }
 
@@ -749,7 +753,9 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
       final sessionId =
           (selectedFloorPlan['session_id'] ?? '').toString().trim();
       if (sessionId.isEmpty) {
-        _showMessage('樓層資料缺少 session_id，請重新選擇樓層圖', isError: true);
+        _showMessage(
+            'Floor plan data missing session_id, please reselect floor plan',
+            isError: true);
         return;
       }
 
@@ -785,8 +791,9 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
       await _appendPinToSelectedSession(pinId: pinId, pinNote: locationBase);
 
       final saved = await reportProvider.addReport(
-        title: (title?.isNotEmpty ?? false) ? title! : '建築安全問題',
-        description: description.isNotEmpty ? description : 'AI 分析結果',
+        title: (title?.isNotEmpty ?? false) ? title! : 'Building Safety Issue',
+        description:
+            description.isNotEmpty ? description : 'AI Analysis Result',
         category: category,
         severity: severity,
         imagePath: _selectedImage!.path,
@@ -800,7 +807,7 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
 
       if (!mounted) return;
       if (saved != null) {
-        _showMessage('報告已提交');
+        _showMessage('Report submitted');
         setState(() {
           _selectedImage = null;
           _selectedImageBytes = null;
@@ -816,10 +823,11 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
         } catch (_) {
           // Best-effort rollback to avoid dangling pins when report save fails.
         }
-        _showMessage(reportProvider.error ?? '提交失敗', isError: true);
+        _showMessage(reportProvider.error ?? 'Submission failed',
+            isError: true);
       }
     } catch (e) {
-      _showMessage('提交失敗: $e', isError: true);
+      _showMessage('Submission failed: $e', isError: true);
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -855,13 +863,14 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('選擇樓層圖來源', style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text('Choose Floor Plan Source',
+              style: TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           if (_isLoadingFloorPlans)
             const LinearProgressIndicator()
           else if (_floorPlanOptions.isEmpty)
             Text(
-              '未找到樓層圖資料（可先到 Web 樓層圖管理上傳）',
+              'No floor plan data found (upload from Web Floor Plan Management first)',
               style: TextStyle(color: Colors.grey.shade600),
             )
           else ...[
@@ -872,7 +881,7 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
                 border: OutlineInputBorder(),
                 contentPadding:
                     EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                labelText: 'Folder / 建築名稱',
+                labelText: 'Folder / Building Name',
               ),
               items: _folderOptions
                   .map((folder) => DropdownMenuItem<String>(
@@ -891,7 +900,7 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
                       filtered.isNotEmpty ? filtered.first : null;
                   _locationTextController.text = _selectedFloorPlan == null
                       ? ''
-                      : '${_selectedFloorPlan!['buildingName']} / ${_selectedFloorPlan!['label']} - 未選 pin';
+                      : '${_selectedFloorPlan!['buildingName']} / ${_selectedFloorPlan!['label']} - No pin selected';
                 });
               },
             ),
@@ -903,7 +912,7 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
                 border: OutlineInputBorder(),
                 contentPadding:
                     EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                labelText: '樓層圖',
+                labelText: 'Floor Plan',
               ),
               items: _filteredFloorPlanOptions
                   .map((item) => DropdownMenuItem<String>(
@@ -921,7 +930,7 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
                   _selectedPinX = null;
                   _selectedPinY = null;
                   _locationTextController.text =
-                      '${_selectedFloorPlan!['buildingName']} / ${_selectedFloorPlan!['label']} - 未選 pin';
+                      '${_selectedFloorPlan!['buildingName']} / ${_selectedFloorPlan!['label']} - No pin selected';
                 });
               },
             ),
@@ -929,7 +938,7 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
           if (_selectedFloorPlan == null) ...[
             const SizedBox(height: 10),
             Text(
-              '請先選擇 folder 及樓層圖，之後才可拍照與選 pin 上報。',
+              'Please select a folder and floor plan first, then take photos and pin for reporting.',
               style: TextStyle(color: Colors.grey.shade700),
             ),
           ] else ...[
@@ -940,7 +949,7 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
                   child: OutlinedButton.icon(
                     onPressed: () => _pickImage(ImageSource.camera),
                     icon: const Icon(Icons.photo_camera),
-                    label: const Text('拍照'),
+                    label: const Text('Camera'),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -948,7 +957,7 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
                   child: OutlinedButton.icon(
                     onPressed: () => _pickImage(ImageSource.gallery),
                     icon: const Icon(Icons.photo_library),
-                    label: const Text('相簿'),
+                    label: const Text('Gallery'),
                   ),
                 ),
               ],
@@ -975,7 +984,7 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
                   SizedBox(width: 8),
-                  Text('AI 生成中...'),
+                  Text('AI is generating...'),
                 ],
               ),
             ],
@@ -1012,8 +1021,8 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
                         children: [
                           Text(
                             _aiResult!['_ai_mode'] == 'local_fallback'
-                                ? '本地評估: ${_aiResult?['title'] ?? '已分析'}'
-                                : 'AI 分析: ${_aiResult?['title'] ?? '已分析'}',
+                                ? 'Local Assessment: ${_aiResult?['title'] ?? 'Analyzed'}'
+                                : 'AI Analysis: ${_aiResult?['title'] ?? 'Analyzed'}',
                             style: const TextStyle(
                               fontWeight: FontWeight.w600,
                               fontSize: 13,
@@ -1021,7 +1030,7 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
                           ),
                           if (_aiResult!['_ai_mode'] == 'local_fallback')
                             Text(
-                              '(網絡或地區限制)',
+                              '(Network or region limitation)',
                               style: TextStyle(
                                 fontSize: 11,
                                 color: Colors.orange.shade700,
@@ -1035,7 +1044,8 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
               ),
             ],
             const SizedBox(height: 14),
-            const Text('當前位置', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text('Current Location',
+                style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             if (((_selectedFloorPlan?['floorPlanUrl'] as String?)?.isNotEmpty ==
                     true) ||
@@ -1087,14 +1097,16 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
                                                 Container(
                                               color: Colors.grey.shade100,
                                               alignment: Alignment.center,
-                                              child: const Text('樓層圖載入失敗'),
+                                              child: const Text(
+                                                  'Failed to load floor plan'),
                                             ),
                                           );
                                         }
                                         return Container(
                                           color: Colors.grey.shade100,
                                           alignment: Alignment.center,
-                                          child: const Text('樓層圖載入失敗'),
+                                          child: const Text(
+                                              'Failed to load floor plan'),
                                         );
                                       },
                                     )
@@ -1107,7 +1119,8 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
                                       errorBuilder: (_, __, ___) => Container(
                                         color: Colors.grey.shade100,
                                         alignment: Alignment.center,
-                                        child: const Text('樓層圖載入失敗'),
+                                        child: const Text(
+                                            'Failed to load floor plan'),
                                       ),
                                     ),
                             ),
@@ -1145,8 +1158,8 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
               const SizedBox(height: 6),
               Text(
                 _selectedPinX == null
-                    ? '請點擊樓層圖以設定 pin 位置'
-                    : '已選 pin: (${_selectedPinX!.toStringAsFixed(1)}, ${_selectedPinY!.toStringAsFixed(1)})',
+                    ? 'Tap floor plan to set pin location'
+                    : 'Selected pin: (${_selectedPinX!.toStringAsFixed(1)}, ${_selectedPinY!.toStringAsFixed(1)})',
                 style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
               ),
               if (_selectedPinX != null && _selectedPinY != null)
@@ -1159,7 +1172,7 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
             TextField(
               controller: _locationTextController,
               decoration: const InputDecoration(
-                labelText: '位置文字（可修改）',
+                labelText: 'Location text (editable)',
                 border: OutlineInputBorder(),
               ),
             ),
@@ -1178,7 +1191,9 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
                         ),
                       )
                     : const Icon(Icons.send),
-                label: Text(_isSubmitting ? '提交中...' : '生成報告並提交'),
+                label: Text(_isSubmitting
+                    ? 'Submitting...'
+                    : 'Generate Report and Submit'),
               ),
             ),
             const SizedBox(height: 24),
