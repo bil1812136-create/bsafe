@@ -30,6 +30,12 @@ $env:GEMINI_API_KEY=""
 flutter run -d R5CR30PFFTN --dart-define=GEMINI_API_KEY=$env:GEMINI_API_KEY
 ```
 
+如果要用 Chrome 開 web 版，改成：
+
+```bash
+flutter run -d chrome --dart-define=GEMINI_API_KEY=$env:GEMINI_API_KEY
+```
+
 ## 功能說明
 
 1. **選擇圖片**：點選「選擇 1-100 張圖片」，可多選圖片
@@ -51,6 +57,6 @@ flutter run -d R5CR30PFFTN --dart-define=GEMINI_API_KEY=$env:GEMINI_API_KEY
 
 此為獨立項目，不依賴原有的 bsafe 專案。可獨立開發和部署。
 
-$env:GEMINI_API_KEY="AIzaSyBegENl97-wl_ql44wwgCk7fQfcEvSCCGQ"
+$env:GEMINI_API_KEY="你的API_KEY"
 
-Set-Location "C:\Users\student\Downloads\bsafe\ai api app" ; flutter run -d chrome
+Set-Location "C:\bsafe-1\ai api app" ; flutter run -d chrome --dart-define=GEMINI_API_KEY=$env:GEMINI_API_KEY

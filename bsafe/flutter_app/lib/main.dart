@@ -99,83 +99,92 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           ? null // 位置頁面（InspectionScreen）有自己的 AppBar
           : AppBar(
               title: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.shield, size: 24),
-                  const SizedBox(width: 8),
-                  const Text('B-SAFE'),
-                  const SizedBox(width: 12),
-                  Consumer<ConnectivityProvider>(
-                    builder: (context, connectivity, _) {
-                      return GestureDetector(
-                        onTap: () {
-                          connectivity.toggleManualOfflineMode();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Row(
-                                children: [
-                                  Icon(
-                                    connectivity.isOnline
-                                        ? Icons.wifi
-                                        : Icons.wifi_off,
-                                    color: Colors.white,
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Text(
+                children: const [
+                  Icon(Icons.shield, size: 24),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'B-SAFE',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                Consumer<ConnectivityProvider>(
+                  builder: (context, connectivity, _) {
+                    return GestureDetector(
+                      onTap: () {
+                        connectivity.toggleManualOfflineMode();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Row(
+                              children: [
+                                Icon(
+                                  connectivity.isOnline
+                                      ? Icons.wifi
+                                      : Icons.wifi_off,
+                                  color: Colors.white,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
                                     connectivity.isOnline
                                         ? languageProvider.t('switched_online')
                                         : languageProvider
                                             .t('switched_offline'),
                                     style: const TextStyle(fontSize: 16),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                ],
-                              ),
-                              duration: const Duration(seconds: 2),
-                              backgroundColor: connectivity.isOnline
-                                  ? Colors.green
-                                  : Colors.orange,
-                            ),
-                          );
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: connectivity.isOnline
-                                ? Colors.green.withOpacity(0.2)
-                                : Colors.orange.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                connectivity.isOnline
-                                    ? Icons.wifi
-                                    : Icons.wifi_off,
-                                size: 16,
-                                color: Colors.white,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                connectivity.isOnline
-                                    ? languageProvider.t('online')
-                                    : languageProvider.t('offline'),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
+                            duration: const Duration(seconds: 2),
+                            backgroundColor: connectivity.isOnline
+                                ? Colors.green
+                                : Colors.orange,
                           ),
+                        );
+                      },
+                      child: Container(
+                        margin: const EdgeInsets.only(right: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: connectivity.isOnline
+                              ? Colors.green.withOpacity(0.2)
+                              : Colors.orange.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                      );
-                    },
-                  ),
-                ],
-              ),
-              actions: [
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              connectivity.isOnline
+                                  ? Icons.wifi
+                                  : Icons.wifi_off,
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              connectivity.isOnline
+                                  ? languageProvider.t('online')
+                                  : languageProvider.t('offline'),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
                 IconButton(
                   tooltip: languageProvider.t('settings'),
                   icon: const Icon(Icons.settings),

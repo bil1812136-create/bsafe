@@ -1,4 +1,3 @@
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -7,12 +6,20 @@ import 'package:ai_api_classifier/models/analysis_record.dart';
 import 'package:ai_api_classifier/screens/report_screen.dart';
 import 'package:ai_api_classifier/services/analysis_record_storage.dart';
 import 'package:ai_api_classifier/services/defect_classifier_service.dart';
+import 'package:ai_api_classifier/l10n/app_i18n.dart';
 import 'package:ai_api_classifier/utils/picked_image_data.dart';
 import 'package:ai_api_classifier/utils/folder_picker_stub.dart'
     if (dart.library.io) 'package:ai_api_classifier/utils/folder_picker_io.dart';
 
 class AiApiBatchScreen extends StatefulWidget {
-  const AiApiBatchScreen({super.key});
+  const AiApiBatchScreen({
+    super.key,
+    required this.language,
+    required this.onLanguageChanged,
+  });
+
+  final AppLanguage language;
+  final ValueChanged<AppLanguage> onLanguageChanged;
 
   @override
   State<AiApiBatchScreen> createState() => _AiApiBatchScreenState();

@@ -922,15 +922,16 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
   /// 計算風險等級和分數從嚴重程度
   void _updateRiskFromSeverity(String severity) {
     final category = widget.report['category'] ?? 'structural';
+    final normalizedSeverity = severity.toLowerCase();
 
-    switch (severity) {
+    switch (normalizedSeverity) {
       case 'severe':
         _riskScore = 80 + (category == 'structural' ? 15 : 5);
         _riskLevel = 'high';
         break;
       case 'moderate':
-        _riskScore = 50 + (category == 'structural' ? 20 : 10);
-        _riskLevel = _riskScore >= 70 ? 'high' : 'medium';
+        _riskScore = 50 + (category == 'structural' ? 10 : 5);
+        _riskLevel = 'medium';
         break;
       case 'mild':
       default:

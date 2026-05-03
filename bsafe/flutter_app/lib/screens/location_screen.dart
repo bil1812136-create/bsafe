@@ -43,7 +43,6 @@ class _LocationScreenState extends State<LocationScreen>
   @override
   Widget build(BuildContext context) {
     final language = context.watch<LanguageProvider>();
-
     return ChangeNotifierProvider.value(
       value: _uwbService,
       child: Scaffold(
@@ -94,12 +93,11 @@ class _LocationScreenState extends State<LocationScreen>
                 ],
               ),
 
-              // 错误提示 (只在有错误时显示)
+              // 錯誤提示 (只在有錯誤時顯示)
               Consumer<UwbService>(
                 builder: (context, uwbService, _) {
                   if (uwbService.lastError == null) return const SizedBox();
 
-                  // 3秒后自动清除错误
                   Future.delayed(const Duration(seconds: 3), () {
                     if (mounted) {
                       uwbService.clearError();
@@ -213,15 +211,19 @@ class _LocationScreenState extends State<LocationScreen>
                               ),
                             ),
                             const SizedBox(width: 6),
-                            Text(
-                              uwbService.isConnected
-                                  ? (uwbService.isRealDevice
-                                      ? 'BU04 Connected (${uwbService.dataReceiveCount})'
-                                      : 'Simulation Mode')
-                                  : 'Not Connected',
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 14,
+                            Expanded(
+                              child: Text(
+                                uwbService.isConnected
+                                    ? (uwbService.isRealDevice
+                                        ? 'BU04 Connected (${uwbService.dataReceiveCount})'
+                                        : 'Simulation Mode')
+                                    : 'Not Connected',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 14,
+                                ),
                               ),
                             ),
                             // 數據接收指示燈
@@ -252,57 +254,88 @@ class _LocationScreenState extends State<LocationScreen>
                 ],
               ),
               const SizedBox(height: 12),
-              // 连接按钮行
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: uwbService.isConnected
-                          ? () => uwbService.disconnect()
-                          : () => _showConnectDialog(context, uwbService),
-                      icon: Icon(
-                        uwbService.isConnected ? Icons.stop : Icons.usb,
-                        size: 18,
-                      ),
-                      label: Text(uwbService.isConnected
-                          ? 'Disconnect'
-                          : 'Connect Device'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: uwbService.isConnected
-                            ? Colors.red
-                            : AppTheme.primaryColor,
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
+              // 连接按钮行：固定上下排列，避免任何橫向擠壓造成 overflow
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  Widget buildButton({
+                    required VoidCallback? onPressed,
+                    required IconData icon,
+                    required String label,
+                    required Color backgroundColor,
+                    required Color foregroundColor,
+                    required Color disabledBackgroundColor,
+                    required Color disabledForegroundColor,
+                  }) {
+                    return SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: onPressed,
+                        icon: Icon(icon, size: 16),
+                        label: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: backgroundColor,
+                          foregroundColor: foregroundColor,
+                          disabledBackgroundColor: disabledBackgroundColor,
+                          disabledForegroundColor: disabledForegroundColor,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
+                          minimumSize: const Size(0, 34),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: VisualDensity.compact,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: uwbService.isConnected
-                          ? null
-                          : () {
-                              uwbService.connect(simulate: true);
-                            },
-                      icon: const Icon(Icons.play_arrow, size: 18),
-                      label: const Text('Simulation Demo'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white.withValues(alpha: 0.2),
-                        foregroundColor: Colors.white,
-                        disabledBackgroundColor:
-                            Colors.white.withValues(alpha: 0.1),
-                        disabledForegroundColor: Colors.white38,
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                    );
+                  }
+
+                  final connectButton = buildButton(
+                    onPressed: uwbService.isConnected
+                        ? () => uwbService.disconnect()
+                        : () => _showConnectDialog(context, uwbService),
+                    icon: uwbService.isConnected ? Icons.stop : Icons.usb,
+                    label: uwbService.isConnected ? 'Disconnect' : 'Connect',
+                    backgroundColor: Colors.white,
+                    foregroundColor: uwbService.isConnected
+                        ? Colors.red
+                        : AppTheme.primaryColor,
+                    disabledBackgroundColor: Colors.white,
+                    disabledForegroundColor: AppTheme.primaryColor,
+                  );
+
+                  final simulationButton = buildButton(
+                    onPressed: uwbService.isConnected
+                        ? null
+                        : () {
+                            uwbService.connect(simulate: true);
+                          },
+                    icon: Icons.play_arrow,
+                    label: 'Simulation Demo',
+                    backgroundColor: Colors.white.withValues(alpha: 0.2),
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor:
+                        Colors.white.withValues(alpha: 0.1),
+                    disabledForegroundColor: Colors.white38,
+                  );
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      connectButton,
+                      const SizedBox(height: 8),
+                      simulationButton,
+                    ],
+                  );
+                },
               ),
               if (uwbService.isConnected && uwbService.currentTag != null) ...[
                 const SizedBox(height: 16),
@@ -369,76 +402,86 @@ class _LocationScreenState extends State<LocationScreen>
               Expanded(
                 child: Column(
                   children: [
-                    // 工具栏
-                    Row(
-                      children: [
-                        // 显示设置按钮
-                        IconButton(
-                          onPressed: () {
-                            setState(() {
-                              _showSettings = !_showSettings;
-                            });
-                          },
-                          icon: Icon(
-                            _showSettings
-                                ? Icons.settings
-                                : Icons.settings_outlined,
-                            color: AppTheme.primaryColor,
+                    // 工具栏（橫向可滑動以避免窄螢幕被擠出）
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          // 顯示設定按鈕
+                          IconButton(
+                            onPressed: () {
+                              setState(() {
+                                _showSettings = !_showSettings;
+                              });
+                            },
+                            icon: Icon(
+                              _showSettings
+                                  ? Icons.settings
+                                  : Icons.settings_outlined,
+                              color: AppTheme.primaryColor,
+                            ),
+                            tooltip: 'Quick Settings',
                           ),
-                          tooltip: 'Quick Settings',
-                        ),
-                        // 完整设置面板按钮
-                        IconButton(
-                          onPressed: () {
-                            setState(() {
-                              _showFullSettings = !_showFullSettings;
-                            });
-                          },
-                          icon: Icon(
-                            _showFullSettings
-                                ? Icons.tune
-                                : Icons.tune_outlined,
-                            color:
-                                _showFullSettings ? Colors.orange : Colors.grey,
+
+                          // 完整設定面板按鈕
+                          IconButton(
+                            onPressed: () {
+                              setState(() {
+                                _showFullSettings = !_showFullSettings;
+                              });
+                            },
+                            icon: Icon(
+                              _showFullSettings
+                                  ? Icons.tune
+                                  : Icons.tune_outlined,
+                              color: _showFullSettings
+                                  ? Colors.orange
+                                  : Colors.grey,
+                            ),
+                            tooltip: 'Full Settings',
                           ),
-                          tooltip: 'Full Settings',
-                        ),
-                        // 清除轨迹
-                        IconButton(
-                          onPressed: () {
-                            uwbService.clearTrajectory();
-                          },
-                          icon: const Icon(Icons.delete_sweep),
-                          color: Colors.orange,
-                          tooltip: 'Clear Trajectory',
-                        ),
-                        const Spacer(),
-                        // 基站数量
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: Colors.green.shade50,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: Colors.green.shade200),
+
+                          // 清除軌跡
+                          IconButton(
+                            onPressed: () {
+                              uwbService.clearTrajectory();
+                            },
+                            icon: const Icon(Icons.delete_sweep),
+                            color: Colors.orange,
+                            tooltip: 'Clear Trajectory',
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.cell_tower,
-                                  size: 16, color: Colors.green.shade700),
-                              const SizedBox(width: 6),
-                              Text(
-                                '${uwbService.anchors.length} Anchors',
-                                style: TextStyle(
-                                  color: Colors.green.shade700,
-                                  fontWeight: FontWeight.bold,
+
+                          const SizedBox(width: 12),
+
+                          // 基站數量（置於工具列尾端，若空間不足可滑動查看）
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade50,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: Colors.green.shade200),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.cell_tower,
+                                    size: 16, color: Colors.green.shade700),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '${uwbService.anchors.length} Anchors',
+                                  style: TextStyle(
+                                    color: Colors.green.shade700,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
 
                     // 设置面板 (快捷)
@@ -446,17 +489,36 @@ class _LocationScreenState extends State<LocationScreen>
 
                     const SizedBox(height: 8),
 
-                    // 定位画布
-                    Expanded(
-                      child: UwbPositionCanvas(
-                        anchors: uwbService.anchors,
-                        currentTag: uwbService.currentTag,
-                        trajectory: uwbService.trajectory,
-                        config: uwbService.config,
-                        floorPlanImage: uwbService.floorPlanImage,
-                      ),
+                    // 定位畫布 — 在空間不足時允許縱向滾動
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final canvasHeight = constraints.maxHeight > 320
+                            ? constraints.maxHeight * 0.55
+                            : 320.0;
+
+                        return SingleChildScrollView(
+                          child: ConstrainedBox(
+                            constraints:
+                                BoxConstraints(minHeight: canvasHeight + 16),
+                            child: Column(
+                              children: [
+                                SizedBox(
+                                  height: canvasHeight,
+                                  child: UwbPositionCanvas(
+                                    anchors: uwbService.anchors,
+                                    currentTag: uwbService.currentTag,
+                                    trajectory: uwbService.trajectory,
+                                    config: uwbService.config,
+                                    floorPlanImage: uwbService.floorPlanImage,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                    const SizedBox(height: 16),
                   ],
                 ),
               ),

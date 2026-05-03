@@ -352,7 +352,7 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
         .length;
 
     return SafeArea(
-      minimum: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      minimum: const EdgeInsets.fromLTRB(12, 0, 12, 6),
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(30),
@@ -499,6 +499,7 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
       child: Scaffold(
         backgroundColor: Colors.grey.shade100,
         body: SafeArea(
+          bottom: false,
           child: Column(
             children: [
               Expanded(

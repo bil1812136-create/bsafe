@@ -186,6 +186,12 @@ flutter run -d <R5CR30PFFTN>
 # mobile app flutter run
 flutter run -d chrome --target lib/main.dart --dart-define=GEMINI_API_KEY=AIz
 
+# ai api app
+cd "C:\bsafe-1\ai api app"
+$env:GEMINI_API_KEY="xxxxxxxx"
+flutter run -d chrome --dart-define="GEMINI_API_KEY=$env:GEMINI_API_KEY"
+
+
 ### Web dashboard
 
 ```bash

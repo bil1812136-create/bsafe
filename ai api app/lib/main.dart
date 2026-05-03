@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:ai_api_classifier/l10n/app_i18n.dart';
 import 'package:ai_api_classifier/screens/ai_api_batch_screen.dart';
+import 'package:ai_api_classifier/screens/report_screen.dart';
 
 void main() {
   runApp(const AiApiBatchApp());
@@ -37,6 +38,15 @@ class _AiApiBatchAppState extends State<AiApiBatchApp> {
         language: _language,
         onLanguageChanged: _onLanguageChanged,
       ),
+      onGenerateRoute: (settings) {
+        if (settings.name == ReportScreen.routeName) {
+          return MaterialPageRoute<void>(
+            builder: (_) => ReportScreen(language: _language),
+            settings: settings,
+          );
+        }
+        return null;
+      },
     );
   }
 }

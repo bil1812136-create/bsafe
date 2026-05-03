@@ -177,121 +177,130 @@ class _InspectionScreenState extends State<InspectionScreen> {
   // ===== 手機版頂部工具列（簡化） =====
   Widget _buildMobileTopBar(
       UwbService uwbService, InspectionProvider inspection) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 430;
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // App 標題
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  AppTheme.primaryColor,
-                  AppTheme.primaryColor.withValues(alpha: 0.8)
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  // App 標題
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          AppTheme.primaryColor,
+                          AppTheme.primaryColor.withValues(alpha: 0.8)
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.shield, color: Colors.white, size: 16),
+                        SizedBox(width: 4),
+                        Text(
+                          'B-SAFE',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildConnectionChip(uwbService, compact: isCompact),
+                  ),
+                  const SizedBox(width: 6),
+                  _buildConnectButton(uwbService, compact: isCompact),
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert, size: 20),
+                    tooltip: 'Show menu',
+                    onSelected: (value) => _handleMenuAction(value, inspection),
+                    itemBuilder: (context) => [
+                      if (widget.project != null)
+                        PopupMenuItem(
+                          value: 'change_floor',
+                          child: Row(
+                            children: [
+                              const Icon(Icons.layers, size: 18),
+                              const SizedBox(width: 8),
+                              Text('Switch Floor (Current ${_currentFloor}F)'),
+                            ],
+                          ),
+                        ),
+                      const PopupMenuItem(
+                        value: 'new_session',
+                        child: Row(
+                          children: [
+                            Icon(Icons.add_circle_outline, size: 18),
+                            SizedBox(width: 8),
+                            Text('New Inspection'),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuItem(
+                        value: 'load_session',
+                        child: Row(
+                          children: [
+                            Icon(Icons.folder_open, size: 18),
+                            SizedBox(width: 8),
+                            Text('Load Inspection'),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuItem(
+                          value: 'export_word', child: Text('Export Word')),
+                      const PopupMenuDivider(),
+                      const PopupMenuItem(
+                          value: 'clear_pins', child: Text('Clear All Pins')),
+                    ],
+                  ),
                 ],
               ),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.shield, color: Colors.white, size: 16),
-                SizedBox(width: 4),
-                Text(
-                  'B-SAFE',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
+              if (widget.project != null) ...[
+                const SizedBox(height: 6),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.orange.shade200),
+                  ),
+                  child: Text(
+                    'Current Floor: ${_currentFloor}F',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                      color: Colors.orange.shade800,
+                    ),
                   ),
                 ),
               ],
-            ),
-          ),
-          if (widget.project != null) ...[
-            const SizedBox(width: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.orange.shade50,
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: Colors.orange.shade200),
-              ),
-              child: Text(
-                '${_currentFloor}F',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                  color: Colors.orange.shade800,
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(width: 8),
-
-          // UWB 連接狀態
-          _buildConnectionChip(uwbService),
-
-          const Spacer(),
-
-          // 連接按鈕
-          _buildConnectButton(uwbService),
-          // 更多操作
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert, size: 20),
-            onSelected: (value) => _handleMenuAction(value, inspection),
-            itemBuilder: (context) => [
-              if (widget.project != null)
-                PopupMenuItem(
-                  value: 'change_floor',
-                  child: Row(
-                    children: [
-                      const Icon(Icons.layers, size: 18),
-                      const SizedBox(width: 8),
-                      Text('Switch Floor (Current ${_currentFloor}F)'),
-                    ],
-                  ),
-                ),
-              const PopupMenuItem(
-                value: 'new_session',
-                child: Row(
-                  children: [
-                    Icon(Icons.add_circle_outline, size: 18),
-                    SizedBox(width: 8),
-                    Text('New Inspection'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'load_session',
-                child: Row(
-                  children: [
-                    Icon(Icons.folder_open, size: 18),
-                    SizedBox(width: 8),
-                    Text('Load Inspection'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                  value: 'export_word', child: Text('Export Word')),
-              const PopupMenuDivider(),
-              const PopupMenuItem(
-                  value: 'clear_pins', child: Text('Clear All Pins')),
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -838,10 +847,11 @@ class _InspectionScreenState extends State<InspectionScreen> {
     );
   }
 
-  Widget _buildConnectionChip(UwbService uwbService) {
+  Widget _buildConnectionChip(UwbService uwbService, {bool compact = false}) {
     final isConnected = uwbService.isConnected;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: EdgeInsets.symmetric(
+          horizontal: compact ? 8 : 10, vertical: compact ? 4 : 5),
       decoration: BoxDecoration(
         color: isConnected ? Colors.green.shade50 : Colors.grey.shade100,
         borderRadius: BorderRadius.circular(16),
@@ -850,7 +860,7 @@ class _InspectionScreenState extends State<InspectionScreen> {
         ),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: MainAxisSize.max,
         children: [
           Container(
             width: 8,
@@ -861,16 +871,21 @@ class _InspectionScreenState extends State<InspectionScreen> {
             ),
           ),
           const SizedBox(width: 6),
-          Text(
-            isConnected
-                ? (uwbService.isRealDevice
-                    ? 'UWB Connected'
-                    : 'Simulation Mode')
-                : 'UWB Not Connected',
-            style: TextStyle(
-              color: isConnected ? Colors.green.shade700 : Colors.grey.shade600,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
+          Expanded(
+            child: Text(
+              isConnected
+                  ? (uwbService.isRealDevice
+                      ? (compact ? 'Connected' : 'UWB Connected')
+                      : 'Simulation Mode')
+                  : (compact ? 'Not Connected' : 'UWB Not Connected'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color:
+                    isConnected ? Colors.green.shade700 : Colors.grey.shade600,
+                fontSize: compact ? 11 : 12,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -906,26 +921,34 @@ class _InspectionScreenState extends State<InspectionScreen> {
     );
   }
 
-  Widget _buildConnectButton(UwbService uwbService) {
+  Widget _buildConnectButton(UwbService uwbService, {bool compact = false}) {
     return uwbService.isConnected
         ? OutlinedButton.icon(
             onPressed: () => uwbService.disconnect(),
             icon: const Icon(Icons.stop, size: 16),
-            label: const Text('Disconnect'),
+            label: Text(compact ? 'Stop' : 'Disconnect'),
             style: OutlinedButton.styleFrom(
               foregroundColor: Colors.red,
               side: const BorderSide(color: Colors.red),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding: EdgeInsets.symmetric(
+                  horizontal: compact ? 8 : 12, vertical: 6),
+              minimumSize: Size(compact ? 0 : 64, 34),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
             ),
           )
         : ElevatedButton.icon(
             onPressed: () => _showConnectDialog(uwbService),
             icon: const Icon(Icons.usb, size: 16),
-            label: const Text('Connect'),
+            label: Text(compact ? 'Link' : 'Connect'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.primaryColor,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding: EdgeInsets.symmetric(
+                  horizontal: compact ? 8 : 12, vertical: 6),
+              minimumSize: Size(compact ? 0 : 64, 34),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
             ),
           );
   }

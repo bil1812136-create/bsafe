@@ -1,11 +1,11 @@
 enum AppLanguage { zh, en }
 
 class AppI18n {
-  AppI18n(this.language);
+  AppI18n(this.appLanguage);
 
-  final AppLanguage language;
+  final AppLanguage appLanguage;
 
-  bool get isZh => language == AppLanguage.zh;
+  bool get isZh => appLanguage == AppLanguage.zh;
 
   String pick(String zh, String en) => isZh ? zh : en;
 

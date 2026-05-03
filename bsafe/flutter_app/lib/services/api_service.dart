@@ -10,7 +10,7 @@ class ApiService {
   // Gemini API for AI image analysis
   static const String geminiApiKey =
       String.fromEnvironment('GEMINI_API_KEY', defaultValue: '');
-  static const String geminiModel = 'gemini-2.0-pro';
+  static const String geminiModel = 'gemini-2.5-flash';
   static const String geminiApiUrl =
       'https://generativelanguage.googleapis.com/v1beta/models';
 
@@ -127,37 +127,51 @@ class ApiService {
     final uri = Uri.parse(
         '$geminiApiUrl/$geminiModel:generateContent?key=$geminiApiKey');
 
+    // Build generationConfig with conditional thinkingConfig
+    final generationConfig = <String, dynamic>{
+      'temperature': 0.1,
+      'maxOutputTokens': 2048,
+    };
+
+    // Enable thinking mode for models that require it (e.g., gemini-3.1-pro-preview)
+    final needsThinking =
+        geminiModel.contains('3.1') || geminiModel.contains('pro');
+    final thinkingBudget = needsThinking ? 100 : 0;
+    if (thinkingBudget > 0) {
+      generationConfig['thinkingConfig'] = {'thinkingBudget': thinkingBudget};
+    }
+
+    final bodyMap = {
+      'contents': [
+        {
+          'role': 'user',
+          'parts': [
+            {
+              'text': _buildPromptText(additionalContext),
+            },
+            {
+              'inline_data': {
+                'mime_type': 'image/jpeg',
+                'data': imageBase64,
+              }
+            }
+          ],
+        }
+      ],
+      'generationConfig': generationConfig,
+    };
+
+    final requestBody = jsonEncode(bodyMap);
+    debugPrint(
+        'Gemini request body (first 800): ${requestBody.length > 800 ? requestBody.substring(0, 800) : requestBody}');
+
     final response = await http
         .post(
           uri,
           headers: const {
             'Content-Type': 'application/json',
           },
-          body: jsonEncode({
-            'contents': [
-              {
-                'role': 'user',
-                'parts': [
-                  {
-                    'text': _buildPromptText(additionalContext),
-                  },
-                  {
-                    'inline_data': {
-                      'mime_type': 'image/jpeg',
-                      'data': imageBase64,
-                    }
-                  }
-                ],
-              }
-            ],
-            'generationConfig': {
-              'temperature': 0.1,
-              'maxOutputTokens': 2048,
-              'thinkingConfig': {
-                'thinkingBudget': 0,
-              }
-            }
-          }),
+          body: requestBody,
         )
         .timeout(const Duration(seconds: 120));
 
@@ -198,7 +212,7 @@ If and only if image evidence is clear, follow the instruction below.
 
 You are a professional building inspector tasked with conducting an inspection summary for an old building. Please conduct an internet search to gather additional relevant information (for example, from the Hong Kong Buildings Department and Urban Renewal Authority).
 
-Analyze the provided images and categorize them based on major defects, such as concrete spalling, tile debonding, water leakage, and unauthorized building works. If any significant defects are identified, suggest ways to address the possible causes of these defects, recommend appropriate testing methods, and propose remedial measures in the report.
+Analyze the provided images and categorize them based on major defects, such as concrete spalling, tile debonding, water leakage, cracks in the wall, and unauthorized building works. If any significant defects are identified, suggest ways to address the possible causes of these defects, recommend appropriate testing methods, and propose remedial measures in the report.
 
 All output in English, brief point form, about 10 words each, remove all formatting like bullets and bold, use only basic periods and commas, no colons.
 

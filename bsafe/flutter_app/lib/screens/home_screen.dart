@@ -632,7 +632,10 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
       return;
     }
 
-    final sessionId = _selectedFloorPlan!['session_id'];
+    final sessionId = _selectedFloorPlan!['session_id']?.toString();
+    if (sessionId == null || sessionId.trim().isEmpty) {
+      return;
+    }
     final rawPayload = _selectedFloorPlan!['payload'];
     final payload = rawPayload is Map
         ? Map<String, dynamic>.from(rawPayload)
@@ -665,7 +668,7 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
     await Supabase.instance.client.from('inspection_sessions').update({
       'payload': payload,
       'updated_at': DateTime.now().toIso8601String()
-    }).eq('session_id', sessionId);
+    }).eq('session_id', sessionId.trim());
 
     if (mounted && _selectedFloorPlan != null) {
       setState(() {
@@ -788,7 +791,14 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
         pinYPercent: pinYPercent,
       );
 
-      await _appendPinToSelectedSession(pinId: pinId, pinNote: locationBase);
+      var pinSavedToSession = false;
+      try {
+        await _appendPinToSelectedSession(pinId: pinId, pinNote: locationBase);
+        pinSavedToSession = true;
+      } catch (e) {
+        // Do not block report submission if session payload update fails.
+        debugPrint('Failed to append pin to inspection_sessions: $e');
+      }
 
       final saved = await reportProvider.addReport(
         title: (title?.isNotEmpty ?? false) ? title! : 'Building Safety Issue',
@@ -818,10 +828,12 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
         });
         navigation.goToHistory();
       } else {
-        try {
-          await _removePinFromSelectedSession(pinId);
-        } catch (_) {
-          // Best-effort rollback to avoid dangling pins when report save fails.
+        if (pinSavedToSession) {
+          try {
+            await _removePinFromSelectedSession(pinId);
+          } catch (_) {
+            // Best-effort rollback to avoid dangling pins when report save fails.
+          }
         }
         _showMessage(reportProvider.error ?? 'Submission failed',
             isError: true);
