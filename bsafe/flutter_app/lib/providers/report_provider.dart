@@ -148,6 +148,7 @@ class ReportProvider extends ChangeNotifier {
     required String description,
     required String category,
     required String severity,
+    bool hammerTestDone = false,
     String? imagePath,
     String? imageBase64,
     String? location,
@@ -194,6 +195,7 @@ class ReportProvider extends ChangeNotifier {
         latitude: latitude,
         longitude: longitude,
         aiAnalysis: analysisText,
+        hammerTestDone: hammerTestDone,
         synced: true,
       );
 

@@ -21,6 +21,7 @@ class ReportScreen extends StatefulWidget {
 class _ReportScreenState extends State<ReportScreen> {
   XFile? _selectedImage;
   String? _imageBase64;
+  bool? _hammerTestDone;
   bool _isAnalyzing = false;
   bool _isSubmitting = false;
   bool _isScanning = false;
@@ -188,6 +189,7 @@ class _ReportScreenState extends State<ReportScreen> {
         description: _aiDescription ?? language.t('ai_auto_detect'),
         category: _aiCategory ?? 'structural',
         severity: _aiSeverity ?? 'moderate',
+        hammerTestDone: _hammerTestDone == true,
         imagePath: _selectedImage!.path,
         imageBase64: _imageBase64,
         location: language.t('positioning'),
@@ -223,6 +225,7 @@ class _ReportScreenState extends State<ReportScreen> {
       _aiSeverity = null;
       _aiTitle = null;
       _aiDescription = null;
+      _hammerTestDone = null;
     });
   }
 
@@ -307,12 +310,7 @@ class _ReportScreenState extends State<ReportScreen> {
             ),
 
             Padding(
-              padding: EdgeInsets.fromLTRB(
-                20,
-                20,
-                20,
-                MediaQuery.of(context).padding.bottom + 120,
-              ),
+              padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -650,6 +648,69 @@ class _ReportScreenState extends State<ReportScreen> {
 
                   // Submit Button
                   if (_aiResult != null && !_isAnalyzing) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.rule_folder_outlined,
+                            size: 18,
+                            color: AppTheme.primaryColor,
+                          ),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Text(
+                              'Hammer Test',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          SizedBox(
+                            width: 180,
+                            child: DropdownButtonFormField<bool>(
+                              isExpanded: true,
+                              isDense: true,
+                              value: _hammerTestDone,
+                              hint: const Text('Select'),
+                              decoration: InputDecoration(
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 8,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              items: const [
+                                DropdownMenuItem<bool>(
+                                  value: true,
+                                  child: Text('Completed'),
+                                ),
+                                DropdownMenuItem<bool>(
+                                  value: false,
+                                  child: Text('Not completed'),
+                                ),
+                              ],
+                              onChanged: (value) {
+                                setState(() {
+                                  _hammerTestDone = value;
+                                });
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     ElevatedButton(
                       onPressed: _isSubmitting ? null : _submitReport,

@@ -20,7 +20,7 @@ class ReportDetailCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    String _simplifyLocation(String? location) {
+    String simplifyLocation(String? location) {
       if (location == null || location.isEmpty) return '';
       // Remove any 'ref:' suffix and Pin(...) coordinate parts
       try {
@@ -50,8 +50,9 @@ class ReportDetailCard extends StatelessWidget {
         }
 
         if (buildingFloor.isEmpty && pinText.isEmpty) return '';
-        if (pinText.isNotEmpty)
-          return '${buildingFloor.isEmpty ? pinText : '$buildingFloor - $pinText'}';
+        if (pinText.isNotEmpty) {
+          return buildingFloor.isEmpty ? pinText : '$buildingFloor - $pinText';
+        }
         return buildingFloor;
       } catch (_) {
         return location;
@@ -186,7 +187,7 @@ class ReportDetailCard extends StatelessWidget {
                         ),
                         child: Text(
                           '#${displayNumber ?? report.id ?? '-'}',
-                          style: TextStyle(
+                          style: const TextStyle(
                             color: AppTheme.primaryColor,
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
@@ -254,7 +255,7 @@ class ReportDetailCard extends StatelessWidget {
                             const SizedBox(width: 4),
                             Expanded(
                               child: Text(
-                                _simplifyLocation(report.location!),
+                                simplifyLocation(report.location!),
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.grey.shade500,

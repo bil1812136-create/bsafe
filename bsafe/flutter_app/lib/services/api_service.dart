@@ -208,6 +208,7 @@ Remedial Measures:
 1. No structural conclusion until valid visual evidence is obtained.
 2. Conduct on-site inspection if urgent signs are suspected.
 
+
 If and only if image evidence is clear, follow the instruction below.
 
 You are a professional building inspector tasked with conducting an inspection summary for an old building. Please conduct an internet search to gather additional relevant information (for example, from the Hong Kong Buildings Department and Urban Renewal Authority).
@@ -260,6 +261,12 @@ Further Investigation:
 2. Use dye test from upper floors to trace leaks.
 3. Scan damp areas with infrared and moisture meters.
 4. Check for unauthorized alterations and missing supports.
+This could be one point in the further investigation:
+In addition, if there is a problem with steel reinforcement corrosion, you can directly output this sentence:
+Where the reinforcement is corroded seriously (i.e. loss of sectional area greater than 15%), it shall be replaced by new reinforcement With adequate lapped length to the remained existing reinforcement
+If it have problems with peeling areas, you can display this text:
+Where there is extensive spalling, significant deterioration, high chloride content (i.e. greater than 0.8% by weight of cement) in the concrete substrate, or significant corrosion of reinforcement, the surveyor shall adopt recasting / repair methods as appropriate.
+
 
 Remedial Measures:
 1. Replace corroded sections with uPVC or HDPE piping.

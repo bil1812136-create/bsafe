@@ -416,6 +416,38 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                     const SizedBox(height: 20),
                   ],
 
+                  if (_report.isImmediatelyDangerous) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFB71C1C),
+                        borderRadius: BorderRadius.circular(8),
+                        border:
+                            Border.all(color: Colors.red.shade900, width: 2),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.dangerous, color: Colors.white, size: 20),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '🚨 IMMEDIATELY DANGEROUS — Surveyor has flagged this as an immediate hazard',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
                   // Details Section
                   _DetailSection(
                     title: 'Issue Category',
@@ -429,11 +461,22 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                     content: ReportModel.getSeverityLabel(_report.severity),
                   ),
 
+                  // Repair Method card based on severity
+                  _RepairMethodSection(severity: _report.severity),
+
                   if (_report.location != null && _report.location!.isNotEmpty)
                     _DetailSection(
                       title: 'Location',
                       icon: Icons.location_on,
                       content: _buildLocationSummary(_report.location),
+                    ),
+
+                  // Inspection measurements
+                  if (_report.hammerTestDone)
+                    const _DetailSection(
+                      title: 'Hammer Tapping Test',
+                      icon: Icons.check_box,
+                      content: 'Conducted on-site',
                     ),
 
                   if (_report.aiAnalysis != null &&
@@ -769,6 +812,134 @@ class _ConversationSection extends StatelessWidget {
   }
 }
 
+/// Repair Method card based on spalling severity level
+class _RepairMethodSection extends StatelessWidget {
+  final String severity;
+  const _RepairMethodSection({required this.severity});
+
+  @override
+  Widget build(BuildContext context) {
+    final data = _getRepairData(severity);
+    final color = data['color'] as Color;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.build_circle, size: 18, color: color),
+              const SizedBox(width: 6),
+              Text(
+                'Recommended Repair Method',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.07),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: color.withOpacity(0.35)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.construction, size: 16, color: color),
+                    const SizedBox(width: 6),
+                    Text(
+                      data['method'] as String,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: color,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                ...((data['steps'] as List<String>).map(
+                  (step) => Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Text(
+                      '• $step',
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                  ),
+                )),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(Icons.area_chart,
+                        size: 14, color: Colors.grey.shade600),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Typical score: ${data['marksRange']}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Map<String, dynamic> _getRepairData(String severity) {
+    switch (severity.toLowerCase()) {
+      case 'severe':
+        return {
+          'method': 'Recasting (Full-depth Repair)',
+          'steps': [
+            'Partial / full demolition of affected area',
+            'Replace corroded reinforcement bars',
+            'Recast concrete with adequate cover',
+          ],
+          'marksRange': 'Over 3',
+          'color': const Color(0xFFB71C1C),
+        };
+      case 'moderate':
+        return {
+          'method': 'Structural Patch Repair',
+          'steps': [
+            'Clean rust from exposed steel bars',
+            'Supplement reinforcement if section loss >15%',
+            'Apply bonding agent + repair mortar',
+          ],
+          'marksRange': '2–3',
+          'color': Colors.orange.shade700,
+        };
+      case 'mild':
+      default:
+        return {
+          'method': 'Patch Repair',
+          'steps': [
+            'Hack off loose concrete fragments',
+            'Clean reinforcement & apply anti-corrosion primer',
+            'Apply repair mortar to restore surface',
+          ],
+          'marksRange': '1–2',
+          'color': Colors.green.shade700,
+        };
+    }
+  }
+}
+
 class _StatusStepper extends StatelessWidget {
   final String status;
 
@@ -958,189 +1129,200 @@ class _WorkerResponseFormState extends State<_WorkerResponseForm> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        top: 16,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 標題列
-          Row(
+    final mediaQuery = MediaQuery.of(context);
+    final bottomInset = mediaQuery.viewInsets.bottom;
+
+    return SafeArea(
+      child: SizedBox(
+        height: mediaQuery.size.height * 0.9,
+        child: SingleChildScrollView(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 16,
+            bottom: bottomInset + 16,
+          ),
+          physics: const BouncingScrollPhysics(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.edit_note, color: AppTheme.primaryColor),
-              const SizedBox(width: 8),
-              const Expanded(
-                child: Text(
-                  'Update',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              // 標題列
+              Row(
+                children: [
+                  const Icon(Icons.edit_note, color: AppTheme.primaryColor),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Update',
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const Divider(),
+              const SizedBox(height: 8),
+
+              // 最近公司訊息提示
+              if (widget.report.mergedConversation.isNotEmpty)
+                Builder(builder: (_) {
+                  final companyMsgs = widget.report.mergedConversation
+                      .where((m) => m.sender == 'company')
+                      .toList();
+                  if (companyMsgs.isEmpty) return const SizedBox.shrink();
+                  final last = companyMsgs.last;
+                  return Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.task_alt,
+                            size: 18, color: Colors.blue.shade700),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Latest company follow-up:',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blue.shade700,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                last.text,
+                                style: TextStyle(
+                                    fontSize: 13, color: Colors.blue.shade900),
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+
+              // 上傳圖片區域
+              const Text('📷 Upload Image',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: () => _showImageSourceDialog(),
+                child: Container(
+                  width: double.infinity,
+                  height: 150,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: _imageBytes != null
+                      ? Stack(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.memory(
+                                _imageBytes!,
+                                width: double.infinity,
+                                height: 150,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                            Positioned(
+                              top: 4,
+                              right: 4,
+                              child: GestureDetector(
+                                onTap: () => setState(() {
+                                  _imageBytes = null;
+                                  _imageBase64 = null;
+                                }),
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.close,
+                                      color: Colors.white, size: 16),
+                                ),
+                              ),
+                            ),
+                          ],
+                        )
+                      : Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.add_a_photo,
+                                size: 40, color: Colors.grey.shade400),
+                            const SizedBox(height: 8),
+                            Text('Tap to upload a site photo',
+                                style: TextStyle(color: Colors.grey.shade500)),
+                          ],
+                        ),
                 ),
               ),
-              IconButton(
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.close),
+              const SizedBox(height: 16),
+
+              // 文字輸入
+              const Text('📝 Reply Content',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _textController,
+                maxLines: 4,
+                decoration: InputDecoration(
+                  hintText: 'Describe handling progress and notes...',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  contentPadding: const EdgeInsets.all(12),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // 發送按鈕
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton.icon(
+                  onPressed: _isSending ? null : _submit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  icon: _isSending
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.send),
+                  label: Text(_isSending ? 'Sending...' : 'Send Reply'),
+                ),
               ),
             ],
           ),
-          const Divider(),
-          const SizedBox(height: 8),
-
-          // 最近公司訊息提示
-          if (widget.report.mergedConversation.isNotEmpty)
-            Builder(builder: (_) {
-              final companyMsgs = widget.report.mergedConversation
-                  .where((m) => m.sender == 'company')
-                  .toList();
-              if (companyMsgs.isEmpty) return const SizedBox.shrink();
-              final last = companyMsgs.last;
-              return Container(
-                width: double.infinity,
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.blue.shade200),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.task_alt, size: 18, color: Colors.blue.shade700),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Latest company follow-up:',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.blue.shade700,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            last.text,
-                            style: TextStyle(
-                                fontSize: 13, color: Colors.blue.shade900),
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
-
-          // 上傳圖片區域
-          const Text('📷 Upload Image',
-              style: TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          GestureDetector(
-            onTap: () => _showImageSourceDialog(),
-            child: Container(
-              width: double.infinity,
-              height: 150,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: _imageBytes != null
-                  ? Stack(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.memory(
-                            _imageBytes!,
-                            width: double.infinity,
-                            height: 150,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                        Positioned(
-                          top: 4,
-                          right: 4,
-                          child: GestureDetector(
-                            onTap: () => setState(() {
-                              _imageBytes = null;
-                              _imageBase64 = null;
-                            }),
-                            child: Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: const BoxDecoration(
-                                color: Colors.red,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.close,
-                                  color: Colors.white, size: 16),
-                            ),
-                          ),
-                        ),
-                      ],
-                    )
-                  : Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.add_a_photo,
-                            size: 40, color: Colors.grey.shade400),
-                        const SizedBox(height: 8),
-                        Text('Tap to upload a site photo',
-                            style: TextStyle(color: Colors.grey.shade500)),
-                      ],
-                    ),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // 文字輸入
-          const Text('📝 Reply Content',
-              style: TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _textController,
-            maxLines: 4,
-            decoration: InputDecoration(
-              hintText: 'Describe handling progress and notes...',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              contentPadding: const EdgeInsets.all(12),
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // 發送按鈕
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: ElevatedButton.icon(
-              onPressed: _isSending ? null : _submit,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primaryColor,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              icon: _isSending
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white),
-                    )
-                  : const Icon(Icons.send),
-              label: Text(_isSending ? 'Sending...' : 'Send Reply'),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

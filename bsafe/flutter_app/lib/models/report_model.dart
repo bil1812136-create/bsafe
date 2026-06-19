@@ -58,6 +58,9 @@ class ReportModel {
   final String? workerResponseImage; // 工人回覆圖片（向後兼容）
   final List<ConversationMessage> conversation; // 多輪對話
   final bool hasUnreadCompany; // 當公司發送新訊息時設為 true，工人查看後設為 false
+  final bool hammerTestDone; // Inspector: hammer tapping test conducted on-site
+  final bool
+      isImmediatelyDangerous; // Surveyor: marked as immediately dangerous
   final DateTime createdAt;
   final DateTime? updatedAt;
   final bool synced;
@@ -86,6 +89,8 @@ class ReportModel {
     this.workerResponseImage,
     this.conversation = const [],
     this.hasUnreadCompany = false,
+    this.hammerTestDone = false,
+    this.isImmediatelyDangerous = false,
     DateTime? createdAt,
     this.updatedAt,
     this.synced = false,
@@ -176,6 +181,8 @@ class ReportModel {
       'company_notes': companyNotes,
       'conversation': conversationToJson(conversation),
       'has_unread_company': hasUnreadCompany ? 1 : 0,
+      'hammer_test_done': hammerTestDone ? 1 : 0,
+      'is_immediately_dangerous': isImmediatelyDangerous ? 1 : 0,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
       'synced': synced ? 1 : 0,
@@ -208,6 +215,8 @@ class ReportModel {
       workerResponseImage: map['worker_response_image'] as String?,
       conversation: conversationFromJson(map['conversation']),
       hasUnreadCompany: (map['has_unread_company'] as int?) == 1,
+      hammerTestDone: (map['hammer_test_done'] as int?) == 1,
+      isImmediatelyDangerous: (map['is_immediately_dangerous'] as int?) == 1,
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: map['updated_at'] != null
           ? DateTime.parse(map['updated_at'] as String)
@@ -241,6 +250,8 @@ class ReportModel {
       'worker_response_image': workerResponseImage,
       'conversation': conversationToJson(conversation),
       'has_unread_company': hasUnreadCompany,
+      'hammer_test_done': hammerTestDone,
+      'is_immediately_dangerous': isImmediatelyDangerous,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
     };
@@ -271,6 +282,8 @@ class ReportModel {
       workerResponseImage: json['worker_response_image'] as String?,
       conversation: conversationFromJson(json['conversation']),
       hasUnreadCompany: json['has_unread_company'] == true,
+      hammerTestDone: json['hammer_test_done'] == true,
+      isImmediatelyDangerous: json['is_immediately_dangerous'] == true,
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'] as String)
           : DateTime.now(),
@@ -306,6 +319,8 @@ class ReportModel {
     String? workerResponseImage,
     List<ConversationMessage>? conversation,
     bool? hasUnreadCompany,
+    bool? hammerTestDone,
+    bool? isImmediatelyDangerous,
     DateTime? createdAt,
     DateTime? updatedAt,
     bool? synced,
@@ -334,6 +349,9 @@ class ReportModel {
       workerResponseImage: workerResponseImage ?? this.workerResponseImage,
       conversation: conversation ?? this.conversation,
       hasUnreadCompany: hasUnreadCompany ?? this.hasUnreadCompany,
+      hammerTestDone: hammerTestDone ?? this.hammerTestDone,
+      isImmediatelyDangerous:
+          isImmediatelyDangerous ?? this.isImmediatelyDangerous,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       synced: synced ?? this.synced,

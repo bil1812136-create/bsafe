@@ -57,9 +57,9 @@ import 'package:bsafe_app/models/report_model.dart';
 /// ════════════════════════════════════════════════════════════
 class SupabaseService {
   // ── 填入你的 Supabase 專案資料 ──────────────────────────────
-  static const String supabaseUrl = 'https://mvywylhlmktejvsmcqkk.supabase.co';
+  static const String supabaseUrl = 'https://ciyyfapcjwgtgeypowwh.supabase.co';
   static const String supabaseAnonKey =
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12eXd5bGhsbWt0ZWp2c21jcWtrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMTk1NzYsImV4cCI6MjA5MDY5NTU3Nn0.qv1mqv8FW83Z_btolYWYEN5fGTXMW8-V08ZphvO3Dv8';
+      'sb_publishable_vo1fARk4arUXkHvUTnE6Cg_X31MlZy_';
   // ───────────────────────────────────────────────────────────
 
   static final SupabaseService instance = SupabaseService._init();
@@ -117,6 +117,8 @@ class SupabaseService {
         'longitude': report.longitude,
         'ai_analysis': report.aiAnalysis,
         'company_notes': report.companyNotes,
+        'hammer_test_done': report.hammerTestDone,
+        'is_immediately_dangerous': report.isImmediatelyDangerous,
         'created_at': _asUtcIso(report.createdAt),
         'updated_at': _asUtcIso(DateTime.now()),
       };
@@ -200,6 +202,8 @@ class SupabaseService {
         'latitude': report.latitude,
         'longitude': report.longitude,
         'ai_analysis': report.aiAnalysis,
+        'hammer_test_done': report.hammerTestDone,
+        'is_immediately_dangerous': report.isImmediatelyDangerous,
         'created_at': _asUtcIso(report.createdAt),
         'updated_at': _asUtcIso(DateTime.now()),
       };
@@ -357,6 +361,8 @@ class SupabaseService {
       workerResponseImage: data['worker_response_image'] as String?,
       conversation: ReportModel.conversationFromJson(data['conversation']),
       hasUnreadCompany: data['has_unread_company'] == true,
+      hammerTestDone: data['hammer_test_done'] == true,
+      isImmediatelyDangerous: data['is_immediately_dangerous'] == true,
       createdAt: data['created_at'] != null
           ? (DateTime.tryParse(data['created_at'] as String) ?? DateTime.now())
               .toLocal()

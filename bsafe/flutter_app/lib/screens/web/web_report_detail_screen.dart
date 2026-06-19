@@ -382,9 +382,11 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
   late String _severity;
   late String _riskLevel;
   late int _riskScore;
+  late bool _hammerTestDone;
   bool _isSaving = false;
   bool _hasChanges = false;
   bool _isSendingMessage = false;
+  late bool _isImmediatelyDangerous;
   bool _isLoadingFloorPlan = true;
   bool _showLinkedPhoto = true;
   late List<ConversationMessage> _conversation;
@@ -434,6 +436,8 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
     _severity = _asString(r['severity']) ?? 'moderate';
     _riskLevel = _asString(r['risk_level']) ?? 'medium';
     _riskScore = (r['risk_score'] as num?)?.toInt() ?? 50;
+    _hammerTestDone = r['hammer_test_done'] == true;
+    _isImmediatelyDangerous = r['is_immediately_dangerous'] == true;
 
     _initAnalysisFields(_asString(r['ai_analysis']) ?? '');
 
@@ -957,6 +961,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
           final newRiskLevel = data['risk_level'] as String? ?? _riskLevel;
           final newRiskScore =
               (data['risk_score'] as num?)?.toInt() ?? _riskScore;
+          final newHammerTestDone = data['hammer_test_done'] == true;
 
           final newConv =
               ReportModel.conversationFromJson(data['conversation']);
@@ -967,6 +972,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
             _severity = newSeverity;
             _riskLevel = newRiskLevel;
             _riskScore = newRiskScore;
+            _hammerTestDone = newHammerTestDone;
             if (newConv.isNotEmpty) {
               _conversation = newConv;
             }
@@ -1170,6 +1176,7 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
         'severity': _severity,
         'risk_level': _riskLevel,
         'risk_score': _riskScore,
+        'is_immediately_dangerous': _isImmediatelyDangerous,
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       }).eq('id', widget.report['id']);
 
@@ -1793,6 +1800,10 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
           _infoRow(
               'Location', _buildLocationSummary(widget.report['location'])),
           _infoRow('Created At', createdAt),
+          _infoRow(
+            'Hammer Test',
+            _hammerTestDone ? 'Completed' : 'Not completed',
+          ),
           const Divider(height: 24),
           // 風險指標
           Container(
@@ -2046,6 +2057,78 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
               const SizedBox(width: 8),
               _severityOption('severe', 'Severe', Colors.red),
             ],
+          ),
+          const Divider(height: 24),
+          // Immediately Dangerous toggle — Surveyor only
+          InkWell(
+            onTap: () {
+              setState(() {
+                _isImmediatelyDangerous = !_isImmediatelyDangerous;
+                _hasChanges = true;
+              });
+            },
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              decoration: BoxDecoration(
+                color: _isImmediatelyDangerous
+                    ? const Color(0xFFB71C1C).withOpacity(0.1)
+                    : Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: _isImmediatelyDangerous
+                      ? const Color(0xFFB71C1C)
+                      : Colors.grey.shade300,
+                  width: _isImmediatelyDangerous ? 2 : 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.dangerous,
+                    color: _isImmediatelyDangerous
+                        ? const Color(0xFFB71C1C)
+                        : Colors.grey,
+                    size: 22,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Immediately Dangerous',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: _isImmediatelyDangerous
+                                ? const Color(0xFFB71C1C)
+                                : AppTheme.textSecondary,
+                          ),
+                        ),
+                        Text(
+                          'Surveyor: flag if immediate hazard to occupants',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: _isImmediatelyDangerous,
+                    activeThumbColor: const Color(0xFFB71C1C),
+                    onChanged: (v) {
+                      setState(() {
+                        _isImmediatelyDangerous = v;
+                        _hasChanges = true;
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),

@@ -1359,7 +1359,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 760;
-          final titleBlock = Column(
+          const titleBlock = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
@@ -1409,7 +1409,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
 
           return Row(
             children: [
-              Expanded(
+              const Expanded(
                 child: titleBlock,
               ),
               const SizedBox(width: 24),
@@ -1836,22 +1836,22 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                   const DataColumn(
                       label: Text('#',
                           style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(
+                  const DataColumn(
                       label: Text('Title',
                           style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(
+                  const DataColumn(
                       label: Text('Category',
                           style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(
+                  const DataColumn(
                       label: Text('Risk Level',
                           style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(
+                  const DataColumn(
                       label: Text('Status',
                           style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(
+                  const DataColumn(
                       label: Text('Date',
                           style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataColumn(
+                  const DataColumn(
                       label: Text('Actions',
                           style: TextStyle(fontWeight: FontWeight.bold))),
                 ],

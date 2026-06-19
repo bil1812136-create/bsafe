@@ -98,8 +98,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       appBar: currentIndex == 4
           ? null // 位置頁面（InspectionScreen）有自己的 AppBar
           : AppBar(
-              title: Row(
-                children: const [
+              title: const Row(
+                children: [
                   Icon(Icons.shield, size: 24),
                   SizedBox(width: 8),
                   Expanded(
