@@ -352,7 +352,7 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
         .length;
 
     return SafeArea(
-      minimum: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+      minimum: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(30),
@@ -499,7 +499,6 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
       child: Scaffold(
         backgroundColor: Colors.grey.shade100,
         body: SafeArea(
-          bottom: false,
           child: Column(
             children: [
               Expanded(
@@ -605,7 +604,7 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
                                           children: [
                                             Text(
                                               _conversationTitle(
-                                                  selectedReport!),
+                                                  selectedReport),
                                               style: const TextStyle(
                                                 fontWeight: FontWeight.bold,
                                                 fontSize: 18,
@@ -614,9 +613,9 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
                                             const SizedBox(height: 4),
                                             Text(
                                               _threadSummary(
-                                                selectedReport!,
+                                                selectedReport,
                                                 _threadDisplayNumber(
-                                                    selectedReport!),
+                                                    selectedReport),
                                               ),
                                               style: TextStyle(
                                                 color: Colors.grey.shade600,
@@ -635,7 +634,7 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
                                       ),
                                       OutlinedButton.icon(
                                         onPressed: () =>
-                                            _openReportDetail(selectedReport!),
+                                            _openReportDetail(selectedReport),
                                         icon: const Icon(Icons.open_in_new,
                                             size: 18),
                                         label: const Text('View linked report'),
@@ -650,9 +649,9 @@ class _FollowUpScreenState extends State<FollowUpScreen> {
                                       _metaChip(
                                           'Category',
                                           _categoryLabel(
-                                              selectedReport!.category)),
+                                              selectedReport.category)),
                                       _metaChip('Status',
-                                          _statusLabel(selectedReport!.status)),
+                                          _statusLabel(selectedReport.status)),
                                       _metaChip(
                                           'Risk', selectedReport.riskLevel),
                                       _metaChip(

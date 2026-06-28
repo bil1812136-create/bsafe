@@ -280,6 +280,7 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
   bool _isAnalyzing = false;
   bool _isSubmitting = false;
   bool _isLoadingFloorPlans = true;
+  bool? _hammerTestDone;
   Map<String, dynamic>? _aiResult;
   List<String> _folderOptions = [];
   String? _selectedFolder;
@@ -806,6 +807,7 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
             description.isNotEmpty ? description : 'AI Analysis Result',
         category: category,
         severity: severity,
+        hammerTestDone: _hammerTestDone == true,
         imagePath: _selectedImage!.path,
         imageBase64: _imageBase64,
         location: locationWithRef,
@@ -825,6 +827,7 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
           _aiResult = null;
           _selectedPinX = null;
           _selectedPinY = null;
+          _hammerTestDone = null;
         });
         navigation.goToHistory();
       } else {
@@ -1186,6 +1189,70 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
               decoration: const InputDecoration(
                 labelText: 'Location text (editable)',
                 border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.rule_folder_outlined,
+                    size: 18,
+                    color: AppTheme.primaryColor,
+                  ),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Hammer Test',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 180,
+                    child: DropdownButtonFormField<bool>(
+                      isExpanded: true,
+                      isDense: true,
+                      value: _hammerTestDone,
+                      hint: const Text('Select'),
+                      decoration: InputDecoration(
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      items: const [
+                        DropdownMenuItem<bool>(
+                          value: true,
+                          child: Text('Completed'),
+                        ),
+                        DropdownMenuItem<bool>(
+                          value: false,
+                          child: Text('Not completed'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          _hammerTestDone = value;
+                        });
+                      },
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 14),

@@ -680,7 +680,7 @@ class _ReportScreenState extends State<ReportScreen> {
                             child: DropdownButtonFormField<bool>(
                               isExpanded: true,
                               isDense: true,
-                              value: _hammerTestDone,
+                              initialValue: _hammerTestDone,
                               hint: const Text('Select'),
                               decoration: InputDecoration(
                                 contentPadding: const EdgeInsets.symmetric(
