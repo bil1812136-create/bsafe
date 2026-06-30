@@ -2253,9 +2253,15 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
     final targetSessionId = locationRef['sessionId'] as String?;
     final targetPinId = locationRef['pinId'] as String?;
     final targetFloor = locationRef['floor'] as int?;
+    final targetPinXPercent = (locationRef['pinXPercent'] as num?)?.toDouble();
+    final targetPinYPercent = (locationRef['pinYPercent'] as num?)?.toDouble();
+    final legacyPinX = (locationRef['legacyPinX'] as num?)?.toDouble();
+    final legacyPinY = (locationRef['legacyPinY'] as num?)?.toDouble();
 
-    final reportX = (report['latitude'] as num?)?.toDouble();
-    final reportY = (report['longitude'] as num?)?.toDouble();
+    final reportX =
+      legacyPinX ?? (report['latitude'] as num?)?.toDouble();
+    final reportY =
+      legacyPinY ?? (report['longitude'] as num?)?.toDouble();
 
     final rows = await _supabase
         .from('inspection_sessions')
@@ -2272,23 +2278,58 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
       for (final row in sessions) {
         final payload = Map<String, dynamic>.from(
             row['payload'] as Map<String, dynamic>? ?? {});
-        final sessionId =
-            (payload['id'] ?? row['session_id'])?.toString() ?? '';
-        if (sessionId != targetSessionId) continue;
+        final payloadSessionId = payload['id']?.toString() ?? '';
+        final rowSessionId = row['session_id']?.toString() ?? '';
+        if (payloadSessionId != targetSessionId &&
+            rowSessionId != targetSessionId) {
+          continue;
+        }
 
         final pins = (payload['pins'] as List<dynamic>? ?? [])
             .map((p) => Map<String, dynamic>.from(p as Map))
             .toList();
 
+        var idx = -1;
         if (targetPinId != null && targetPinId.isNotEmpty) {
-          final idx = pins
+          idx = pins
               .indexWhere((p) => (p['id']?.toString() ?? '') == targetPinId);
-          if (idx >= 0) {
-            targetRow = row;
-            targetSession = payload;
-            targetPinIndex = idx;
-            break;
+        }
+
+        if (idx < 0 &&
+            targetPinXPercent != null &&
+            targetPinYPercent != null) {
+          idx = pins.indexWhere((p) {
+            final px =
+                ((p['pin_x_percent'] ?? p['pinXPercent']) as num?)?.toDouble();
+            final py =
+                ((p['pin_y_percent'] ?? p['pinYPercent']) as num?)?.toDouble();
+            if (px == null || py == null) return false;
+            return (px - targetPinXPercent).abs() <= 0.003 &&
+                (py - targetPinYPercent).abs() <= 0.003;
+          });
+        }
+
+        if (idx < 0 && reportX != null && reportY != null) {
+          double bestDistance = double.infinity;
+          for (int i = 0; i < pins.length; i++) {
+            final px = (pins[i]['x'] as num?)?.toDouble();
+            final py = (pins[i]['y'] as num?)?.toDouble();
+            if (px == null || py == null) continue;
+            final dx = px - reportX;
+            final dy = py - reportY;
+            final distance = dx * dx + dy * dy;
+            if (distance < bestDistance) {
+              bestDistance = distance;
+              idx = i;
+            }
           }
+        }
+
+        if (idx >= 0) {
+          targetRow = row;
+          targetSession = payload;
+          targetPinIndex = idx;
+          break;
         }
       }
     }
@@ -2300,6 +2341,15 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
             row['payload'] as Map<String, dynamic>? ?? {});
         if (payload.isEmpty) continue;
 
+        if (targetSessionId != null && targetSessionId.isNotEmpty) {
+          final payloadSessionId = payload['id']?.toString() ?? '';
+          final rowSessionId = row['session_id']?.toString() ?? '';
+          if (payloadSessionId != targetSessionId &&
+              rowSessionId != targetSessionId) {
+            continue;
+          }
+        }
+
         if (targetFloor != null) {
           final floor = (payload['floor'] as num?)?.toInt() ??
               (row['floor'] as num?)?.toInt();
@@ -2310,6 +2360,24 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
             .map((p) => Map<String, dynamic>.from(p as Map))
             .toList();
         if (pins.isEmpty) continue;
+
+        if (targetPinXPercent != null && targetPinYPercent != null) {
+          final idx = pins.indexWhere((p) {
+            final px =
+                ((p['pin_x_percent'] ?? p['pinXPercent']) as num?)?.toDouble();
+            final py =
+                ((p['pin_y_percent'] ?? p['pinYPercent']) as num?)?.toDouble();
+            if (px == null || py == null) return false;
+            return (px - targetPinXPercent).abs() <= 0.003 &&
+                (py - targetPinYPercent).abs() <= 0.003;
+          });
+          if (idx >= 0) {
+            targetRow = row;
+            targetSession = payload;
+            targetPinIndex = idx;
+            break;
+          }
+        }
 
         for (int i = 0; i < pins.length; i++) {
           final px = (pins[i]['x'] as num?)?.toDouble();
@@ -2351,14 +2419,50 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
   Map<String, dynamic> _extractInspectionRefFromLocation(String? location) {
     if (location == null || location.isEmpty) return {};
 
+    int? floor;
+    final floorMatch =
+        RegExp(r'\bF\s*(\d+)\b', caseSensitive: false).firstMatch(location);
+    if (floorMatch != null) {
+      floor = int.tryParse(floorMatch.group(1) ?? '');
+    }
+
+    final legacyPinMatch = RegExp(
+            r'Pin\s*\(\s*([-+]?\d+(?:\.\d+)?)\s*,\s*([-+]?\d+(?:\.\d+)?)\s*\)',
+            caseSensitive: false)
+        .firstMatch(location);
+    final percentMatch = RegExp(
+            r'pinXPercent\s*=\s*([-+]?\d+(?:\.\d+)?)\s*;\s*pinYPercent\s*=\s*([-+]?\d+(?:\.\d+)?)',
+            caseSensitive: false)
+        .firstMatch(location);
+
+    final legacyPinX = legacyPinMatch != null
+        ? double.tryParse(legacyPinMatch.group(1) ?? '')
+        : null;
+    final legacyPinY = legacyPinMatch != null
+        ? double.tryParse(legacyPinMatch.group(2) ?? '')
+        : null;
+    final pinXPercent = percentMatch != null
+        ? double.tryParse(percentMatch.group(1) ?? '')
+        : null;
+    final pinYPercent = percentMatch != null
+        ? double.tryParse(percentMatch.group(2) ?? '')
+        : null;
+
     final refIndex = location.indexOf('ref:');
-    if (refIndex < 0) return {};
+    if (refIndex < 0) {
+      return {
+        if (floor != null) 'floor': floor,
+        if (legacyPinX != null) 'legacyPinX': legacyPinX,
+        if (legacyPinY != null) 'legacyPinY': legacyPinY,
+        if (pinXPercent != null) 'pinXPercent': pinXPercent,
+        if (pinYPercent != null) 'pinYPercent': pinYPercent,
+      };
+    }
 
     final refText = location.substring(refIndex + 4).trim();
     final parts = refText.split(RegExp(r'[;,&]'));
     String? sessionId;
     String? pinId;
-    int? floor;
 
     for (final part in parts) {
       final kv = part.split('=');
@@ -2373,6 +2477,30 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
         pinId = value;
       } else if (key == 'floor') {
         floor = int.tryParse(value);
+      } else if (key == 'pinXPercent') {
+        final parsed = double.tryParse(value);
+        if (parsed != null) {
+          // keep latest parsed value from ref section
+        }
+      } else if (key == 'pinYPercent') {
+        final parsed = double.tryParse(value);
+        if (parsed != null) {
+          // keep latest parsed value from ref section
+        }
+      }
+    }
+
+    double? refPinXPercent = pinXPercent;
+    double? refPinYPercent = pinYPercent;
+    for (final part in parts) {
+      final kv = part.split('=');
+      if (kv.length != 2) continue;
+      final key = kv[0].trim();
+      final value = kv[1].trim();
+      if (key == 'pinXPercent') {
+        refPinXPercent = double.tryParse(value) ?? refPinXPercent;
+      } else if (key == 'pinYPercent') {
+        refPinYPercent = double.tryParse(value) ?? refPinYPercent;
       }
     }
 
@@ -2380,6 +2508,10 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
       if (sessionId != null) 'sessionId': sessionId,
       if (pinId != null) 'pinId': pinId,
       if (floor != null) 'floor': floor,
+      if (legacyPinX != null) 'legacyPinX': legacyPinX,
+      if (legacyPinY != null) 'legacyPinY': legacyPinY,
+      if (refPinXPercent != null) 'pinXPercent': refPinXPercent,
+      if (refPinYPercent != null) 'pinYPercent': refPinYPercent,
     };
   }
 }
