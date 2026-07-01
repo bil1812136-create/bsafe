@@ -2,7 +2,7 @@
     <!-- USB OTG 權限 -->
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />
     <application
-        android:label="bsafe_app"
+        android:label="BSAFE v2"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
