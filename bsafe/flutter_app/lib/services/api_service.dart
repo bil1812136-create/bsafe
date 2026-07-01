@@ -10,7 +10,7 @@ class ApiService {
   // Gemini API for AI image analysis
   static const String geminiApiKey =
       String.fromEnvironment('GEMINI_API_KEY', defaultValue: '');
-  static const String geminiModel = 'gemini-2.5-flash';
+  static const String geminiModel = 'gemini-3.5-flash';
   static const String geminiApiUrl =
       'https://generativelanguage.googleapis.com/v1beta/models';
 
@@ -130,7 +130,7 @@ class ApiService {
     // Build generationConfig with conditional thinkingConfig
     final generationConfig = <String, dynamic>{
       'temperature': 0.1,
-      'maxOutputTokens': 2048,
+      'maxOutputTokens': 3072,
     };
 
     // Enable thinking mode for models that require it (e.g., gemini-3.1-pro-preview)
@@ -223,7 +223,11 @@ Defect Category: [Concrete Spalling/Tile Debonding/Water Leakage/Unauthorized Bu
 
 Risk Level: [Risk Level, Short Reason]
 
-Access Control: [Suggesd Action]
+Severity: [Mild/Moderate/Severe, Short Reason]
+
+Recommended Action: [Immediate Repair/Monitor/Investigate, Short Reason]
+
+Access Control: [Suggested Action]
 
 
 Image Defect Analysis:
@@ -245,6 +249,10 @@ Example:
 Defect Category: Water Leakage
 
 Risk Level: Hazard level high, hygiene and falling plaster risks
+
+Severity: Severe, exposed reinforcement with corrosion and active delamination.
+
+Recommended Action: Immediate repair, stabilize loose concrete and protect occupants.
 
 Access Control: Cordon off corridor until repairs and drying completed.
 

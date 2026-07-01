@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:bsafe_app/providers/connectivity_provider.dart';
 import 'package:bsafe_app/providers/language_provider.dart';
@@ -286,6 +287,7 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
   String? _selectedFolder;
   List<Map<String, dynamic>> _floorPlanOptions = [];
   Map<String, dynamic>? _selectedFloorPlan;
+  double? _floorPlanAspectRatio;
   double? _selectedPinX;
   double? _selectedPinY;
 
@@ -333,6 +335,75 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
     _loadFloorPlanOptions();
   }
 
+  Future<void> _updateSelectedFloorPlanAspectRatio() async {
+    final selected = _selectedFloorPlan;
+    if (selected == null) {
+      if (mounted) setState(() => _floorPlanAspectRatio = null);
+      return;
+    }
+
+    final url = (selected['floorPlanUrl'] as String?)?.trim();
+    final base64Text = (selected['floorPlanBase64'] as String?)?.trim();
+    ImageProvider? provider;
+
+    if (url != null && url.isNotEmpty) {
+      provider = NetworkImage(url);
+    } else if (base64Text != null && base64Text.isNotEmpty) {
+      try {
+        provider = MemoryImage(base64Decode(base64Text));
+      } catch (_) {
+        provider = null;
+      }
+    }
+
+    if (provider == null) {
+      if (mounted) setState(() => _floorPlanAspectRatio = 16 / 9);
+      return;
+    }
+
+    final stream = provider.resolve(const ImageConfiguration());
+    final completer = Completer<double?>();
+    late final ImageStreamListener listener;
+    listener = ImageStreamListener(
+      (ImageInfo info, bool _) {
+        final width = info.image.width.toDouble();
+        final height = info.image.height.toDouble();
+        completer.complete((width > 0 && height > 0) ? width / height : null);
+        stream.removeListener(listener);
+      },
+      onError: (_, __) {
+        completer.complete(null);
+        stream.removeListener(listener);
+      },
+    );
+    stream.addListener(listener);
+
+    final ratio = await completer.future.timeout(
+      const Duration(seconds: 5),
+      onTimeout: () => null,
+    );
+
+    if (!mounted) return;
+    setState(() => _floorPlanAspectRatio = ratio ?? 16 / 9);
+  }
+
+  Rect _imageRectInBox(Size boxSize) {
+    final imageAspect = _floorPlanAspectRatio ?? (16 / 9);
+    final boxAspect = boxSize.width / boxSize.height;
+
+    if (boxAspect > imageAspect) {
+      final imageHeight = boxSize.height;
+      final imageWidth = imageHeight * imageAspect;
+      final left = (boxSize.width - imageWidth) / 2;
+      return Rect.fromLTWH(left, 0, imageWidth, imageHeight);
+    }
+
+    final imageWidth = boxSize.width;
+    final imageHeight = imageWidth / imageAspect;
+    final top = (boxSize.height - imageHeight) / 2;
+    return Rect.fromLTWH(0, top, imageWidth, imageHeight);
+  }
+
   @override
   void dispose() {
     _locationTextController.dispose();
@@ -375,15 +446,6 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
       setState(() {
         _aiResult = result;
       });
-
-      // Different feedback based on analysis mode
-      if (result != null && result['_ai_mode'] == 'local_fallback') {
-        _showMessage('✓ Local assessment used (network or region limitation)',
-            isError: false);
-      } else {
-        _showMessage('✓ AI analysis completed, ready to submit',
-            isError: false);
-      }
     } catch (e) {
       _showMessage('Analysis encountered an issue: $e', isError: true);
     } finally {
@@ -459,6 +521,7 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
           _locationTextController.clear();
         }
       });
+      await _updateSelectedFloorPlanAspectRatio();
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -466,6 +529,7 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
         _selectedFolder = null;
         _floorPlanOptions = [];
         _selectedFloorPlan = null;
+        _floorPlanAspectRatio = null;
       });
     } finally {
       if (mounted) setState(() => _isLoadingFloorPlans = false);
@@ -910,6 +974,7 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
                   _selectedFolder = value;
                   _selectedPinX = null;
                   _selectedPinY = null;
+                  _floorPlanAspectRatio = null;
                   final filtered = _filteredFloorPlanOptions;
                   _selectedFloorPlan =
                       filtered.isNotEmpty ? filtered.first : null;
@@ -917,6 +982,7 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
                       ? ''
                       : '${_selectedFloorPlan!['buildingName']} / ${_selectedFloorPlan!['label']} - No pin selected';
                 });
+                _updateSelectedFloorPlanAspectRatio();
               },
             ),
             const SizedBox(height: 10),
@@ -944,9 +1010,11 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
                   );
                   _selectedPinX = null;
                   _selectedPinY = null;
+                  _floorPlanAspectRatio = null;
                   _locationTextController.text =
                       '${_selectedFloorPlan!['buildingName']} / ${_selectedFloorPlan!['label']} - No pin selected';
                 });
+                _updateSelectedFloorPlanAspectRatio();
               },
             ),
           ],
@@ -1068,106 +1136,123 @@ class _HomeQuickReportPanelState extends State<_HomeQuickReportPanel> {
                         ?.isNotEmpty ==
                     true)) ...[
               const SizedBox(height: 10),
-              AspectRatio(
-                aspectRatio: 16 / 9,
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    return GestureDetector(
-                      onTapDown: (details) {
-                        final local = details.localPosition;
-                        final nx =
-                            (local.dx / constraints.maxWidth).clamp(0.0, 1.0);
-                        final ny =
-                            (local.dy / constraints.maxHeight).clamp(0.0, 1.0);
-                        setState(() {
-                          _selectedPinX = nx * 100;
-                          _selectedPinY = (1 - ny) * 100;
-                          _locationTextController.text =
-                              '${_selectedFloorPlan!['buildingName']} / ${_selectedFloorPlan!['label']} - Pin(${_selectedPinX!.toStringAsFixed(1)}, ${_selectedPinY!.toStringAsFixed(1)})';
-                        });
-                      },
-                      child: Stack(
-                        children: [
-                          Positioned.fill(
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(10),
-                              child: (_selectedFloorPlan!['floorPlanUrl']
-                                              as String?)
-                                          ?.isNotEmpty ==
-                                      true
-                                  ? Image.network(
-                                      _selectedFloorPlan!['floorPlanUrl']
-                                          as String,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) {
-                                        final fallback = (_selectedFloorPlan![
-                                                'floorPlanBase64'] as String?)
-                                            ?.trim();
-                                        if (fallback != null &&
-                                            fallback.isNotEmpty) {
-                                          return Image.memory(
-                                            base64Decode(fallback),
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (_, __, ___) =>
-                                                Container(
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 320),
+                  child: AspectRatio(
+                    aspectRatio: _floorPlanAspectRatio ?? (16 / 9),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final boxSize =
+                            Size(constraints.maxWidth, constraints.maxHeight);
+                        final imageRect = _imageRectInBox(boxSize);
+                        return GestureDetector(
+                          onTapDown: (details) {
+                            final local = details.localPosition;
+                            if (!imageRect.contains(local)) return;
+
+                            final nx =
+                                ((local.dx - imageRect.left) / imageRect.width)
+                                    .clamp(0.0, 1.0);
+                            final ny =
+                                ((local.dy - imageRect.top) / imageRect.height)
+                                    .clamp(0.0, 1.0);
+                            setState(() {
+                              _selectedPinX = nx * 100;
+                              _selectedPinY = (1 - ny) * 100;
+                              _locationTextController.text =
+                                  '${_selectedFloorPlan!['buildingName']} / ${_selectedFloorPlan!['label']} - Pin(${_selectedPinX!.toStringAsFixed(1)}, ${_selectedPinY!.toStringAsFixed(1)})';
+                            });
+                          },
+                          child: Stack(
+                            children: [
+                              Positioned.fill(
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: (_selectedFloorPlan!['floorPlanUrl']
+                                                  as String?)
+                                              ?.isNotEmpty ==
+                                          true
+                                      ? Image.network(
+                                          _selectedFloorPlan!['floorPlanUrl']
+                                              as String,
+                                          fit: BoxFit.contain,
+                                          errorBuilder: (_, __, ___) {
+                                            final fallback =
+                                                (_selectedFloorPlan![
+                                                            'floorPlanBase64']
+                                                        as String?)
+                                                    ?.trim();
+                                            if (fallback != null &&
+                                                fallback.isNotEmpty) {
+                                              return Image.memory(
+                                                base64Decode(fallback),
+                                                fit: BoxFit.contain,
+                                                errorBuilder: (_, __, ___) =>
+                                                    Container(
+                                                  color: Colors.grey.shade100,
+                                                  alignment: Alignment.center,
+                                                  child: const Text(
+                                                      'Failed to load floor plan'),
+                                                ),
+                                              );
+                                            }
+                                            return Container(
                                               color: Colors.grey.shade100,
                                               alignment: Alignment.center,
                                               child: const Text(
                                                   'Failed to load floor plan'),
-                                            ),
-                                          );
-                                        }
-                                        return Container(
-                                          color: Colors.grey.shade100,
-                                          alignment: Alignment.center,
-                                          child: const Text(
-                                              'Failed to load floor plan'),
-                                        );
-                                      },
-                                    )
-                                  : Image.memory(
-                                      base64Decode(
-                                        _selectedFloorPlan!['floorPlanBase64']
-                                            as String,
-                                      ),
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) => Container(
-                                        color: Colors.grey.shade100,
-                                        alignment: Alignment.center,
-                                        child: const Text(
-                                            'Failed to load floor plan'),
-                                      ),
-                                    ),
-                            ),
-                          ),
-                          if (_selectedPinX != null && _selectedPinY != null)
-                            Positioned(
-                              left: constraints.maxWidth *
-                                      (_selectedPinX! / 100) -
-                                  10,
-                              top: constraints.maxHeight *
-                                      (1 - (_selectedPinY! / 100)) -
-                                  10,
-                              child: Container(
-                                width: 20,
-                                height: 20,
-                                decoration: BoxDecoration(
-                                  color: Colors.red,
-                                  shape: BoxShape.circle,
-                                  border:
-                                      Border.all(color: Colors.white, width: 2),
-                                ),
-                                child: const Icon(
-                                  Icons.place,
-                                  size: 12,
-                                  color: Colors.white,
+                                            );
+                                          },
+                                        )
+                                      : Image.memory(
+                                          base64Decode(
+                                            _selectedFloorPlan![
+                                                'floorPlanBase64'] as String,
+                                          ),
+                                          fit: BoxFit.contain,
+                                          errorBuilder: (_, __, ___) =>
+                                              Container(
+                                            color: Colors.grey.shade100,
+                                            alignment: Alignment.center,
+                                            child: const Text(
+                                                'Failed to load floor plan'),
+                                          ),
+                                        ),
                                 ),
                               ),
-                            ),
-                        ],
-                      ),
-                    );
-                  },
+                              if (_selectedPinX != null &&
+                                  _selectedPinY != null)
+                                Positioned(
+                                  left: imageRect.left +
+                                      imageRect.width * (_selectedPinX! / 100) -
+                                      10,
+                                  top: imageRect.top +
+                                      imageRect.height *
+                                          (1 - (_selectedPinY! / 100)) -
+                                      10,
+                                  child: Container(
+                                    width: 20,
+                                    height: 20,
+                                    decoration: BoxDecoration(
+                                      color: Colors.red,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                          color: Colors.white, width: 2),
+                                    ),
+                                    child: const Icon(
+                                      Icons.place,
+                                      size: 12,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 6),

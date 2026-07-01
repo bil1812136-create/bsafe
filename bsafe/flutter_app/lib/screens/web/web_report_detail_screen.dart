@@ -1014,6 +1014,25 @@ class _WebReportDetailScreenState extends State<WebReportDetailScreen> {
       parsed['imageItems'] as List<String>? ?? <String>[],
     );
 
+    // Backfill common fields when model output varies by heading style.
+    final riskLevel = (fields['Risk Level'] ?? '').toLowerCase();
+    if ((fields['Severity'] ?? '').trim().isEmpty) {
+      if (riskLevel.contains('high')) {
+        fields['Severity'] = 'Severe, derived from high risk level.';
+      } else if (riskLevel.contains('low')) {
+        fields['Severity'] = 'Mild, derived from low risk level.';
+      } else if (riskLevel.isNotEmpty) {
+        fields['Severity'] = 'Moderate, derived from risk level.';
+      }
+    }
+
+    if ((fields['Recommended Action'] ?? '').trim().isEmpty) {
+      final accessControl = (fields['Access Control'] ?? '').trim();
+      if (accessControl.isNotEmpty) {
+        fields['Recommended Action'] = accessControl;
+      }
+    }
+
     final order = <String>[];
     for (final label in _baseAnalysisFieldLabels) {
       order.add(label);

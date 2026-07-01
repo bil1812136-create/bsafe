@@ -2258,10 +2258,8 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
     final legacyPinX = (locationRef['legacyPinX'] as num?)?.toDouble();
     final legacyPinY = (locationRef['legacyPinY'] as num?)?.toDouble();
 
-    final reportX =
-      legacyPinX ?? (report['latitude'] as num?)?.toDouble();
-    final reportY =
-      legacyPinY ?? (report['longitude'] as num?)?.toDouble();
+    final reportX = legacyPinX ?? (report['latitude'] as num?)?.toDouble();
+    final reportY = legacyPinY ?? (report['longitude'] as num?)?.toDouble();
 
     final rows = await _supabase
         .from('inspection_sessions')
@@ -2295,9 +2293,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
               .indexWhere((p) => (p['id']?.toString() ?? '') == targetPinId);
         }
 
-        if (idx < 0 &&
-            targetPinXPercent != null &&
-            targetPinYPercent != null) {
+        if (idx < 0 && targetPinXPercent != null && targetPinYPercent != null) {
           idx = pins.indexWhere((p) {
             final px =
                 ((p['pin_x_percent'] ?? p['pinXPercent']) as num?)?.toDouble();
