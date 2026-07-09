@@ -1,0 +1,8 @@
+[build]
+  command = "flutter pub get && flutter build web --release --target lib/main_web.dart"
+  publish = "build/web"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

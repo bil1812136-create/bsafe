@@ -204,6 +204,34 @@ flutter run -d chrome --target lib/main_web.dart
 flutter build web --target lib/main_web.dart
 ```
 
+## Deploy To Netlify
+
+This project can be deployed to Netlify as a static Flutter Web app.
+
+### Required Netlify settings
+
+- Base directory: `bsafe/flutter_app` (or the folder containing `pubspec.yaml`)
+- Build command: `flutter pub get && flutter build web --release --target lib/main_web.dart`
+- Publish directory: `build/web`
+
+`netlify.toml` is included with the correct build and SPA redirect settings.
+
+### Why the 404 page appears
+
+Netlify shows "Page not found" when either:
+
+- The publish directory is wrong (not pointing to `build/web`), or
+- SPA routes are missing redirect rules.
+
+This repo now includes an SPA fallback redirect in `netlify.toml`:
+
+```toml
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+```
+
 ## Main Workflows
 
 ### Worker report flow
