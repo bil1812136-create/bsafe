@@ -1,5 +1,13 @@
 [build]
-  command = "flutter pub get && flutter build web --release --target lib/main_web.dart"
+  command = """
+if [ ! -d \"$HOME/flutter-sdk\" ]; then
+  git clone https://github.com/flutter/flutter.git --depth 1 -b stable \"$HOME/flutter-sdk\"
+fi
+export PATH=\"$HOME/flutter-sdk/bin:$PATH\"
+flutter --version
+flutter pub get
+flutter build web --release --target lib/main_web.dart
+"""
   publish = "build/web"
 
 [[redirects]]
